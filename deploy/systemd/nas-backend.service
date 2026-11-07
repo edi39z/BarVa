@@ -1,0 +1,34 @@
+[Unit]
+Description=NAS Project Backend Daemon (Go Modular Monolith)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=nas
+Group=nas
+WorkingDirectory=/opt/nas/backend
+ExecStart=/opt/nas/backend/bin/server
+Restart=always
+RestartSec=5s
+
+# Environment Variables
+Environment="PORT=8080"
+Environment="DATABASE_URL=postgres://nas:nas_secure_pass@localhost:5432/nas_db?sslmode=disable"
+Environment="STORAGE_DIR=/opt/nas/data/storage"
+Environment="TEMP_DIR=/opt/nas/data/tmp"
+Environment="GIN_MODE=release"
+# Opsional — isi untuk membuka endpoint Drive/undangan dari luar jaringan lokal.
+# Environment="NAS_ADMIN_KEY=isi-dengan-key-panjang-acak"
+# Environment="ALLOWED_ORIGINS=https://nas.example.com"
+# Environment="MAX_UPLOAD_BYTES=10737418240"
+
+# Security & Isolation Hardening
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

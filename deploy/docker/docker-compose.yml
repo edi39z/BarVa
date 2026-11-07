@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: nas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nas_admin
+      POSTGRES_PASSWORD: nas_secure_password_2026
+      POSTGRES_DB: nas_db
+    volumes:
+      - nas_pgdata:/var/lib/postgresql/data
+      - ../../migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nas_admin -d nas_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nas-network
+
+  nas-backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: nas-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://nas_admin:nas_secure_password_2026@postgres:5432/nas_db?sslmode=disable"
+      STORAGE_DIR: "/data/storage"
+      TEMP_DIR: "/data/tmp"
+      GIN_MODE: "release"
+      # Opsional: aktifkan proteksi endpoint Drive & undangan.
+      NAS_ADMIN_KEY: "${NAS_ADMIN_KEY:-}"
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-}"
+      MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-}"
+    volumes:
+      - nas_storage:/data/storage
+      - nas_tmp:/data/tmp
+    ports:
+      - "8080:8080"
+    networks:
+      - nas-network
+
+volumes:
+  nas_pgdata:
+  nas_storage:
+  nas_tmp:
+
+networks:
+  nas-network:
+    driver: bridge
