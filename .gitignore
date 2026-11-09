@@ -62,6 +62,11 @@ agent.md
 AGENTS.md
 **/AGENTS.md
 
+# Dokumentasi publik tetap ikut di-push, termasuk nama file yang
+# sekaligus di-ignore di atas (ROADMAP.md, AGENTS.md).
+!documentation/
+!documentation/**
+
 # ==========================================
 # Mockup / Screenshot
 # ==========================================

@@ -7,9 +7,16 @@ pribadi** untuk kapasitas multi-terabyte, streaming video, dan deduplikasi file.
 Dibangun dengan Next.js + Go + PostgreSQL. Tidak ada layanan cloud wajib, tidak
 ada langganan, dan file tetap di tangan Anda.
 
-> **Status:** MVP aktif dikembangkan. Fitur inti (auth, upload, streaming,
-> Google Drive, undangan keluarga) sudah berjalan; lihat [Status Fitur](#status-fitur)
-> untuk yang belum selesai.
+> **Status:** MVP aktif dikembangkan. Fitur inti (auth, file manager, streaming,
+> Google Drive, undangan keluarga, share link) sudah berjalan; lihat
+> [Status Fitur](#status-fitur) untuk yang belum selesai.
+
+**Dokumentasi lengkap ada di [`documentation/`](documentation/):**
+[Arsitektur](documentation/ARCHITECTURE.md) ·
+[Setup](documentation/SETUP.md) ·
+[API](documentation/API.md) ·
+[Kontribusi](documentation/CONTRIBUTING.md) ·
+[Roadmap](documentation/ROADMAP.md)
 
 ---
 
@@ -111,6 +118,7 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 │       ├── components/      # AuthGate, GoogleDrivePanel, InviteAccept
 │       └── lib/api/         # klien backend (nas.ts, cloud.ts)
 ├── migrations/              # skema PostgreSQL (SQL statis)
+├── documentation/           # arsitektur, setup, API, kontribusi, roadmap
 ├── deploy/
 │   ├── docker/              # docker-compose.yml
 │   ├── nginx/               # konfigurasi reverse proxy
