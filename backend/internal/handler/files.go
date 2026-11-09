@@ -112,6 +112,9 @@ func (h *FilesHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
 		return
 	}
+	if nodes == nil {
+		nodes = []db.ListNodesByParentRow{}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": nodes})
 }

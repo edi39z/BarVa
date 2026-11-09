@@ -146,7 +146,7 @@ func main() {
 	// 3b. Fitur yang TIDAK bergantung pada PostgreSQL.
 	// Google Drive OAuth & undangan keluarga disimpan sebagai file JSON,
 	// sehingga tetap berfungsi walau database belum menyala.
-	appURL := getEnv("APP_URL", "http://localhost:3001")
+	appURL := getEnv("APP_URL", "http://localhost:3000")
 	dataDir := getEnv("DATA_DIR", "./data")
 
 	gdriveHandler, err := handler.NewGDriveHandler(filepath.Join(dataDir, "gdrive.json"), appURL)

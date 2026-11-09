@@ -39,6 +39,7 @@ import {
   Copy,
   Lock,
   Unlock,
+  LogOut,
   Globe,
   ArrowRight,
   ShieldCheck,
@@ -81,8 +82,13 @@ import {
   setStoredServerUrl,
   uploadToNas,
   getStreamUrl,
+  getStoredToken,
+  fetchMe,
+  logoutNas,
   NasHealthResponse,
+  NasUser,
 } from "@/lib/api/nas";
+import AuthGate from "@/components/AuthGate";
 
 interface DisplayItem {
   id: string;
@@ -150,6 +156,8 @@ export default function Home() {
   const [serverUrl, setServerUrl] = useState<string>("http://localhost:8080");
   const [inputServerUrl, setInputServerUrl] = useState<string>("http://localhost:8080");
   const [inputAdminKey, setInputAdminKey] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<NasUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [nasHealth, setNasHealth] = useState<NasHealthResponse | null>(null);
   const [nasStatus, setNasStatus] = useState<"online" | "offline" | "checking">("checking");
   const [nasLatency, setNasLatency] = useState<number | null>(null);
@@ -397,6 +405,33 @@ export default function Home() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Validasi token sesi NAS yang tersimpan saat aplikasi dibuka.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!getStoredToken()) {
+        setAuthReady(true);
+        return;
+      }
+      try {
+        const user = await fetchMe();
+        if (alive) setCurrentUser(user);
+      } catch {
+        if (alive) setCurrentUser(null);
+      } finally {
+        if (alive) setAuthReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    await logoutNas();
+    setCurrentUser(null);
+  };
 
   const handleRevokeInvite = async (id: string) => {
     if (!confirm("Cabut undangan ini? Tautan akan langsung tidak berlaku.")) return;
@@ -936,6 +971,16 @@ export default function Home() {
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Gerbang login: mode NAS wajib punya sesi; standalone tetap bebas.
+  if (connectionMode === "nas" && authReady && !currentUser) {
+    return (
+      <AuthGate
+        onAuthed={(user) => setCurrentUser(user)}
+        onSkip={() => setConnectionMode("standalone")}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen w-full bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
       {/* Hidden file input for real uploads */}
@@ -1148,6 +1193,31 @@ export default function Home() {
             </div>
             <p className="text-[11px] text-zinc-500">IndexedDB Client Aktif • {localItems.length} File Tersimpan</p>
           </div>
+
+          {currentUser && (
+            <div className="flex items-center justify-between bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-zinc-200 truncate">
+                  {currentUser.username}
+                </p>
+                <p className="text-[10px] text-zinc-500 truncate">
+                  {currentUser.email}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                  {currentUser.role}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  title="Keluar"
+                  className="text-zinc-500 hover:text-rose-300 transition-colors cursor-pointer"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-2.5">

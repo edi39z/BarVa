@@ -135,3 +135,89 @@ export function getDownloadUrl(fileId: string): string {
 	}
 	return `${base}/api/v1/files/${fileId}/download`;
 }
+
+// ---------------- Autentikasi NAS ----------------
+
+export interface NasUser {
+	id: string;
+	email: string;
+	username: string;
+	role: "owner" | "admin" | "member";
+	created_at?: string;
+}
+
+interface ApiError {
+	error?: { code?: string; message?: string };
+}
+
+async function parseError(res: Response): Promise<string> {
+	try {
+		const data = (await res.json()) as ApiError;
+		return data.error?.message || `Permintaan gagal (${res.status})`;
+	} catch {
+		return `Permintaan gagal (${res.status})`;
+	}
+}
+
+export async function registerNas(input: {
+	email: string;
+	username: string;
+	password: string;
+}): Promise<NasUser> {
+	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/register`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(input),
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasUser };
+	return json.data;
+}
+
+export async function loginNas(input: {
+	email: string;
+	password: string;
+}): Promise<{ token: string; user: NasUser }> {
+	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/login`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(input),
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as {
+		data: { token: string; user: NasUser };
+	};
+	setStoredToken(json.data.token);
+	return json.data;
+}
+
+export async function fetchMe(): Promise<NasUser | null> {
+	const token = getStoredToken();
+	if (!token) return null;
+
+	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/me`, {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+	if (res.status === 401) {
+		setStoredToken(null);
+		return null;
+	}
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasUser };
+	return json.data;
+}
+
+export async function logoutNas(): Promise<void> {
+	const token = getStoredToken();
+	if (token) {
+		try {
+			await fetch(`${getStoredServerUrl()}/api/v1/auth/logout`, {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}` },
+			});
+		} catch {
+			// tetap hapus token lokal meski server tidak terjangkau
+		}
+	}
+	setStoredToken(null);
+}

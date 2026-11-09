@@ -89,6 +89,15 @@ func pkcePair() (verifier, challenge string) {
 	return
 }
 
+func scopeGranted(granted, want string) bool {
+	for _, s := range strings.Fields(granted) {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
 // accessToken mengembalikan access token yang masih valid, atau me-refresh
 // memakai refresh token bila sudah kedaluwarsa (kurang dari 2 menit lagi).
 func (h *GDriveHandler) accessToken() (string, error) {
@@ -153,17 +162,17 @@ func (h *GDriveHandler) Status(c *gin.Context) {
 	cfg, _ := h.load()
 	connected := cfg.RefreshToken != ""
 	c.JSON(http.StatusOK, gin.H{
-		"has_client":    cfg.ClientID != "" && cfg.ClientSecret != "",
-		"connected":     connected,
-		"email":         cfg.Email,
-		"scope":         cfg.Scope,
-		"connected_at":  cfg.ConnectedAt,
-		"redirect_uri":  cfg.RedirectURI,
-		"token_valid":   cfg.AccessToken != "" && time.Now().Unix() < cfg.AccessExpiry,
-		"expires_at":    cfg.AccessExpiry,
-		"full_drive":    strings.Contains(cfg.Scope, "auth/drive") && !strings.Contains(cfg.Scope, "drive.file"),
-		"server_time":   time.Now().Format(time.RFC3339),
-})
+		"has_client":   cfg.ClientID != "" && cfg.ClientSecret != "",
+		"connected":    connected,
+		"email":        cfg.Email,
+		"scope":        cfg.Scope,
+		"connected_at": cfg.ConnectedAt,
+		"redirect_uri": cfg.RedirectURI,
+		"token_valid":  cfg.AccessToken != "" && time.Now().Unix() < cfg.AccessExpiry,
+		"expires_at":   cfg.AccessExpiry,
+		"full_drive":   strings.Contains(cfg.Scope, "auth/drive") && !strings.Contains(cfg.Scope, "drive.file"),
+		"server_time":  time.Now().Format(time.RFC3339),
+	})
 }
 
 // SaveClient -> POST /api/v1/gdrive/client
@@ -233,8 +242,8 @@ func (h *GDriveHandler) AuthURL(c *gin.Context) {
 	q.Set("redirect_uri", redirect)
 	q.Set("response_type", "code")
 	q.Set("scope", driveScope)
-	q.Set("access_type", "offline")   // minta refresh token
-	q.Set("prompt", "consent")        // paksa refresh token walau sudah pernah izin
+	q.Set("access_type", "offline") // minta refresh token
+	q.Set("prompt", "consent")      // paksa refresh token walau sudah pernah izin
 	q.Set("include_granted_scopes", "true")
 	q.Set("state", state)
 	q.Set("code_challenge", challenge)
@@ -297,6 +306,14 @@ func (h *GDriveHandler) Callback(c *gin.Context) {
 	}
 	if err := json.Unmarshal(body, &tok); err != nil {
 		h.redirectBack(c, "error", "respons_tidak_valid")
+		return
+	}
+
+	// Google bisa mengembalikan token tanpa scope Drive (mis. scope belum
+	// didaftarkan di consent screen atau centang izin dilepas pengguna).
+	// Jangan simpan token seperti itu — fitur Drive tidak akan bekerja.
+	if !scopeGranted(tok.Scope, "https://www.googleapis.com/auth/drive") {
+		h.redirectBack(c, "error", "scope_drive_ditolak")
 		return
 	}
 

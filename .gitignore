@@ -46,6 +46,12 @@ invites.json
 backend/data/
 
 # ==========================================
+# Local Toolchain & Database Cluster
+# ==========================================
+.tools/
+.pgdata/
+
+# ==========================================
 # Dokumentasi (lokal saja, tidak di-push)
 # ==========================================
 docs/
