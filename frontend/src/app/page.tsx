@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Folder,
   FileText,
@@ -82,9 +82,14 @@ import {
   setStoredServerUrl,
   uploadToNas,
   getStreamUrl,
+  getDownloadUrl,
   getStoredToken,
   fetchMe,
   logoutNas,
+  listNasFiles,
+  createNasFolder,
+  deleteNasFile,
+  NasFileNode,
   NasHealthResponse,
   NasUser,
 } from "@/lib/api/nas";
@@ -111,6 +116,51 @@ function formatBytes(bytes: number): string {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+// Ubah node dari backend Go menjadi bentuk yang dipakai UI.
+function nasNodeToDisplay(node: NasFileNode): DisplayItem {
+  const mime = (node.MimeType || "").toLowerCase();
+  const lowerName = node.Name.toLowerCase();
+
+  let type: DisplayItem["type"] = "document";
+  if (node.IsDirectory) {
+    type = "folder";
+  } else if (mime.startsWith("image/")) {
+    type = "image";
+  } else if (mime.startsWith("video/") || mime.startsWith("audio/")) {
+    type = "video";
+  } else if (
+    mime.startsWith("application/zip") ||
+    mime.startsWith("application/x-rar") ||
+    mime.startsWith("application/x-7z") ||
+    mime.startsWith("application/gzip") ||
+    lowerName.endsWith(".zip") ||
+    lowerName.endsWith(".rar") ||
+    lowerName.endsWith(".7z") ||
+    lowerName.endsWith(".tar.gz")
+  ) {
+    type = "archive";
+  }
+
+  const size = node.SizeBytes ?? 0;
+  const timestamp = node.UpdatedAt || node.CreatedAt;
+
+  return {
+    id: node.ID,
+    name: node.Name,
+    type,
+    sizeStr: node.IsDirectory ? "Folder" : formatBytes(size),
+    sizeBytes: size,
+    updatedAt: timestamp
+      ? new Date(timestamp).toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "—",
+    parentId: node.ParentID,
+  };
 }
 
 interface FamilyMember {
@@ -219,6 +269,11 @@ export default function Home() {
   // Local storage items from IndexedDB
   const [localItems, setLocalItems] = useState<DisplayItem[]>([]);
 
+  // File manager NAS — daftar file yang benar-benar ada di server
+  const [nasItems, setNasItems] = useState<DisplayItem[]>([]);
+  const [nasFilesLoading, setNasFilesLoading] = useState(false);
+  const [nasFilesError, setNasFilesError] = useState("");
+
   // Studio State
   const [activeStudioTool, setActiveStudioTool] = useState<"img2pdf" | "mergepdf" | "idphoto" | "compress">("img2pdf");
   const [studioProcessing, setStudioProcessing] = useState(false);
@@ -296,6 +351,29 @@ export default function Home() {
 
     return () => clearInterval(pingInterval);
   }, []);
+
+  // Muat isi folder aktif langsung dari server NAS.
+  const loadNasFiles = useCallback(async (parentId: string | null) => {
+    setNasFilesLoading(true);
+    setNasFilesError("");
+    try {
+      const nodes = await listNasFiles(parentId);
+      setNasItems(nodes.map(nasNodeToDisplay));
+    } catch (err) {
+      setNasItems([]);
+      setNasFilesError((err as Error).message);
+    } finally {
+      setNasFilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (connectionMode !== "nas" || !currentUser) {
+      setNasItems([]);
+      return;
+    }
+    loadNasFiles(currentFolderId);
+  }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
 
   // Ping Test Handler
   const handleTestPing = async () => {
@@ -524,6 +602,32 @@ export default function Home() {
     setCurrentFolderId(parentTarget.id);
   };
 
+  const handleCreateFolder = async () => {
+    const folderName = prompt("Masukkan nama folder baru:");
+    if (!folderName) return;
+
+    if (connectionMode === "nas") {
+      try {
+        await createNasFolder(folderName, currentFolderId);
+        await loadNasFiles(currentFolderId);
+      } catch (err) {
+        alert(`Gagal membuat folder: ${(err as Error).message}`);
+      }
+      return;
+    }
+
+    const newFolder: DisplayItem = {
+      id: crypto.randomUUID(),
+      name: folderName,
+      type: "folder",
+      sizeStr: "0 item",
+      sizeBytes: 0,
+      updatedAt: "Baru saja",
+      parentId: currentFolderId,
+    };
+    setLocalItems((prev) => [newFolder, ...prev]);
+  };
+
   // Google Drive Live Connect Handler
   const handleConnectLiveGDrive = async () => {
     setIsConnectingGdrive(true);
@@ -597,18 +701,21 @@ export default function Home() {
       else if (file.type.startsWith("video/")) type = "video";
       else if (file.name.endsWith(".zip") || file.name.endsWith(".tar.gz") || file.name.endsWith(".rar")) type = "archive";
 
-      // 1. If NAS is online, stream directly to Go backend
-      if (connectionMode === "nas" && nasStatus === "online") {
-        try {
-          await uploadToNas(file, undefined, (percent) => {
-            setUploadProgress(Math.max(15, percent));
-          });
-        } catch (nasErr) {
-          console.warn("Upload to NAS failed, falling back to local IDB cache:", nasErr);
-        }
+      // Mode NAS: unggah ke server, lalu ambil ulang daftar dari server
+      // supaya yang tampil adalah data nyata, bukan salinan lokal.
+      if (connectionMode === "nas") {
+        await uploadToNas(file, currentFolderId, (percent) => {
+          setUploadProgress(Math.max(10, percent));
+        });
+        setUploadProgress(100);
+        await loadNasFiles(currentFolderId);
+        setTimeout(() => {
+          setIsUploading(false);
+        }, 400);
+        return;
       }
 
-      // 2. Also persist in local IndexedDB for instant offline availability
+      // Mode standalone: simpan di IndexedDB browser.
       setUploadProgress(85);
       const saved = await saveLocalFile(file.name, file, type, file.type);
       setUploadProgress(100);
@@ -632,11 +739,11 @@ export default function Home() {
       }, 400);
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Gagal menyimpan file.");
+      alert(`Gagal menyimpan file: ${(err as Error).message}`);
       setIsUploading(false);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // Unified Storage Picker Handlers for Studio
@@ -758,6 +865,11 @@ export default function Home() {
 
   // Real Download Blob
   const handleDownload = (item: DisplayItem) => {
+    // Mode NAS: unduh langsung dari server (endpoint menerima token lewat query).
+    if (connectionMode === "nas" && item.type !== "folder") {
+      window.open(getDownloadUrl(item.id), "_blank", "noopener");
+      return;
+    }
     if (item.blob) {
       const url = URL.createObjectURL(item.blob);
       const a = document.createElement("a");
@@ -773,6 +885,19 @@ export default function Home() {
   // Real Delete
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (connectionMode === "nas") {
+      if (!confirm("Hapus item ini dari server NAS?")) return;
+      try {
+        await deleteNasFile(id);
+        setNasItems((prev) => prev.filter((item) => item.id !== id));
+        if (selectedMedia?.id === id) setSelectedMedia(null);
+      } catch (err) {
+        alert(`Gagal menghapus: ${(err as Error).message}`);
+      }
+      return;
+    }
+
     if (!confirm("Hapus file ini dari penyimpanan lokal?")) return;
     try {
       await deleteLocalFile(id);
@@ -786,6 +911,12 @@ export default function Home() {
   // Real Toggle Fav
   const handleFav = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (connectionMode === "nas") {
+      alert("Favorit belum tersedia untuk file di server NAS.");
+      return;
+    }
+
     try {
       const isFav = await toggleFavorite(id);
       setLocalItems((prev) =>
@@ -967,7 +1098,10 @@ export default function Home() {
     }
   };
 
-  const filteredFiles = localItems.filter((f) =>
+  // Sumber data UI: server NAS saat mode NAS, IndexedDB saat standalone.
+  const activeItems = connectionMode === "nas" ? nasItems : localItems;
+
+  const filteredFiles = activeItems.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -1064,7 +1198,7 @@ export default function Home() {
               <Folder className="h-4 w-4" />
               <span>Semua File</span>
               <span className="ml-auto text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">
-                {localItems.length}
+                {activeItems.length}
               </span>
             </button>
 
@@ -1079,7 +1213,7 @@ export default function Home() {
               <ImageIcon className="h-4 w-4" />
               <span>Galeri Media</span>
               <span className="ml-auto text-[11px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">
-                {localItems.filter((i) => i.type === "image" || i.type === "video").length}
+                {activeItems.filter((i) => i.type === "image" || i.type === "video").length}
               </span>
             </button>
 
@@ -1167,10 +1301,11 @@ export default function Home() {
           <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-zinc-400 flex items-center gap-1.5">
-                <HardDrive className="h-3.5 w-3.5 text-blue-400" /> Local Storage (IDB)
+                <HardDrive className="h-3.5 w-3.5 text-blue-400" />
+                {connectionMode === "nas" ? "Penyimpanan NAS" : "Local Storage (IDB)"}
               </span>
               <span className="font-mono text-zinc-300 font-medium">
-                {formatBytes(localItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0))}
+                {formatBytes(activeItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0))}
               </span>
             </div>
             <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
@@ -1180,9 +1315,9 @@ export default function Home() {
                   width: `${Math.min(
                     100,
                     Math.max(
-                      localItems.length > 0 ? 5 : 0,
+                      activeItems.length > 0 ? 5 : 0,
                       Math.round(
-                        (localItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0) /
+                        (activeItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0) /
                           (50 * 1024 * 1024 * 1024)) *
                           100
                       )
@@ -1191,7 +1326,11 @@ export default function Home() {
                 }}
               />
             </div>
-            <p className="text-[11px] text-zinc-500">IndexedDB Client Aktif • {localItems.length} File Tersimpan</p>
+            <p className="text-[11px] text-zinc-500">
+              {connectionMode === "nas"
+                ? `Server NAS • ${activeItems.length} item di folder ini`
+                : `IndexedDB Client Aktif • ${activeItems.length} File Tersimpan`}
+            </p>
           </div>
 
           {currentUser && (
@@ -1300,21 +1439,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={() => {
-                const folderName = prompt("Masukkan nama folder baru:");
-                if (folderName) {
-                  const newFolder: DisplayItem = {
-                    id: crypto.randomUUID(),
-                    name: folderName,
-                    type: "folder",
-                    sizeStr: "0 item",
-                    sizeBytes: 0,
-                    updatedAt: "Baru saja",
-                    parentId: currentFolderId,
-                  };
-                  setLocalItems((prev) => [newFolder, ...prev]);
-                }
-              }}
+              onClick={handleCreateFolder}
               className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-medium px-3.5 py-2 rounded-lg transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1501,7 +1626,7 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {localItems.filter((i) => i.type === "image" || i.type === "video").length === 0 ? (
+                  {activeItems.filter((i) => i.type === "image" || i.type === "video").length === 0 ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
                       className="text-center py-10 border-2 border-dashed border-zinc-800 hover:border-blue-500/50 rounded-xl bg-zinc-950/40 cursor-pointer transition-colors"
@@ -1600,21 +1725,9 @@ export default function Home() {
                     </button>
 
                     <button
-                      onClick={() => {
-                        const folderName = prompt("Masukkan nama folder baru:");
-                        if (folderName) {
-                          const newFolder: DisplayItem = {
-                            id: crypto.randomUUID(),
-                            name: folderName,
-                            type: "folder",
-                            sizeStr: "0 item",
-                            sizeBytes: 0,
-                            updatedAt: "Baru saja",
-                            parentId: currentFolderId,
-                          };
-                          setLocalItems((prev) => [newFolder, ...prev]);
-                          setActiveTab("files");
-                        }
+                      onClick={async () => {
+                        await handleCreateFolder();
+                        setActiveTab("files");
                       }}
                       className="p-3 rounded-xl bg-zinc-950/60 hover:bg-zinc-800/80 border border-zinc-800/80 hover:border-teal-500/40 text-left transition-all cursor-pointer group"
                     >
@@ -1640,7 +1753,7 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {localItems.filter((i) => i.type !== "folder").length === 0 ? (
+                  {activeItems.filter((i) => i.type !== "folder").length === 0 ? (
                     <div className="text-center py-8">
                       <FileText className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
                       <p className="text-xs text-zinc-400">Belum ada berkas tersimpan</p>
@@ -1686,7 +1799,7 @@ export default function Home() {
                   )}
 
                   <div className="pt-2 border-t border-zinc-800/60 text-[10px] text-zinc-500 flex items-center justify-between">
-                    <span>Total Berkas: {localItems.filter((i) => i.type !== "folder").length} item</span>
+                    <span>Total Berkas: {activeItems.filter((i) => i.type !== "folder").length} item</span>
                     <span className="text-emerald-400 flex items-center gap-1 font-mono">
                       <ShieldCheck className="h-3 w-3" /> SHA-256 Integritas
                     </span>
@@ -1712,7 +1825,7 @@ export default function Home() {
                         />
                         <path
                           className="text-blue-500 transition-all duration-500"
-                          strokeDasharray={`${Math.min(100, Math.max(localItems.length > 0 ? 8 : 0, Math.round((localItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0) / (10 * 1024 * 1024 * 1024)) * 100)))}, 100`}
+                          strokeDasharray={`${Math.min(100, Math.max(activeItems.length > 0 ? 8 : 0, Math.round((activeItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0) / (10 * 1024 * 1024 * 1024)) * 100)))}, 100`}
                           strokeWidth="3.5"
                           strokeLinecap="round"
                           stroke="currentColor"
@@ -1722,7 +1835,7 @@ export default function Home() {
                       </svg>
                       <div className="absolute flex flex-col items-center justify-center text-center">
                         <span className="text-sm font-bold font-mono text-zinc-100">
-                          {formatBytes(localItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0))}
+                          {formatBytes(activeItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0))}
                         </span>
                         <span className="text-[9px] text-zinc-500">Terpakai</span>
                       </div>
@@ -1736,7 +1849,7 @@ export default function Home() {
                         <span className="h-2 w-2 rounded-full bg-purple-500" /> Foto & Media
                       </span>
                       <span className="font-mono text-zinc-300">
-                        {localItems.filter((i) => i.type === "image").length} file
+                        {activeItems.filter((i) => i.type === "image").length} file
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -1744,7 +1857,7 @@ export default function Home() {
                         <span className="h-2 w-2 rounded-full bg-blue-500" /> Dokumen & PDF
                       </span>
                       <span className="font-mono text-zinc-300">
-                        {localItems.filter((i) => i.type === "document").length} file
+                        {activeItems.filter((i) => i.type === "document").length} file
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -1752,7 +1865,7 @@ export default function Home() {
                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Video Rekaman
                       </span>
                       <span className="font-mono text-zinc-300">
-                        {localItems.filter((i) => i.type === "video").length} file
+                        {activeItems.filter((i) => i.type === "video").length} file
                       </span>
                     </div>
                   </div>
@@ -1919,6 +2032,35 @@ export default function Home() {
                 </span>
               </div>
 
+              {/* Status pemuatan dari server NAS */}
+              {connectionMode === "nas" && (nasFilesLoading || nasFilesError) && (
+                <div
+                  className={`rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 ${
+                    nasFilesError
+                      ? "bg-rose-950/50 border border-rose-800/60 text-rose-300"
+                      : "bg-zinc-900/60 border border-zinc-800/80 text-zinc-400"
+                  }`}
+                >
+                  {nasFilesError ? (
+                    <>
+                      <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                      <span>Gagal memuat dari server: {nasFilesError}</span>
+                      <button
+                        onClick={() => loadNasFiles(currentFolderId)}
+                        className="ml-auto underline hover:text-white cursor-pointer shrink-0"
+                      >
+                        Coba lagi
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                      <span>Memuat isi folder dari server...</span>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Folders Section in Current Directory */}
               {(() => {
                 const currentFolderItems = filteredFiles.filter((f) => (f.parentId || null) === currentFolderId);
@@ -1934,7 +2076,7 @@ export default function Home() {
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                           {currentFolders.map((folder) => {
-                            const childCount = localItems.filter((i) => (i.parentId || null) === folder.id).length;
+                            const childCount = activeItems.filter((i) => (i.parentId || null) === folder.id).length;
                             return (
                               <div
                                 key={folder.id}
@@ -1949,7 +2091,9 @@ export default function Home() {
                                     <p className="text-xs font-medium text-zinc-200 group-hover:text-blue-400 transition-colors truncate">
                                       {folder.name}
                                     </p>
-                                    <p className="text-[11px] text-zinc-500">{childCount} item • Klik untuk buka</p>
+                                    <p className="text-[11px] text-zinc-500">
+                                      {connectionMode === "nas" ? "Klik untuk buka" : `${childCount} item • Klik untuk buka`}
+                                    </p>
                                   </div>
                                 </div>
                                 <button
@@ -1972,7 +2116,9 @@ export default function Home() {
                         <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
                           File ({currentFiles.length})
                         </h2>
-                        <span className="text-[11px] text-zinc-500">Tersimpan lokal & aman di browser</span>
+                        <span className="text-[11px] text-zinc-500">
+                          {connectionMode === "nas" ? "Tersimpan di server NAS" : "Tersimpan lokal & aman di browser"}
+                        </span>
                       </div>
 
                       {currentFiles.length === 0 && currentFolders.length === 0 ? (
@@ -2915,10 +3061,14 @@ export default function Home() {
                     <span>HTTP 206 Partial Content Stream • Scrubbing Aktif</span>
                   </div>
                 </div>
-              ) : selectedMedia.blob ? (
+              ) : selectedMedia.type === "image" ? (
                 <div className="w-full h-full flex items-center justify-center p-2">
                   <img
-                    src={URL.createObjectURL(selectedMedia.blob)}
+                    src={
+                      selectedMedia.blob
+                        ? URL.createObjectURL(selectedMedia.blob)
+                        : getStreamUrl(selectedMedia.id)
+                    }
                     alt={selectedMedia.name}
                     className="max-h-[380px] w-auto max-w-full rounded-xl object-contain shadow-lg"
                   />

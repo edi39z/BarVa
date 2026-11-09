@@ -53,6 +53,8 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - User pertama yang mendaftar otomatis menjadi **owner**
 - Rate limit login: 5 kegagalan per 15 menit
 - Upload file ke NAS dengan deduplikasi SHA-256
+- File manager NAS: daftar file, navigasi folder, buat folder, hapus, unduh,
+  pratinjau gambar/video
 - Folder, soft delete, download, dan streaming video via HTTP 206
 - Google Drive OAuth (kuota, jelajah folder, upload, download lewat server)
 - Undangan anggota keluarga (token di-hash, status pending/accepted/revoked)
@@ -61,9 +63,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 
 ### Belum selesai
 
-- **File manager UI** — upload sudah terhubung, daftar file dari NAS belum dimuat ke tampilan
 - **Share link UI** — endpoint siap, UI belum memakainya
 - **RBAC per file** — otorisasi masih berbasis `owner_id`, role belum membatasi akses
+- **Rename / move file** — belum ada endpoint maupun UI
 - **Service worker / PWA offline** — manifest ada, cache offline belum
 - **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
 
@@ -320,10 +322,10 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. File manager UI — memuat daftar file dari `GET /api/v1/files`
-2. Share link UI — memakai endpoint `/api/v1/shares`
+1. Share link UI — memakai endpoint `/api/v1/shares`
+2. Rename / move file — endpoint `RenameNode` sudah ada di query, tinggal handler dan UI
 3. Service worker untuk PWA offline
-4. Memecah `frontend/src/app/page.tsx` (monolit ±3.500 baris) menjadi komponen
+4. Memecah `frontend/src/app/page.tsx` (monolit ±3.600 baris) menjadi komponen
 
 ---
 

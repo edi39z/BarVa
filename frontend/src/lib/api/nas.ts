@@ -67,7 +67,7 @@ export async function pingNasServer(serverUrl?: string): Promise<NasHealthRespon
 
 export async function uploadToNas(
 	file: File,
-	parentId?: string,
+	parentId?: string | null,
 	onProgress?: (percent: number) => void
 ): Promise<unknown> {
 	const base = getStoredServerUrl();
@@ -125,6 +125,68 @@ export function getStreamUrl(fileId: string): string {
 		return `${base}/api/v1/files/${fileId}/stream?token=${encodeURIComponent(token)}`;
 	}
 	return `${base}/api/v1/files/${fileId}/stream`;
+}
+
+// ---------------- File manager NAS ----------------
+
+// Backend mengembalikan nama field PascalCase (struct Go tanpa json tag).
+export interface NasFileNode {
+	ID: string;
+	OwnerID: string;
+	ParentID: string | null;
+	Name: string;
+	IsDirectory: boolean;
+	ObjectID: string | null;
+	SizeBytes: number | null;
+	MimeType: string | null;
+	CreatedAt: string;
+	UpdatedAt: string;
+}
+
+function authHeaders(): HeadersInit {
+	const token = getStoredToken();
+	return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function nasFetch(path: string, init?: RequestInit): Promise<Response> {
+	const res = await fetch(`${getStoredServerUrl()}${path}`, {
+		...init,
+		headers: { ...authHeaders(), ...(init?.headers || {}) },
+	});
+	if (res.status === 401) {
+		setStoredToken(null);
+		throw new Error("Sesi berakhir. Silakan login ulang.");
+	}
+	return res;
+}
+
+export async function listNasFiles(parentId?: string | null): Promise<NasFileNode[]> {
+	const query = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : "";
+	const res = await nasFetch(`/api/v1/files${query}`);
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasFileNode[] | null };
+	return json.data ?? [];
+}
+
+export async function createNasFolder(
+	name: string,
+	parentId?: string | null
+): Promise<NasFileNode> {
+	const res = await nasFetch("/api/v1/files/folder", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ name, parent_id: parentId || null }),
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasFileNode };
+	return json.data;
+}
+
+export async function deleteNasFile(id: string): Promise<void> {
+	const res = await nasFetch(`/api/v1/files/${encodeURIComponent(id)}`, {
+		method: "DELETE",
+	});
+	if (!res.ok) throw new Error(await parseError(res));
 }
 
 export function getDownloadUrl(fileId: string): string {
