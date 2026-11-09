@@ -1,1 +1,318 @@
-hai
+# NAS Project
+
+Private NAS dan cloud keluarga yang berjalan di server sendiri — dengan dua mode:
+**standalone di browser** (tanpa server sama sekali) atau **terhubung ke server
+pribadi** untuk kapasitas multi-terabyte, streaming video, dan deduplikasi file.
+
+Dibangun dengan Next.js + Go + PostgreSQL. Tidak ada layanan cloud wajib, tidak
+ada langganan, dan file tetap di tangan Anda.
+
+> **Status:** MVP aktif dikembangkan. Fitur inti (auth, upload, streaming,
+> Google Drive, undangan keluarga) sudah berjalan; lihat [Status Fitur](#status-fitur)
+> untuk yang belum selesai.
+
+---
+
+## Daftar Isi
+
+- [Dua Mode](#dua-mode)
+- [Status Fitur](#status-fitur)
+- [Teknologi](#teknologi)
+- [Struktur Repo](#struktur-repo)
+- [Menjalankan — Development](#menjalankan--development)
+- [Menjalankan — Docker](#menjalankan--docker)
+- [Environment Variables](#environment-variables)
+- [Ringkasan API](#ringkasan-api)
+- [Keamanan](#keamanan)
+- [Kontribusi](#kontribusi)
+- [Lisensi](#lisensi)
+
+---
+
+## Dua Mode
+
+| | **Mode Standalone** | **Mode Private NAS** |
+|---|---|---|
+| **Butuh server** | Tidak | Ya (Go + PostgreSQL) |
+| **Penyimpanan** | IndexedDB di browser | Disk server + PostgreSQL |
+| **Kapasitas** | Terbatas kuota browser | Sebesar disk Anda |
+| **Streaming video** | Terbatas | HTTP Range (206) penuh |
+| **Deduplikasi** | — | SHA-256 content-addressed |
+| **Berbagi ke keluarga** | — | Undangan + share link |
+| **Biaya** | Rp 0 | Listrik server |
+
+Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikasi.
+
+---
+
+## Status Fitur
+
+### Sudah berjalan
+
+- Registrasi, login, logout, dan validasi sesi (Argon2id + token sesi)
+- User pertama yang mendaftar otomatis menjadi **owner**
+- Rate limit login: 5 kegagalan per 15 menit
+- Upload file ke NAS dengan deduplikasi SHA-256
+- Folder, soft delete, download, dan streaming video via HTTP 206
+- Google Drive OAuth (kuota, jelajah folder, upload, download lewat server)
+- Undangan anggota keluarga (token di-hash, status pending/accepted/revoked)
+- Endpoint share link publik
+- Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file
+
+### Belum selesai
+
+- **File manager UI** — upload sudah terhubung, daftar file dari NAS belum dimuat ke tampilan
+- **Share link UI** — endpoint siap, UI belum memakainya
+- **RBAC per file** — otorisasi masih berbasis `owner_id`, role belum membatasi akses
+- **Service worker / PWA offline** — manifest ada, cache offline belum
+- **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
+
+---
+
+## Teknologi
+
+**Frontend**
+- Next.js 16 (App Router), React 19, TypeScript strict
+- Tailwind CSS 4, lucide-react
+- IndexedDB (`idb`) untuk mode standalone
+
+**Backend**
+- Go 1.27, Gin v1.12
+- PostgreSQL 17, pgx/v5, sqlc v1.31.1 (typed SQL, tanpa ORM)
+- Argon2id untuk password hashing
+- `http.ServeContent` untuk streaming Range
+
+**Infrastruktur**
+- Docker Compose, systemd, atau Nginx reverse proxy
+- Remote access disarankan lewat Tailscale / WireGuard
+
+---
+
+## Struktur Repo
+
+```
+.
+├── backend/                 # API Go
+│   ├── cmd/server/          # entry point, routing, CORS, graceful shutdown
+│   ├── internal/auth/       # middleware sesi, admin key, Argon2id
+│   ├── internal/handler/    # auth, files, shares, family, gdrive, invite
+│   ├── internal/storage/    # penyimpanan disk (CAS + atomic rename)
+│   ├── internal/store/      # persistensi JSON atomik
+│   ├── internal/db/         # HASIL GENERATE sqlc — jangan diedit manual
+│   ├── db/queries/          # sumber query sqlc (.sql)
+│   └── Dockerfile
+├── frontend/                # PWA Next.js
+│   └── src/
+│       ├── app/             # halaman utama, /invite, /s/[token]
+│       ├── components/      # AuthGate, GoogleDrivePanel, InviteAccept
+│       └── lib/api/         # klien backend (nas.ts, cloud.ts)
+├── migrations/              # skema PostgreSQL (SQL statis)
+├── deploy/
+│   ├── docker/              # docker-compose.yml
+│   ├── nginx/               # konfigurasi reverse proxy
+│   └── systemd/             # unit service backend
+└── scripts/                 # backup, restore, sinkronisasi offsite (3-2-1)
+```
+
+---
+
+## Menjalankan — Development
+
+### Prasyarat
+
+| Tool | Versi |
+|---|---|
+| Go | 1.27+ |
+| Node.js | 22+ |
+| PostgreSQL | 17 |
+
+### 1. Database
+
+```bash
+createdb nas_db
+psql -d nas_db -f migrations/000001_init_schema.up.sql
+```
+
+Default koneksi: `postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable`.
+Kalau berbeda, set `DATABASE_URL`.
+
+### 2. Backend
+
+```bash
+cd backend
+go run ./cmd/server
+```
+
+Berjalan di `http://localhost:8080`. Cek:
+
+```bash
+curl http://localhost:8080/health
+# {"database":true,"status":"online","version":"1.0-mvp",...}
+```
+
+Jika `"database":false`, backend tetap hidup dalam **mode storage-only** — hanya
+Google Drive dan undangan yang aktif. Backend **tidak** menyambung ulang otomatis;
+restart setelah database siap.
+
+### 3. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Buka `http://localhost:3000`, pilih **Private NAS**, lalu daftar. User pertama
+menjadi owner.
+
+> Alamat backend di-hardcode di `frontend/src/lib/api/cloud.ts` (`PORT`) dan
+> `frontend/src/lib/api/nas.ts` (`DEFAULT_SERVER_URL`). Ubah di kedua tempat
+> jika backend pindah host/port.
+
+### 4. Google Drive (opsional)
+
+Membutuhkan OAuth Client sendiri di Google Cloud Console: aktifkan Google Drive
+API, tambahkan scope `https://www.googleapis.com/auth/drive`, daftarkan akun
+sebagai test user, lalu isi Client ID/Secret lewat panel di aplikasi.
+
+> App dalam mode **Testing** dibatasi 100 test user dan refresh token kedaluwarsa
+> 7 hari. Scope `auth/drive` termasuk *restricted* — pemakaian publik jangka
+> panjang memerlukan verifikasi Google (CASA).
+
+---
+
+## Menjalankan — Docker
+
+```bash
+cd deploy/docker
+docker compose up -d --build
+```
+
+Migrasi otomatis dijalankan oleh image PostgreSQL karena `migrations/`
+di-mount ke `/docker-entrypoint-initdb.d`. Ini **hanya** berlaku saat volume
+database masih kosong.
+
+> ⚠️ **Wajib diganti sebelum produksi:** `docker-compose.yml` memuat password
+> default `nas_secure_password_2026` dan database terbuka di `127.0.0.1:5432`.
+> Ganti password, jangan ekspos port 5432 ke publik, dan set `NAS_ADMIN_KEY`.
+
+---
+
+## Environment Variables
+
+Semua opsional — default bekerja untuk localhost.
+
+| Variabel | Default | Fungsi |
+|---|---|---|
+| `PORT` | `8080` | Port HTTP backend |
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable` | Koneksi PostgreSQL |
+| `STORAGE_DIR` | `./data/storage` | Akar penyimpanan objek (CAS) |
+| `TEMP_DIR` | `./data/tmp` | Temp upload sebelum dipindah atomik |
+| `DATA_DIR` | `./data` | Lokasi `gdrive.json` dan `invites.json` |
+| `APP_URL` | `http://localhost:3000` | Base URL untuk redirect OAuth dan link undangan |
+| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat |
+| `ALLOWED_ORIGINS` | *(kosong)* | Origin CORS tambahan, dipisah koma |
+| `MAX_UPLOAD_BYTES` | `10737418240` (10 GiB) | Batas ukuran satu upload |
+
+---
+
+## Ringkasan API
+
+Base URL: `http://localhost:8080/api/v1`
+
+| Grup | Prefix | Autentikasi |
+|---|---|---|
+| Auth | `/auth/*` | Publik (kecuali `/auth/me`) |
+| File manager | `/files/*` | Bearer token |
+| Shares | `/shares/*` | Bearer token |
+| Share publik | `/public/share/:token` | Publik |
+| Family | `/family/*` | Bearer token |
+| Google Drive | `/gdrive/*` | `X-Admin-Key` atau IP lokal |
+| Undangan | `/invites/*` | `X-Admin-Key` atau IP lokal |
+| Undangan publik | `/public/invites/:token` | Publik |
+
+Format error konsisten:
+
+```json
+{ "error": { "code": "FILE_TOO_LARGE", "message": "..." } }
+```
+
+Contoh cepat:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"a@b.c","username":"tester","password":"rahasia123"}'
+```
+
+---
+
+## Keamanan
+
+- Password di-hash dengan **Argon2id**.
+- Token sesi disimpan sebagai hash; token share dan undangan juga hanya hash-nya yang masuk database.
+- Semua endpoint file memfilter berdasarkan `owner_id` pemilik sesi.
+- Path fisik file **tidak** dibentuk dari nama file kiriman pengguna (mencegah path traversal).
+- MIME dideteksi dari isi file, bukan dari header klien.
+- Upload dibatasi `MAX_UPLOAD_BYTES`; body dibaca lewat `http.MaxBytesReader`.
+
+**Jangan pernah commit:** `.env*`, `backend/data/gdrive.json`,
+`backend/data/invites.json`, atau file berisi kredensial OAuth.
+
+Jika menemukan celah keamanan, jangan buka issue publik — hubungi maintainer
+secara langsung.
+
+---
+
+## Kontribusi
+
+Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
+
+### Alur
+
+1. **Fork** repo, lalu buat branch dari `main`:
+   ```bash
+   git checkout -b feat/file-manager-ui
+   ```
+2. Kerjakan satu hal per branch. Hindari mencampur refactor besar dengan fitur baru.
+3. Jalankan pemeriksaan sebelum commit:
+   ```bash
+   cd backend  && go build ./... && go test ./...
+   cd frontend && npx tsc --noEmit && npm run build
+   ```
+4. Commit dengan pesan yang jelas:
+   ```
+   feat(files): muat daftar file NAS ke tampilan
+   fix(auth): tangani token kedaluwarsa saat fetchMe
+   docs(readme): tambah panduan docker
+   ```
+   Tipe yang dipakai: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
+5. Buka Pull Request ke `main`. Jelaskan **apa** yang berubah, **kenapa**, dan
+   **bagaimana** Anda mengujinya.
+
+### Aturan teknis
+
+- **Jangan edit `backend/internal/db/*.go`** — itu hasil generate sqlc. Ubah
+  `backend/db/queries/*.sql`, lalu jalankan `sqlc generate`.
+- Tambahkan migrasi baru sebagai `migrations/000002_*.up.sql`. **Jangan** mengubah
+  migrasi yang sudah pernah dijalankan.
+- Setiap endpoint baru yang menyentuh data pengguna wajib lewat `AuthMiddleware`
+  dan memfilter `owner_id`. Endpoint admin wajib lewat `AdminKeyMiddleware`.
+- Jangan menambah dependensi baru tanpa alasan kuat. Stdlib dan fitur platform
+  lebih diutamakan.
+- Ikuti gaya kode di sekitarnya: komentar bahasa Indonesia, pesan error
+  terstruktur, penanganan error eksplisit.
+
+### Yang paling dibutuhkan sekarang
+
+1. File manager UI — memuat daftar file dari `GET /api/v1/files`
+2. Share link UI — memakai endpoint `/api/v1/shares`
+3. Service worker untuk PWA offline
+4. Memecah `frontend/src/app/page.tsx` (monolit ±3.500 baris) menjadi komponen
+
+---
+
+## Lisensi
+
+Belum ditentukan. Sampai lisensi dipilih, anggap semua hak dilindungi —
+hubungi maintainer sebelum menggunakan kode ini di luar keperluan kontribusi.
