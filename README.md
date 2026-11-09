@@ -185,16 +185,25 @@ sebagai test user, lalu isi Client ID/Secret lewat panel di aplikasi.
 
 ```bash
 cd deploy/docker
+cp .env.example .env
+```
+
+Buka `.env` dan isi **`POSTGRES_PASSWORD`** — nilainya wajib, compose akan
+menolak start jika kosong. Gunakan huruf dan angka saja, karena nilai ini
+diambil sebagai bagian dari `DATABASE_URL`.
+
+```bash
 docker compose up -d --build
 ```
 
 Migrasi otomatis dijalankan oleh image PostgreSQL karena `migrations/`
 di-mount ke `/docker-entrypoint-initdb.d`. Ini **hanya** berlaku saat volume
-database masih kosong.
+database masih kosong — untuk database yang sudah ada, jalankan migrasi manual.
 
-> ⚠️ **Wajib diganti sebelum produksi:** `docker-compose.yml` memuat password
-> default `nas_secure_password_2026` dan database terbuka di `127.0.0.1:5432`.
-> Ganti password, jangan ekspos port 5432 ke publik, dan set `NAS_ADMIN_KEY`.
+> ⚠️ Sebelum produksi: jangan ekspos port `5432` ke publik (default sudah
+> `127.0.0.1`), set `NAS_ADMIN_KEY` bila server dapat diakses dari luar
+> jaringan lokal, dan isi `ALLOWED_ORIGINS` dengan domain frontend Anda.
+> File `.env` tidak boleh di-commit.
 
 ---
 
@@ -213,6 +222,10 @@ Semua opsional — default bekerja untuk localhost.
 | `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat |
 | `ALLOWED_ORIGINS` | *(kosong)* | Origin CORS tambahan, dipisah koma |
 | `MAX_UPLOAD_BYTES` | `10737418240` (10 GiB) | Batas ukuran satu upload |
+
+> Khusus Docker Compose, `POSTGRES_PASSWORD` juga wajib diisi di
+> `deploy/docker/.env` (lihat `deploy/docker/.env.example`). Nilai itu dipakai
+> untuk merakit `DATABASE_URL` secara otomatis.
 
 ---
 
@@ -255,6 +268,8 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 - Path fisik file **tidak** dibentuk dari nama file kiriman pengguna (mencegah path traversal).
 - MIME dideteksi dari isi file, bukan dari header klien.
 - Upload dibatasi `MAX_UPLOAD_BYTES`; body dibaca lewat `http.MaxBytesReader`.
+- Tidak ada kredensial hardcoded di repo: password database Docker diambil dari
+  `.env` dan compose menolak start bila belum diisi.
 
 **Jangan pernah commit:** `.env*`, `backend/data/gdrive.json`,
 `backend/data/invites.json`, atau file berisi kredensial OAuth.

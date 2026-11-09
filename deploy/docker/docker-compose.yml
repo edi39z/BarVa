@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: nas_admin
-      POSTGRES_PASSWORD: nas_secure_password_2026
+      # WAJIB diisi lewat deploy/docker/.env — lihat .env.example.
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di deploy/docker/.env}"
       POSTGRES_DB: nas_db
     volumes:
       - nas_pgdata:/var/lib/postgresql/data
@@ -31,7 +32,7 @@ services:
         condition: service_healthy
     environment:
       PORT: "8080"
-      DATABASE_URL: "postgres://nas_admin:nas_secure_password_2026@postgres:5432/nas_db?sslmode=disable"
+      DATABASE_URL: "postgres://nas_admin:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di deploy/docker/.env}@postgres:5432/nas_db?sslmode=disable"
       STORAGE_DIR: "/data/storage"
       TEMP_DIR: "/data/tmp"
       GIN_MODE: "release"
