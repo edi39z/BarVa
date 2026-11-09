@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { acceptInvite, peekInvite } from "@/lib/api/cloud";
+import { loginNas, registerNas } from "@/lib/api/nas";
 
 type InviteInfo = {
   valid: boolean;
@@ -31,6 +32,12 @@ export default function InviteAccept({ token }: { token?: string }) {
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
 
+  // Undangan hanya menyimpan email. Untuk benar-benar bisa masuk, penerima
+  // butuh akun di server: username dan password dipilih di sini.
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   useEffect(() => {
     if (!token) {
       setError("Tautan undangan tidak lengkap. Minta tautan baru ke pemilik NAS.");
@@ -43,17 +50,59 @@ export default function InviteAccept({ token }: { token?: string }) {
       .finally(() => setLoading(false));
   }, [token]);
 
-  async function handleAccept() {
-    if (!token) return;
+  async function handleAccept(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || !info) return;
+
+    if (username.trim().length < 3) {
+      setError("Username minimal 3 karakter.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Kata sandi minimal 8 karakter.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Konfirmasi kata sandi tidak cocok.");
+      return;
+    }
+
     setJoining(true);
     setError("");
     try {
-      const res = await acceptInvite(token);
-      localStorage.setItem("nas_current_user", JSON.stringify(res.member));
+      // 1. Buat akun. Kalau email sudah terdaftar, lanjut ke login saja.
+      let accountExists = false;
+      try {
+        await registerNas({
+          email: info.email,
+          username: username.trim(),
+          password,
+        });
+      } catch (err) {
+        const msg = (err as Error).message || "";
+        if (!/sudah terdaftar|already/i.test(msg)) throw err;
+        accountExists = true;
+      }
+
+      // 2. Masuk untuk mendapatkan token sesi.
+      try {
+        await loginNas({ email: info.email, password });
+      } catch (err) {
+        if (accountExists) {
+          throw new Error(
+            "Email ini sudah punya akun, tetapi kata sandinya tidak cocok. Masukkan kata sandi akun Anda yang lama."
+          );
+        }
+        throw err;
+      }
+
+      // 3. Tandai undangan diterima.
+      await acceptInvite(token);
+
       setJoined(true);
-      setTimeout(() => router.push("/"), 1400);
-    } catch (e) {
-      setError((e as Error).message);
+      setTimeout(() => router.push("/"), 1200);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setJoining(false);
     }
@@ -182,20 +231,77 @@ export default function InviteAccept({ token }: { token?: string }) {
               </span>
             </div>
           ) : (
-            <button
-              onClick={handleAccept}
-              disabled={!info.valid || joining}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
-            >
-              {joining ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowRight className="h-4 w-4" />
+            <form onSubmit={handleAccept} className="space-y-3 text-left">
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-zinc-400">Email</label>
+                <input
+                  value={info.email}
+                  readOnly
+                  className="w-full bg-zinc-950/60 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-400 cursor-not-allowed"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-zinc-400">Username</label>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Minimal 3 karakter"
+                  autoComplete="username"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-zinc-400">Kata sandi</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimal 8 karakter"
+                    autoComplete="new-password"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-zinc-400">Ulangi sandi</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Ulangi kata sandi"
+                    autoComplete="new-password"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
               )}
-              <span>
-                {joining ? "Memproses..." : "Terima Undangan & Masuk"}
-              </span>
-            </button>
+
+              <button
+                type="submit"
+                disabled={!info.valid || joining}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
+              >
+                {joining ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+                <span>
+                  {joining ? "Membuat akun..." : "Terima Undangan & Buat Akun"}
+                </span>
+              </button>
+              <p className="text-[10px] text-zinc-500 text-center">
+                Sudah punya akun dengan email ini? Masukkan kata sandi lama Anda.
+              </p>
+            </form>
           )}
         </>
       )}

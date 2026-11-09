@@ -254,6 +254,25 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	// Opsi ganti: hapus dulu node lama dengan nama sama di folder yang sama,
+	// supaya unik-index parsial (deleted_at IS NULL) tidak menolak upload baru.
+	if strings.EqualFold(c.PostForm("overwrite"), "true") {
+		existing, listErr := h.queries.ListNodesByParent(c.Request.Context(), db.ListNodesByParentParams{
+			OwnerID:  userId,
+			ParentID: parentId,
+		})
+		if listErr == nil {
+			for _, n := range existing {
+				if n.Name == fileHeader.Filename {
+					_ = h.queries.SoftDeleteNode(c.Request.Context(), db.SoftDeleteNodeParams{
+						ID:      n.ID,
+						OwnerID: userId,
+					})
+				}
+			}
+		}
+	}
+
 	node, err := h.queries.CreateFileNode(c.Request.Context(), db.CreateFileNodeParams{
 		OwnerID:     userId,
 		ParentID:    parentId,

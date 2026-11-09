@@ -25,16 +25,16 @@ type InviteHandler struct {
 }
 
 type inviteRecord struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	QuotaGB   int    `json:"quota_gb"`
-	TokenHash string `json:"token_hash"`
-	TokenHint string `json:"token_hint"`
-	Status    string `json:"status"` // pending | accepted | revoked | expired
-	CreatedAt string `json:"created_at"`
-	ExpiresAt string `json:"expires_at"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
+	QuotaGB    int    `json:"quota_gb"`
+	TokenHash  string `json:"token_hash"`
+	TokenHint  string `json:"token_hint"`
+	Status     string `json:"status"` // pending | accepted | revoked | expired
+	CreatedAt  string `json:"created_at"`
+	ExpiresAt  string `json:"expires_at"`
 	AcceptedAt string `json:"accepted_at,omitempty"`
 }
 
@@ -134,8 +134,8 @@ func (h *InviteHandler) Create(c *gin.Context) {
 			"quota_gb": rec.QuotaGB, "status": rec.Status,
 			"created_at": rec.CreatedAt, "expires_at": rec.ExpiresAt,
 		},
-		"token": raw,
-		"url":   h.appURL + "/invite/" + raw,
+		"token":   raw,
+		"url":     h.appURL + "/invite/" + raw,
 		"web_url": h.appURL + "/invite?token=" + raw,
 	})
 }

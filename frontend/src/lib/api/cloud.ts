@@ -1,8 +1,10 @@
 // Klien API untuk fitur cloud yang disimpan di backend Go (bukan browser):
-// Google Drive OAuth dan undangan keluarga.
+// Google Drive OAuth, undangan keluarga, dan share link.
 //
 // Kenapa lewat backend: refresh token Google tidak boleh disimpan di browser,
 // dan supaya token tidak kedaluwarsa tiap 1 jam maka server yang me-refresh.
+
+import { getStoredToken } from "./nas";
 
 const PORT = "8080";
 
@@ -31,16 +33,7 @@ export function setAdminKey(key: string): void {
   else window.localStorage.removeItem(STORAGE_KEY_ADMIN);
 }
 
-async function j<T>(path: string, init?: RequestInit): Promise<T> {
-  const adminKey = getAdminKey();
-  const res = await fetch(`${backendBase()}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(adminKey ? { "X-Admin-Key": adminKey } : {}),
-      ...(init?.headers || {}),
-    },
-  });
+async function parseResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
   let data: unknown = null;
   try {
@@ -54,6 +47,33 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(msg);
   }
   return data as T;
+}
+
+async function j<T>(path: string, init?: RequestInit): Promise<T> {
+  const adminKey = getAdminKey();
+  const res = await fetch(`${backendBase()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(adminKey ? { "X-Admin-Key": adminKey } : {}),
+      ...(init?.headers || {}),
+    },
+  });
+  return parseResponse<T>(res);
+}
+
+// Endpoint yang butuh sesi login (Bearer token), bukan admin key.
+async function jAuth<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getStoredToken();
+  const res = await fetch(`${backendBase()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers || {}),
+    },
+  });
+  return parseResponse<T>(res);
 }
 
 // ---------------- Google Drive ----------------
@@ -205,5 +225,55 @@ export function acceptInvite(token: string) {
   return j<{ success: boolean; member: Member }>(
     `/api/v1/public/invites/${encodeURIComponent(token)}/accept`,
     { method: "POST" }
+  );
+}
+
+// ---------------- Share link ----------------
+
+// Baris dari GET /api/v1/shares memakai nama field PascalCase (struct Go).
+export type ShareRecord = {
+  ID: string;
+  NodeID: string;
+  Permission: string;
+  ExpiresAt: string | null;
+  CreatedAt: string;
+  HasPassword: boolean | null;
+  NodeName: string;
+  IsDirectory: boolean;
+  SizeBytes: number | null;
+  MimeType: string | null;
+};
+
+export type CreatedShare = {
+  id: string;
+  permission: string;
+  expires_at: string | null;
+  created_at: string;
+  raw_token: string;
+  link_url: string;
+};
+
+export async function createShare(input: {
+  node_id: string;
+  permission?: "viewer" | "editor" | "uploader";
+  password?: string;
+  expires_in?: "24h" | "7d" | "30d";
+}) {
+  const res = await jAuth<{ data: CreatedShare }>("/api/v1/shares", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function listShares() {
+  const res = await jAuth<{ data: ShareRecord[] | null }>("/api/v1/shares");
+  return res.data ?? [];
+}
+
+export async function deleteShare(id: string) {
+  await jAuth<{ data: { message: string } }>(
+    `/api/v1/shares/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
   );
 }

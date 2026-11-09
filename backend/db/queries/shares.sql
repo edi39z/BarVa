@@ -21,6 +21,7 @@ LIMIT 1;
 
 -- name: ListSharesByOwner :many
 SELECT s.id, s.node_id, s.share_token_hash, s.permission, s.expires_at, s.created_at,
+       (s.password_hash IS NOT NULL AND s.password_hash <> '') AS has_password,
        n.name AS node_name, n.is_directory,
        o.size_bytes, o.mime_type
 FROM shares s

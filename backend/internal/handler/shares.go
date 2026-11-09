@@ -138,6 +138,9 @@ func (h *SharesHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
 		return
 	}
+	if shares == nil {
+		shares = []db.ListSharesByOwnerRow{}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": shares})
 }

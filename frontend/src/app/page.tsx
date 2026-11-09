@@ -72,6 +72,10 @@ import {
   revokeInvite,
   getAdminKey,
   setAdminKey,
+  gdriveStatus,
+  createShare,
+  listShares,
+  deleteShare,
   Invite as ServerInvite,
   Member as ServerMember,
 } from "@/lib/api/cloud";
@@ -200,6 +204,7 @@ export default function Home() {
   const [selectedMedia, setSelectedMedia] = useState<DisplayItem | null>(null);
   const [shareModalFile, setShareModalFile] = useState<DisplayItem | null>(null);
   const [shareLinkGenerated, setShareLinkGenerated] = useState(false);
+  const [shareGenerating, setShareGenerating] = useState(false);
 
   // Phase 3: Dual-Mode Connection State
   const [connectionMode, setConnectionMode] = useState<"standalone" | "nas">("nas");
@@ -232,9 +237,7 @@ export default function Home() {
 
   const [activeShares, setActiveShares] = useState<ActiveShare[]>([]);
 
-  // Phase 5: Offsite Backup (3-2-1) & PWA Installation State
-  const [isSyncingOffsite, setIsSyncingOffsite] = useState(false);
-  const [syncStatusMsg, setSyncStatusMsg] = useState("");
+  // Phase 5: PWA Installation State
   const [isPwaInstalled, setIsPwaInstalled] = useState(false);
 
   // Folder Drill-down & Breadcrumbs State
@@ -242,23 +245,6 @@ export default function Home() {
   const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<{ id: string | null; name: string }[]>([
     { id: null, name: "Semua File" },
   ]);
-
-  // Google Drive Live State
-  const [gdriveTokenInput, setGdriveTokenInput] = useState("");
-  const [gdriveRefreshTokenInput, setGdriveRefreshTokenInput] = useState("");
-  const [isConnectingGdrive, setIsConnectingGdrive] = useState(false);
-  const [gdriveSearchQuery, setGdriveSearchQuery] = useState("");
-  const [gdriveUserEmail, setGdriveUserEmail] = useState("");
-  const [gdriveStorageUsed, setGdriveStorageUsed] = useState(0);
-  const [gdriveStorageTotal, setGdriveStorageTotal] = useState(0);
-  const [gdriveFiles, setGdriveFiles] = useState<{
-    id: string;
-    name: string;
-    mimeType: string;
-    sizeStr: string;
-    updatedAt: string;
-    webViewLink: string;
-  }[]>([]);
 
   // Generated Invitation Link for Family
   const [generatedInviteUrl, setGeneratedInviteUrl] = useState("");
@@ -321,6 +307,17 @@ export default function Home() {
     checkHealth();
     const pingInterval = setInterval(checkHealth, 10000);
 
+    // Status Google Drive diambil dari server, bukan dari state lokal.
+    async function checkGdrive() {
+      try {
+        const s = await gdriveStatus();
+        setIsGdriveConnected(s.connected);
+      } catch {
+        setIsGdriveConnected(false);
+      }
+    }
+    checkGdrive();
+
     async function loadIndexedDB() {
       try {
         const stored = await getAllLocalFiles();
@@ -374,6 +371,23 @@ export default function Home() {
     }
     loadNasFiles(currentFolderId);
   }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
+
+  // Segarkan status Drive setiap kali kembali ke dashboard, karena panel
+  // Drive punya state sendiri dan bisa berubah tanpa reload halaman.
+  useEffect(() => {
+    if (activeTab !== "home") return;
+    let alive = true;
+    gdriveStatus()
+      .then((s) => {
+        if (alive) setIsGdriveConnected(s.connected);
+      })
+      .catch(() => {
+        if (alive) setIsGdriveConnected(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [activeTab]);
 
   // Ping Test Handler
   const handleTestPing = async () => {
@@ -521,66 +535,86 @@ export default function Home() {
     }
   };
 
-  const handleGenerateShare = () => {
+  const refreshShares = useCallback(async () => {
+    try {
+      const rows = await listShares();
+      setActiveShares(
+        rows.map((r) => {
+          const mime = (r.MimeType || "").toLowerCase();
+          let fileType: DisplayItem["type"] = "document";
+          if (r.IsDirectory) fileType = "folder";
+          else if (mime.startsWith("image/")) fileType = "image";
+          else if (mime.startsWith("video/") || mime.startsWith("audio/")) fileType = "video";
+
+          return {
+            id: r.ID,
+            fileName: r.NodeName,
+            fileType,
+            rawToken: "",
+            shareUrl: "",
+            permission: r.Permission === "uploader" ? "uploader" : "viewer",
+            expiresAtStr: r.ExpiresAt
+              ? new Date(r.ExpiresAt).toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "Tanpa batas",
+            hasPassword: Boolean(r.HasPassword),
+            downloadsCount: 0,
+          };
+        })
+      );
+    } catch {
+      setActiveShares([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (connectionMode === "nas" && currentUser) refreshShares();
+  }, [connectionMode, currentUser, refreshShares]);
+
+  const handleGenerateShare = async () => {
     if (!shareModalFile) return;
 
-    const token = crypto.randomUUID().replace(/-/g, "").substring(0, 16);
-    // Use LAN IP host if on localhost so other devices on WiFi can reach it
-    const host =
-      typeof window !== "undefined" && window.location.hostname !== "localhost"
-        ? window.location.origin
-        : "http://192.168.18.22:3001";
-    const shareUrl = `${host}/s/${token}?name=${encodeURIComponent(
-      shareModalFile.name
-    )}&size=${encodeURIComponent(shareModalFile.sizeStr)}&type=${shareModalFile.type}&pw=${
-      sharePasswordInput ? "1" : "0"
-    }`;
-    setCurrentGeneratedUrl(shareUrl);
-    setShareLinkGenerated(true);
+    if (connectionMode !== "nas") {
+      alert("Link berbagi hanya tersedia untuk berkas di server NAS.");
+      return;
+    }
 
-    let expiryStr = "7 Hari";
-    if (shareExpiryOption === "24h") expiryStr = "24 Jam";
-    else if (shareExpiryOption === "30d") expiryStr = "30 Hari";
-    else if (shareExpiryOption === "never") expiryStr = "Tanpa batas waktu";
+    setShareGenerating(true);
+    try {
+      const created = await createShare({
+        node_id: shareModalFile.id,
+        permission: sharePermission === "uploader" ? "uploader" : "viewer",
+        password: sharePasswordInput || undefined,
+        expires_in: shareExpiryOption === "never" ? undefined : shareExpiryOption,
+      });
 
-    const newShare: ActiveShare = {
-      id: crypto.randomUUID(),
-      fileName: shareModalFile.name,
-      fileType: shareModalFile.type,
-      rawToken: token,
-      shareUrl,
-      permission: sharePermission,
-      expiresAtStr: expiryStr,
-      hasPassword: !!sharePasswordInput,
-      downloadsCount: 0,
-    };
-
-    setActiveShares((prev) => [newShare, ...prev]);
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      setCurrentGeneratedUrl(`${origin}/s/${created.raw_token}`);
+      setShareLinkGenerated(true);
+      await refreshShares();
+    } catch (err) {
+      alert(`Gagal membuat link berbagi: ${(err as Error).message}`);
+    } finally {
+      setShareGenerating(false);
+    }
   };
 
-  const handleRevokeShare = (id: string) => {
+  const handleRevokeShare = async (id: string) => {
     if (!confirm("Cabut link berbagi ini? Pengguna yang memegang link tidak akan bisa mengakses file lagi.")) return;
-    setActiveShares((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteShare(id);
+      await refreshShares();
+    } catch (err) {
+      alert(`Gagal mencabut link: ${(err as Error).message}`);
+    }
   };
 
   // Phase 5: PWA Install & 3-2-1 Offsite Backup Handlers
   const handleInstallPwa = () => {
     alert("Untuk memasang NAS Cloud di HP/Laptop:\n1. Buka menu browser (titik tiga ⋮ di Chrome/Edge atau tombol Share di Safari iOS)\n2. Pilih 'Tambahkan ke Layar Utama' (Add to Home Screen / Install App).\n\nAplikasi akan terpasang sebagai aplikasi PWA berkecepatan native.");
-  };
-
-  const handleRunOffsiteSync = () => {
-    setIsSyncingOffsite(true);
-    setSyncStatusMsg("Menghubungi Cloud Storage...");
-    setTimeout(() => {
-      setSyncStatusMsg("Membuat snapshot database PostgreSQL & verifikasi SHA-256...");
-      setTimeout(() => {
-        setSyncStatusMsg("Menyinkronkan file objek ke Google Drive (Prinsip 3-2-1)...");
-        setTimeout(() => {
-          setIsSyncingOffsite(false);
-          setSyncStatusMsg("Sinkronisasi Offsite Berhasil! Salinan 3-2-1 aman tersimpan.");
-        }, 1200);
-      }, 1000);
-    }, 800);
   };
 
   // Folder Drill-down Handlers
@@ -628,63 +662,6 @@ export default function Home() {
     setLocalItems((prev) => [newFolder, ...prev]);
   };
 
-  // Google Drive Live Connect Handler
-  const handleConnectLiveGDrive = async () => {
-    setIsConnectingGdrive(true);
-    if (gdriveTokenInput.trim()) {
-      try {
-        const res = await fetch(
-          "https://www.googleapis.com/drive/v3/files?pageSize=50&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&orderBy=folder,modifiedTime desc",
-          {
-            headers: { Authorization: `Bearer ${gdriveTokenInput.trim()}` },
-          }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (data.files && data.files.length > 0) {
-            type GDriveApiFile = { id: string; name: string; mimeType: string; size?: string; modifiedTime: string; webViewLink?: string };
-            const mapped = data.files.map((f: GDriveApiFile) => ({
-              id: f.id,
-              name: f.name,
-              mimeType: f.mimeType,
-              sizeStr: f.size ? formatBytes(parseInt(f.size)) : "Google Docs",
-              updatedAt: new Date(f.modifiedTime).toLocaleDateString("id-ID", {
-                day: "numeric",
-                month: "short",
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              webViewLink: f.webViewLink || "https://drive.google.com",
-            }));
-            setGdriveFiles(mapped);
-          }
-          // Fetch quota details
-          const aboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user,storageQuota", {
-            headers: { Authorization: `Bearer ${gdriveTokenInput.trim()}` },
-          });
-          if (aboutRes.ok) {
-            const aboutData = await aboutRes.json();
-            if (aboutData.user?.emailAddress) setGdriveUserEmail(aboutData.user.emailAddress);
-            if (aboutData.storageQuota?.usage) setGdriveStorageUsed(parseInt(aboutData.storageQuota.usage));
-            if (aboutData.storageQuota?.limit) setGdriveStorageTotal(parseInt(aboutData.storageQuota.limit));
-          }
-          setIsGdriveConnected(true);
-          alert("Berhasil terhubung ke akun Google Drive Anda!");
-        } else {
-          alert("Token tidak valid atau kedaluwarsa. Silakan periksa kembali token Google OAuth Anda.");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Gagal menghubungi Google Drive API.");
-      } finally {
-        setIsConnectingGdrive(false);
-      }
-    } else {
-      setIsConnectingGdrive(false);
-      alert("Masukkan Access Token Google OAuth Anda untuk menghubungkan akun Google Drive secara riil.");
-    }
-  };
-
   // Handle Real Upload (Dual-Mode: NAS Streaming + IndexedDB Fallback)
   const handleRealFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -704,9 +681,19 @@ export default function Home() {
       // Mode NAS: unggah ke server, lalu ambil ulang daftar dari server
       // supaya yang tampil adalah data nyata, bukan salinan lokal.
       if (connectionMode === "nas") {
-        await uploadToNas(file, currentFolderId, (percent) => {
-          setUploadProgress(Math.max(10, percent));
-        });
+        const report = (percent: number) => setUploadProgress(Math.max(10, percent));
+        try {
+          await uploadToNas(file, currentFolderId, report);
+        } catch (err) {
+          const msg = (err as Error).message || "";
+          // Backend menolak nama duplikat; tawarkan ganti, jangan langsung gagal.
+          if (!/sudah ada/i.test(msg)) throw err;
+          if (!confirm(`"${file.name}" sudah ada di folder ini. Ganti dengan versi baru?`)) {
+            setIsUploading(false);
+            return;
+          }
+          await uploadToNas(file, currentFolderId, report, true);
+        }
         setUploadProgress(100);
         await loadNasFiles(currentFolderId);
         setTimeout(() => {
@@ -2155,7 +2142,12 @@ export default function Home() {
                                     <Heart className={`h-3.5 w-3.5 ${file.isFavorite ? "fill-rose-500" : ""}`} />
                                   </button>
                                   <button
-                                    onClick={() => setShareModalFile(file)}
+                                    onClick={() => {
+                                      setShareModalFile(file);
+                                      setShareLinkGenerated(false);
+                                      setCurrentGeneratedUrl("");
+                                      setSharePasswordInput("");
+                                    }}
                                     className="text-zinc-500 hover:text-blue-400 p-1 cursor-pointer"
                                     title="Bagikan Link"
                                   >
@@ -2921,7 +2913,6 @@ export default function Home() {
                             <th className="py-3 px-4 font-medium">Izin</th>
                             <th className="py-3 px-4 font-medium">Kedaluwarsa</th>
                             <th className="py-3 px-4 font-medium">Keamanan</th>
-                            <th className="py-3 px-4 font-medium">Statistik</th>
                             <th className="py-3 px-4 text-right font-medium">Aksi</th>
                           </tr>
                         </thead>
@@ -2953,19 +2944,7 @@ export default function Home() {
                                   </span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 font-mono text-zinc-400">{share.downloadsCount} kali diunduh</td>
-                              <td className="py-3 px-4 text-right space-x-2">
-                                <button
-                                  onClick={() => {
-                                    if (typeof navigator !== "undefined" && navigator.clipboard) {
-                                      navigator.clipboard.writeText(share.shareUrl);
-                                    }
-                                    alert(`Link disalin: ${share.shareUrl}`);
-                                  }}
-                                  className="text-blue-400 hover:text-blue-300 text-xs font-medium cursor-pointer"
-                                >
-                                  Salin Link
-                                </button>
+                              <td className="py-3 px-4 text-right">
                                 <button
                                   onClick={() => handleRevokeShare(share.id)}
                                   className="text-rose-400 hover:text-rose-300 text-xs font-medium cursor-pointer"
@@ -3218,9 +3197,10 @@ export default function Home() {
               ) : (
                 <button
                   onClick={handleGenerateShare}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-xl transition-colors mt-2 cursor-pointer shadow-sm shadow-blue-600/30"
+                  disabled={shareGenerating}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-colors mt-2 cursor-pointer shadow-sm shadow-blue-600/30"
                 >
-                  Generate Link Berbagi
+                  {shareGenerating ? "Membuat link..." : "Generate Link Berbagi"}
                 </button>
               )}
             </div>

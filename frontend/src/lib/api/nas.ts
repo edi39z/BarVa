@@ -68,7 +68,8 @@ export async function pingNasServer(serverUrl?: string): Promise<NasHealthRespon
 export async function uploadToNas(
 	file: File,
 	parentId?: string | null,
-	onProgress?: (percent: number) => void
+	onProgress?: (percent: number) => void,
+	overwrite?: boolean
 ): Promise<unknown> {
 	const base = getStoredServerUrl();
 	const token = getStoredToken();
@@ -112,6 +113,9 @@ export async function uploadToNas(
 		formData.append("file", file);
 		if (parentId && parentId !== "root") {
 			formData.append("parent_id", parentId);
+		}
+		if (overwrite) {
+			formData.append("overwrite", "true");
 		}
 
 		xhr.send(formData);
