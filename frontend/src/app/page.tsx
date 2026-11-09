@@ -56,7 +56,9 @@ import {
   ArrowUpRight,
   FolderOpen,
   Clock,
-  PieChart
+  PieChart,
+  Pencil,
+  FolderInput
 } from "lucide-react";
 import {
   saveLocalFile,
@@ -93,6 +95,8 @@ import {
   listNasFiles,
   createNasFolder,
   deleteNasFile,
+  renameNasFile,
+  moveNasFile,
   NasFileNode,
   NasHealthResponse,
   NasUser,
@@ -205,6 +209,16 @@ export default function Home() {
   const [shareModalFile, setShareModalFile] = useState<DisplayItem | null>(null);
   const [shareLinkGenerated, setShareLinkGenerated] = useState(false);
   const [shareGenerating, setShareGenerating] = useState(false);
+
+  // Rename & pindah folder (khusus mode NAS)
+  const [moveItem, setMoveItem] = useState<DisplayItem | null>(null);
+  const [moveParentId, setMoveParentId] = useState<string | null>(null);
+  const [moveCrumbs, setMoveCrumbs] = useState<{ id: string | null; name: string }[]>([
+    { id: null, name: "Semua File" },
+  ]);
+  const [moveFolders, setMoveFolders] = useState<DisplayItem[]>([]);
+  const [moveLoading, setMoveLoading] = useState(false);
+  const [moveBusy, setMoveBusy] = useState(false);
 
   // Phase 3: Dual-Mode Connection State
   const [connectionMode, setConnectionMode] = useState<"standalone" | "nas">("nas");
@@ -660,6 +674,67 @@ export default function Home() {
       parentId: currentFolderId,
     };
     setLocalItems((prev) => [newFolder, ...prev]);
+  };
+
+  const handleRename = async (item: DisplayItem) => {
+    if (connectionMode !== "nas") {
+      alert("Ganti nama hanya tersedia untuk berkas di server NAS.");
+      return;
+    }
+    const next = prompt("Nama baru:", item.name);
+    if (next === null) return;
+    const name = next.trim();
+    if (!name || name === item.name) return;
+
+    try {
+      await renameNasFile(item.id, name);
+      await loadNasFiles(currentFolderId);
+    } catch (err) {
+      alert(`Gagal mengganti nama: ${(err as Error).message}`);
+    }
+  };
+
+  const loadMoveFolders = async (parentId: string | null, excludeId?: string) => {
+    setMoveLoading(true);
+    try {
+      const nodes = await listNasFiles(parentId);
+      setMoveFolders(
+        nodes
+          .filter((n) => n.IsDirectory)
+          .map(nasNodeToDisplay)
+          .filter((f) => f.id !== excludeId)
+      );
+    } catch (err) {
+      alert(`Gagal memuat folder: ${(err as Error).message}`);
+      setMoveFolders([]);
+    } finally {
+      setMoveLoading(false);
+    }
+  };
+
+  const openMoveModal = (item: DisplayItem) => {
+    if (connectionMode !== "nas") {
+      alert("Pindah folder hanya tersedia untuk berkas di server NAS.");
+      return;
+    }
+    setMoveItem(item);
+    setMoveParentId(null);
+    setMoveCrumbs([{ id: null, name: "Semua File" }]);
+    loadMoveFolders(null, item.id);
+  };
+
+  const handleConfirmMove = async () => {
+    if (!moveItem) return;
+    setMoveBusy(true);
+    try {
+      await moveNasFile(moveItem.id, moveParentId);
+      setMoveItem(null);
+      await loadNasFiles(currentFolderId);
+    } catch (err) {
+      alert(`Gagal memindahkan: ${(err as Error).message}`);
+    } finally {
+      setMoveBusy(false);
+    }
   };
 
   // Handle Real Upload (Dual-Mode: NAS Streaming + IndexedDB Fallback)
@@ -2083,13 +2158,35 @@ export default function Home() {
                                     </p>
                                   </div>
                                 </div>
-                                <button
-                                  onClick={(e) => handleDelete(folder.id, e)}
-                                  className="text-zinc-600 hover:text-rose-400 p-1 cursor-pointer"
-                                  title="Hapus Folder"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                <div className="flex items-center gap-0.5">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRename(folder);
+                                    }}
+                                    className="text-zinc-600 hover:text-blue-400 p-1 cursor-pointer"
+                                    title="Ganti Nama Folder"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openMoveModal(folder);
+                                    }}
+                                    className="text-zinc-600 hover:text-amber-400 p-1 cursor-pointer"
+                                    title="Pindahkan Folder"
+                                  >
+                                    <FolderInput className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDelete(folder.id, e)}
+                                    className="text-zinc-600 hover:text-rose-400 p-1 cursor-pointer"
+                                    title="Hapus Folder"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
@@ -2152,6 +2249,26 @@ export default function Home() {
                                     title="Bagikan Link"
                                   >
                                     <Share2 className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRename(file);
+                                    }}
+                                    className="text-zinc-500 hover:text-blue-400 p-1 cursor-pointer"
+                                    title="Ganti Nama"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openMoveModal(file);
+                                    }}
+                                    className="text-zinc-500 hover:text-amber-400 p-1 cursor-pointer"
+                                    title="Pindahkan ke Folder"
+                                  >
+                                    <FolderInput className="h-3.5 w-3.5" />
                                   </button>
                                   <button
                                     onClick={(e) => handleDelete(file.id, e)}
@@ -3115,6 +3232,93 @@ export default function Home() {
       )}
 
       {/* 4. SHARE LINK MODAL */}
+      {moveItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
+                <FolderInput className="h-4 w-4 text-amber-400" />
+                <span>Pindahkan Item</span>
+              </div>
+              <button
+                onClick={() => setMoveItem(null)}
+                className="text-zinc-500 hover:text-white cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Pilih folder tujuan untuk{" "}
+              <span className="text-zinc-200 font-medium">{moveItem.name}</span>.
+            </p>
+
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 flex-wrap bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2">
+              {moveCrumbs.map((c, i) => (
+                <React.Fragment key={`${c.id}-${i}`}>
+                  {i > 0 && <ChevronRight className="h-3 w-3 text-zinc-600" />}
+                  <button
+                    onClick={() => {
+                      setMoveParentId(c.id);
+                      setMoveCrumbs((prev) => prev.slice(0, i + 1));
+                      loadMoveFolders(c.id, moveItem.id);
+                    }}
+                    className="hover:text-white cursor-pointer"
+                  >
+                    {c.name}
+                  </button>
+                </React.Fragment>
+              ))}
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-1.5">
+              {moveLoading ? (
+                <div className="py-8 flex items-center justify-center gap-2 text-zinc-400 text-xs">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>Memuat folder...</span>
+                </div>
+              ) : moveFolders.length === 0 ? (
+                <p className="py-8 text-center text-xs text-zinc-500">
+                  Tidak ada subfolder di sini.
+                </p>
+              ) : (
+                moveFolders.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setMoveParentId(f.id);
+                      setMoveCrumbs((prev) => [...prev, { id: f.id, name: f.name }]);
+                      loadMoveFolders(f.id, moveItem.id);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-left cursor-pointer"
+                  >
+                    <Folder className="h-4 w-4 text-blue-400 shrink-0" />
+                    <span className="text-xs text-zinc-200 truncate">{f.name}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-zinc-600 ml-auto" />
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => setMoveItem(null)}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium py-2.5 rounded-xl transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmMove}
+                disabled={moveBusy}
+                className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors cursor-pointer"
+              >
+                {moveBusy ? "Memindahkan..." : "Pindahkan ke Sini"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {shareModalFile && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">

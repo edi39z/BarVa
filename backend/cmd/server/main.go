@@ -217,6 +217,8 @@ func main() {
 				protected.POST("/files/folder", filesHandler.CreateFolder)
 				protected.POST("/files/upload", filesHandler.Upload)
 				protected.DELETE("/files/:id", filesHandler.SoftDelete)
+				protected.PATCH("/files/:id", filesHandler.Rename)
+				protected.POST("/files/:id/move", filesHandler.Move)
 				protected.GET("/files/:id/download", filesHandler.Download)
 				protected.GET("/files/:id/stream", filesHandler.Stream)
 

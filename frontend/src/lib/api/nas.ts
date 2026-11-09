@@ -193,6 +193,24 @@ export async function deleteNasFile(id: string): Promise<void> {
 	if (!res.ok) throw new Error(await parseError(res));
 }
 
+export async function renameNasFile(id: string, name: string): Promise<void> {
+	const res = await nasFetch(`/api/v1/files/${encodeURIComponent(id)}`, {
+		method: "PATCH",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ name }),
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+}
+
+export async function moveNasFile(id: string, parentId: string | null): Promise<void> {
+	const res = await nasFetch(`/api/v1/files/${encodeURIComponent(id)}/move`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ parent_id: parentId }),
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+}
+
 export function getDownloadUrl(fileId: string): string {
 	const base = getStoredServerUrl();
 	const token = getStoredToken();

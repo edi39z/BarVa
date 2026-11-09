@@ -217,6 +217,32 @@ func (q *Queries) ListNodesByParent(ctx context.Context, arg ListNodesByParentPa
 	return items, nil
 }
 
+const moveNode = `-- name: MoveNode :one
+UPDATE file_nodes
+SET parent_id = $3, updated_at = NOW()
+WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL
+RETURNING id, parent_id, updated_at
+`
+
+type MoveNodeParams struct {
+	ID       pgtype.UUID
+	OwnerID  pgtype.UUID
+	ParentID pgtype.UUID
+}
+
+type MoveNodeRow struct {
+	ID        pgtype.UUID
+	ParentID  pgtype.UUID
+	UpdatedAt pgtype.Timestamptz
+}
+
+func (q *Queries) MoveNode(ctx context.Context, arg MoveNodeParams) (MoveNodeRow, error) {
+	row := q.db.QueryRow(ctx, moveNode, arg.ID, arg.OwnerID, arg.ParentID)
+	var i MoveNodeRow
+	err := row.Scan(&i.ID, &i.ParentID, &i.UpdatedAt)
+	return i, err
+}
+
 const renameNode = `-- name: RenameNode :one
 UPDATE file_nodes
 SET name = $3, updated_at = NOW()

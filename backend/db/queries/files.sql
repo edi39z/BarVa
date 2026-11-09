@@ -50,3 +50,9 @@ UPDATE file_nodes
 SET name = $3, updated_at = NOW()
 WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL
 RETURNING id, name, updated_at;
+
+-- name: MoveNode :one
+UPDATE file_nodes
+SET parent_id = $3, updated_at = NOW()
+WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL
+RETURNING id, parent_id, updated_at;
