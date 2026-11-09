@@ -69,6 +69,7 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - **Service worker / PWA offline** — manifest ada, cache offline belum
 - **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
 - **Unduh folder** — share link untuk folder hanya menampilkan info, belum zip
+- **Trash** — penghapusan bersifat soft delete, belum ada UI untuk memulihkan
 
 ---
 
@@ -325,8 +326,9 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 1. RBAC per file — role `owner/admin/member` belum membatasi akses berkas
 2. Service worker untuk PWA offline
-3. Unduh folder sebagai zip pada share link
-4. Memecah `frontend/src/app/page.tsx` (monolit ±3.700 baris) menjadi komponen
+3. UI Trash — memulihkan berkas yang sudah di-soft-delete
+4. Unduh folder sebagai zip pada share link
+5. Memecah `frontend/src/app/page.tsx` (monolit ±3.700 baris) menjadi komponen
 
 ---
 
