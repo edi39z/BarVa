@@ -14,12 +14,10 @@ import {
   Plus,
   Grid,
   List,
-  CheckCircle2,
   Download,
   Eye,
   Shield,
   Sparkles,
-  X,
   Play,
   Heart,
   FileArchive,
@@ -28,14 +26,10 @@ import {
   Layers,
   Scissors,
   Trash2,
-  Server,
   Settings,
   Wifi,
   WifiOff,
-  Activity,
-  Check,
   Users,
-  Copy,
   LogOut,
   ArrowRight,
   ShieldCheck,
@@ -94,11 +88,13 @@ import {
   NasHealthResponse,
   NasUser,
 } from "@/lib/api/nas";
+import AddMemberModal from "@/components/AddMemberModal";
 import AuthGate from "@/components/AuthGate";
 import FamilySharingTab from "@/components/FamilySharingTab";
 import GalleryTab from "@/components/GalleryTab";
 import MediaLightbox from "@/components/MediaLightbox";
 import MoveItemModal from "@/components/MoveItemModal";
+import ServerSettingsModal from "@/components/ServerSettingsModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import StoragePickerModal from "@/components/StoragePickerModal";
 import StudioTab from "@/components/StudioTab";
@@ -2637,308 +2633,47 @@ export default function Home() {
 
       {/* 6. ADD FAMILY MEMBER MODAL */}
       {addMemberModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
-                <Users className="h-4 w-4 text-blue-400" />
-                <span>Tambah Anggota Keluarga Baru</span>
-              </div>
-              <button
-                onClick={() => {
-                  setAddMemberModalOpen(false);
-                  setGeneratedInviteUrl("");
-                }}
-                className="text-zinc-500 hover:text-white cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {generatedInviteUrl ? (
-              <div className="space-y-4 pt-1">
-                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-left space-y-2.5">
-                  <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Anggota Berhasil Didaftarkan!</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-300">
-                    Kirimkan tautan undangan ini ke HP keluarga via WhatsApp atau Telegram. Saat mereka mengklik link ini di HP mereka, mereka langsung bergabung:
-                  </p>
-                  <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800 text-[11px] font-mono text-zinc-200 break-all select-all">
-                    {generatedInviteUrl}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      if (typeof navigator !== "undefined" && navigator.clipboard) {
-                        navigator.clipboard.writeText(generatedInviteUrl);
-                      }
-                      alert("Tautan undangan berhasil disalin! Silakan kirimkan ke HP anggota keluarga Anda.");
-                    }}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-blue-600/30"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    <span>Salin Link Undangan</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setGeneratedInviteUrl("");
-                      setNewMemberName("");
-                      setNewMemberEmail("");
-                      setAddMemberModalOpen(false);
-                    }}
-                    className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-medium cursor-pointer"
-                  >
-                    Selesai
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleAddFamilyMember} className="space-y-3.5 text-xs">
-                <div>
-                  <label className="text-zinc-400 block mb-1 font-medium">Nama Lengkap</label>
-                  <input
-                    type="text"
-                    required
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    placeholder="Misal: Ibu, Kakak, atau Adik"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-zinc-400 block mb-1 font-medium">Alamat Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={newMemberEmail}
-                    onChange={(e) => setNewMemberEmail(e.target.value)}
-                    placeholder="ibu@nas.local atau email asli"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-zinc-400 block mb-1 font-medium">Peran (Role)</label>
-                    <select
-                      value={newMemberRole}
-                      onChange={(e) => setNewMemberRole(e.target.value as "member" | "admin")}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="member">Member (Akses Biasa)</option>
-                      <option value="admin">Admin (Kelola User)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-zinc-400 block mb-1 font-medium">Batas Kuota</label>
-                    <select
-                      value={newMemberQuotaGB}
-                      onChange={(e) => setNewMemberQuotaGB(parseInt(e.target.value))}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value={50}>50 GB</option>
-                      <option value={100}>100 GB</option>
-                      <option value={250}>250 GB</option>
-                      <option value={500}>500 GB</option>
-                    </select>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-zinc-500 pt-1">
-                  Anggota keluarga akan mendapatkan tautan khusus untuk membuka akun privat mereka dan otomatis mengakses folder bersama keluarga.
-                </p>
-
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-                  <button
-                    type="button"
-                    onClick={() => setAddMemberModalOpen(false)}
-                    className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer shadow-sm shadow-blue-600/30"
-                  >
-                    Daftarkan & Buat Link
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+        <AddMemberModal
+          generatedInviteUrl={generatedInviteUrl}
+          name={newMemberName}
+          onNameChange={setNewMemberName}
+          email={newMemberEmail}
+          onEmailChange={setNewMemberEmail}
+          role={newMemberRole}
+          onRoleChange={setNewMemberRole}
+          quotaGB={newMemberQuotaGB}
+          onQuotaChange={setNewMemberQuotaGB}
+          onSubmit={handleAddFamilyMember}
+          onClose={() => {
+            setAddMemberModalOpen(false);
+            setGeneratedInviteUrl("");
+          }}
+          onFinish={() => {
+            setGeneratedInviteUrl("");
+            setNewMemberName("");
+            setNewMemberEmail("");
+            setAddMemberModalOpen(false);
+          }}
+        />
       )}
 
       {/* 5. SERVER CONNECTION MODAL (DUAL-MODE HYBRID SWITCHER) */}
       {serverModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-zinc-100 font-semibold text-sm">
-                <Server className="h-4 w-4 text-blue-400" />
-                <span>Pengaturan Server NAS Homelab</span>
-              </div>
-              <button
-                onClick={() => setServerModalOpen(false)}
-                className="text-zinc-500 hover:text-white cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Mode Selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-zinc-300">Mode Operasi Aplikasi</label>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div
-                  onClick={() => setConnectionMode("nas")}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                    connectionMode === "nas"
-                      ? "border-blue-500 bg-blue-500/10 text-white"
-                      : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-zinc-200">Private NAS Server</p>
-                    {connectionMode === "nas" && <Check className="h-3.5 w-3.5 text-blue-400" />}
-                  </div>
-                  <p className="text-[11px] text-zinc-400 mt-1">
-                    Streaming video, deduplikasi CAS, & kapasitas besar ke server rumah.
-                  </p>
-                </div>
-
-                <div
-                  onClick={() => setConnectionMode("standalone")}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                    connectionMode === "standalone"
-                      ? "border-amber-500 bg-amber-500/10 text-white"
-                      : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-zinc-200">Mode Standalone</p>
-                    {connectionMode === "standalone" && <Check className="h-3.5 w-3.5 text-amber-400" />}
-                  </div>
-                  <p className="text-[11px] text-zinc-400 mt-1">
-                    100% offline di HP/laptop via IndexedDB & Studio WASM tanpa server.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Server Endpoint URL Input */}
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-zinc-300 block mb-1">
-                  Alamat Endpoint Backend Server
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputServerUrl}
-                    onChange={(e) => setInputServerUrl(e.target.value)}
-                    placeholder="http://localhost:8080 atau http://192.168.18.10:8080"
-                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500"
-                  />
-                  <button
-                    onClick={handleTestPing}
-                    disabled={isTestingPing}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium px-3.5 py-2 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {isTestingPing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5 text-blue-400" />}
-                    <span>Test Ping</span>
-                  </button>
-                </div>
-                <p className="text-[10px] text-zinc-500 mt-1">
-                  Gunakan IP lokal jaringan rumah, hostname Tailscale, atau domain VPN.
-                </p>
-              </div>
-
-              {/* Admin Key untuk endpoint Google Drive & undangan */}
-              <div>
-                <label className="text-xs font-medium text-zinc-300 block mb-1">
-                  Admin Key (opsional)
-                </label>
-                <input
-                  type="password"
-                  value={inputAdminKey}
-                  onChange={(e) => setInputAdminKey(e.target.value)}
-                  placeholder="Samakan dengan env NAS_ADMIN_KEY di server"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500"
-                />
-                <p className="text-[10px] text-zinc-500 mt-1">
-                  Wajib jika server disetel <code>NAS_ADMIN_KEY</code>. Tanpa key, endpoint hanya bisa diakses dari jaringan lokal.
-                </p>
-              </div>
-
-              {/* Ping Message Status */}
-              {pingTestMessage && (
-                <div
-                  className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-                    nasStatus === "online"
-                      ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
-                      : "bg-rose-500/10 border border-rose-500/30 text-rose-300"
-                  }`}
-                >
-                  {nasStatus === "online" ? (
-                    <Wifi className="h-4 w-4 shrink-0 text-emerald-400" />
-                  ) : (
-                    <WifiOff className="h-4 w-4 shrink-0 text-rose-400" />
-                  )}
-                  <span>{pingTestMessage}</span>
-                </div>
-              )}
-
-              {/* Server Diagnostics & Telemetry */}
-              {nasHealth && nasStatus === "online" && (
-                <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3.5 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Status Server:</span>
-                    <span className="text-emerald-400 font-medium flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Online
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Versi Backend:</span>
-                    <span className="text-zinc-300 font-mono">{nasHealth.version}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Direktori Fisik Disk:</span>
-                    <span className="text-zinc-300 font-mono truncate max-w-[240px]">{nasHealth.storage_path}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Mode Database:</span>
-                    <span className={nasHealth.database ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
-                      {nasHealth.database ? "PostgreSQL Terhubung" : "Storage-Only Mode"}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-              <button
-                onClick={() => setServerModalOpen(false)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSaveServerConfig}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer shadow-sm shadow-blue-600/30"
-              >
-                Simpan & Terapkan
-              </button>
-            </div>
-          </div>
-        </div>
+        <ServerSettingsModal
+          mode={connectionMode}
+          onModeChange={setConnectionMode}
+          serverUrl={inputServerUrl}
+          onServerUrlChange={setInputServerUrl}
+          adminKey={inputAdminKey}
+          onAdminKeyChange={setInputAdminKey}
+          testing={isTestingPing}
+          pingMessage={pingTestMessage}
+          status={nasStatus}
+          health={nasHealth}
+          onTestPing={handleTestPing}
+          onSave={handleSaveServerConfig}
+          onClose={() => setServerModalOpen(false)}
+        />
       )}
 
       {/* 7. STORAGE FILE PICKER MODAL (FOR STUDIO TOOLS) */}
