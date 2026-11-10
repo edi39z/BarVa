@@ -289,3 +289,33 @@ Detail penting:
   `pending` untuk banner dan menyegarkan daftar berkas bila `uploaded > 0`.
 - Antrean tidak dihapus saat logout. Ini disengaja: berkas milik pengguna tetap
   ada di perangkat dan akan dikirim setelah login lagi.
+
+---
+
+## 8. Struktur frontend
+
+`src/app/page.tsx` adalah container: ia memegang state, efek, dan handler, lalu
+menyusun komponen. Semua tampilan besar sudah dipisah ke `src/components/`.
+
+| Komponen | Tanggung jawab |
+|---|---|
+| `Sidebar` | Indikator mode/server, navigasi tab, penghitung item, ringkasan penyimpanan, kartu pengguna, logout |
+| `WorkspaceHeader` | Pencarian, aksi unggah/folder baru, banner offline dan progres unggah |
+| `HomeDashboard` | Hero, pintasan kategori, memori, aksi cepat, berkas terbaru, ringkasan penyimpanan, feed status |
+| `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, banner antrean offline |
+| `TrashTab` | Tabel item terhapus, pulihkan, hapus permanen |
+| `GalleryTab` | Filter kategori dan grid media |
+| `StudioTab` | Empat alat client-side (foto→PDF, gabung PDF, pasfoto, kompres) |
+| `FamilySharingTab` | Anggota, undangan pending, tautan publik, akses jarak jauh |
+| `MediaLightbox` | Pratinjau media dan metadata |
+| `ShareLinkModal`, `MoveItemModal` | Pembuatan link berbagi dan pemindahan item |
+| `ServerSettingsModal`, `AddMemberModal`, `StoragePickerModal` | Konfigurasi server, undangan anggota, pemilih berkas untuk Studio |
+
+Aturan yang dipegang:
+
+- Komponen tab **tidak** memanggil API sendiri; semua data dan aksi masuk lewat
+  props. Ini menjaga container sebagai satu-satunya pemilik state.
+- Tipe bersama (`DisplayItem`, `FamilyMember`, `ActiveShare`, `formatBytes`,
+  `nasNodeToDisplay`) ada di `lib/nasDisplay.ts`, bukan di `page.tsx`.
+- `AppTab` dan `StudioTool` dideklarasikan di `HomeDashboard` dan dipakai ulang
+  oleh `Sidebar`, sehingga penambahan tab cukup diubah di satu tempat.

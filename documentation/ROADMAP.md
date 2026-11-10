@@ -27,11 +27,14 @@ janji tanggal.
 
 ## Berikutnya
 
-### 1. Memecah `page.tsx`
+### 1. Memecah state `page.tsx` menjadi hook
 
-Berkas utama frontend masih monolit. Rencana: pecah menjadi komponen per tab
-(`FileManager`, `Gallery`, `Studio`, `Family`, `Dashboard`) dengan state yang
-jelas.
+`page.tsx` sudah turun dari 4257 ke ~1510 baris setelah seluruh tab, sidebar,
+header, dan modal diekstrak ke `src/components/*`. Sisa isinya adalah state,
+efek, dan handler yang menyambungkan komponen-komponen tersebut. Langkah
+berikutnya memindahkan kelompok state ke custom hook
+(`useNasFiles`, `useTrash`, `useShares`, `useStudio`) supaya container hanya
+mengurus komposisi.
 
 ---
 
