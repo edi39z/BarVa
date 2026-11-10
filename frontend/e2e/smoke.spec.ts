@@ -59,6 +59,23 @@ test.describe("navigasi tab mode standalone", () => {
     await expect(page.getByRole("heading", { name: "Studio Foto & Dokumen" })).toBeVisible();
   });
 
+  test("alat AI minta izin sebelum mengunduh model", async ({ page }) => {
+    await page.getByRole("button", { name: /Studio Foto & PDF/ }).click();
+
+    await page.getByRole("button", { name: /Hapus Latar/ }).click();
+    await expect(page.getByText("Perlu unduh model AI sekali saja")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Unduh model/ })).toBeVisible();
+
+    // Sebelum memberi izin, tombol pemilih foto masih terkunci.
+    await expect(page.getByRole("button", { name: "Pilih dari perangkat" })).toBeDisabled();
+
+    await page.getByRole("button", { name: /Unduh model/ }).click();
+    await expect(page.getByRole("button", { name: "Pilih dari perangkat" })).toBeEnabled();
+
+    await page.getByRole("button", { name: /Naikkan Kualitas/ }).click();
+    await expect(page.getByText("Pilih foto yang ingin diperjelas")).toBeVisible();
+  });
+
   test("Sampah disembunyikan di mode standalone", async ({ page }) => {
     await expect(page.getByRole("button", { name: /^Sampah/ })).toHaveCount(0);
   });

@@ -3,17 +3,22 @@
 import React from "react";
 import {
   CheckCircle2,
+  Download,
   FileText,
   Folder,
   Layers,
   Scissors,
+  ShieldCheck,
   Sparkles,
   Wand2,
+  Zap,
 } from "lucide-react";
 import { formatBytes } from "@/lib/nasDisplay";
 import type { CompressionResult } from "@/lib/studio/image";
+import type { BgProgress, EnhanceResult } from "@/lib/studio/ai";
+import type { StudioToolId } from "@/lib/studio/tools";
 
-export type StudioToolId = "img2pdf" | "mergepdf" | "idphoto" | "compress";
+export type { StudioToolId };
 export type IdPhotoRatio = "3x4" | "4x6";
 
 interface StudioTabProps {
@@ -25,10 +30,14 @@ interface StudioTabProps {
   mergePdfRef: React.RefObject<HTMLInputElement | null>;
   idPhotoRef: React.RefObject<HTMLInputElement | null>;
   compressRef: React.RefObject<HTMLInputElement | null>;
+  removeBgRef: React.RefObject<HTMLInputElement | null>;
+  enhanceRef: React.RefObject<HTMLInputElement | null>;
   onImagesToPDF: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onMergePDFs: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onCreateIDPhoto: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onCompressImage: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveBackground: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onEnhancePhoto: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onOpenStoragePicker: (tool: StudioToolId) => void;
   idPhotoRatio: IdPhotoRatio;
   onIdPhotoRatioChange: (ratio: IdPhotoRatio) => void;
@@ -37,6 +46,11 @@ interface StudioTabProps {
   compressQuality: number;
   onCompressQualityChange: (quality: number) => void;
   lastCompressResult: CompressionResult | null;
+  bgModelReady: boolean;
+  bgConsentGranted: boolean;
+  bgProgress: BgProgress | null;
+  onGrantBgConsent: () => void;
+  lastEnhanceResult: EnhanceResult | null;
 }
 
 const TOOLS: {
@@ -47,6 +61,38 @@ const TOOLS: {
   bg: string;
   fg: string;
 }[] = [
+  {
+    id: "removebg",
+    title: "Hapus Latar",
+    subtitle: "Latar jadi transparan",
+    icon: Wand2,
+    bg: "var(--tile-teal)",
+    fg: "var(--tile-teal-fg)",
+  },
+  {
+    id: "enhance",
+    title: "Naikkan Kualitas",
+    subtitle: "Foto lebih tajam & besar",
+    icon: Zap,
+    bg: "var(--tile-amber)",
+    fg: "var(--tile-amber-fg)",
+  },
+  {
+    id: "compress",
+    title: "Kompres Foto",
+    subtitle: "Perkecil ukuran berkas",
+    icon: Sparkles,
+    bg: "var(--tile-green)",
+    fg: "var(--tile-green-fg)",
+  },
+  {
+    id: "idphoto",
+    title: "Pasfoto 3×4 / 4×6",
+    subtitle: "Latar merah, biru, putih",
+    icon: Scissors,
+    bg: "var(--tile-rose)",
+    fg: "var(--tile-rose-fg)",
+  },
   {
     id: "img2pdf",
     title: "Foto ke PDF",
@@ -63,22 +109,6 @@ const TOOLS: {
     bg: "var(--tile-purple)",
     fg: "var(--tile-purple-fg)",
   },
-  {
-    id: "idphoto",
-    title: "Pasfoto 3×4 / 4×6",
-    subtitle: "Latar merah, biru, putih",
-    icon: Scissors,
-    bg: "var(--tile-rose)",
-    fg: "var(--tile-rose-fg)",
-  },
-  {
-    id: "compress",
-    title: "Kompres Foto",
-    subtitle: "Perkecil ukuran berkas",
-    icon: Sparkles,
-    bg: "var(--tile-green)",
-    fg: "var(--tile-green-fg)",
-  },
 ];
 
 export default function StudioTab({
@@ -90,10 +120,14 @@ export default function StudioTab({
   mergePdfRef,
   idPhotoRef,
   compressRef,
+  removeBgRef,
+  enhanceRef,
   onImagesToPDF,
   onMergePDFs,
   onCreateIDPhoto,
   onCompressImage,
+  onRemoveBackground,
+  onEnhancePhoto,
   onOpenStoragePicker,
   idPhotoRatio,
   onIdPhotoRatioChange,
@@ -102,7 +136,14 @@ export default function StudioTab({
   compressQuality,
   onCompressQualityChange,
   lastCompressResult,
+  bgModelReady,
+  bgConsentGranted,
+  bgProgress,
+  onGrantBgConsent,
+  lastEnhanceResult,
 }: StudioTabProps) {
+  const bgCanRun = bgModelReady || bgConsentGranted;
+
   return (
     <div className="mx-auto max-w-4xl space-y-4 pb-24 lg:pb-6">
       <div>
@@ -111,12 +152,12 @@ export default function StudioTab({
           Studio Foto & Dokumen
         </h1>
         <p className="mt-1 max-w-2xl text-[12.5px] leading-relaxed text-subtle">
-          Semua proses berjalan langsung di HP atau laptop Anda — berkas tidak diunggah ke mana pun,
-          jadi tetap privat dan tidak memakai kuota internet.
+          Semua proses berjalan langsung di HP atau laptop Anda — foto tidak diunggah ke mana pun,
+          jadi tetap privat.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
         {TOOLS.map((item) => {
           const Icon = item.icon;
           const active = tool === item.id;
@@ -161,6 +202,148 @@ export default function StudioTab({
       )}
 
       <div className="card p-4 sm:p-6">
+        {tool === "removebg" && (
+          <div className="space-y-4">
+            <input
+              type="file"
+              ref={removeBgRef}
+              onChange={onRemoveBackground}
+              accept="image/*"
+              className="hidden"
+            />
+
+            {!bgCanRun && (
+              <div className="rounded-xl border border-line bg-surface-2 p-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: "var(--tile-teal)", color: "var(--tile-teal-fg)" }}
+                    aria-hidden
+                  >
+                    <ShieldCheck className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-fg">Perlu unduh model AI sekali saja</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-subtle">
+                      Sekitar <strong className="font-semibold text-fg">40 MB</strong>. Setelah tersimpan, alat ini
+                      bisa dipakai tanpa internet. Foto Anda tidak pernah dikirim ke server mana pun.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button onClick={onGrantBgConsent} disabled={processing} className="btn btn-primary">
+                    <Download className="h-4 w-4" aria-hidden />
+                    Unduh model &amp; mulai
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {bgProgress && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-[12px]">
+                  <span className="font-semibold text-muted">
+                    {bgProgress.phase === "download" ? "Mengunduh model AI…" : "Memproses foto…"}
+                  </span>
+                  <span className="font-semibold tabular-nums text-brand">{bgProgress.percent}%</span>
+                </div>
+                <div
+                  className="h-2 w-full overflow-hidden rounded-full bg-surface-3"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={bgProgress.percent}
+                  aria-label="Kemajuan hapus latar belakang"
+                >
+                  <div
+                    className="h-full rounded-full bg-[var(--brand-solid)] transition-[width] duration-300"
+                    style={{ width: `${Math.max(4, bgProgress.percent)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-xl border-2 border-dashed border-line-strong bg-surface-2 px-4 py-8 text-center">
+              <Wand2 className="mx-auto mb-2 h-9 w-9 text-[var(--tile-teal-fg)]" aria-hidden />
+              <p className="text-[13px] font-semibold text-fg">Pilih foto yang ingin dihapus latarnya</p>
+              <p className="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-subtle">
+                Paling cocok untuk foto orang, produk, atau hewan. Hasil disimpan sebagai PNG transparan.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  disabled={processing || !bgCanRun}
+                  onClick={() => removeBgRef.current?.click()}
+                  className="btn btn-primary"
+                >
+                  {processing ? "Memproses…" : "Pilih dari perangkat"}
+                </button>
+                <button
+                  disabled={processing || !bgCanRun}
+                  onClick={() => onOpenStoragePicker("removebg")}
+                  className="btn btn-secondary"
+                >
+                  <Folder className="h-4 w-4" aria-hidden />
+                  Pilih dari berkas tersimpan
+                </button>
+              </div>
+              {bgModelReady && !processing && (
+                <p className="mt-3 text-[11.5px] text-subtle">Model AI sudah siap di perangkat ini.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tool === "enhance" && (
+          <div className="space-y-4">
+            <input type="file" ref={enhanceRef} onChange={onEnhancePhoto} accept="image/*" className="hidden" />
+
+            <div className="rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-[12px] leading-relaxed text-subtle">
+              Foto diperbesar <strong className="font-semibold text-fg">2×</strong>, detail dipertajam, dan warna
+              dirapikan. Tanpa model AI, jadi langsung jalan dan tidak memakai kuota.
+            </div>
+
+            <div className="rounded-xl border-2 border-dashed border-line-strong bg-surface-2 px-4 py-8 text-center">
+              <Zap className="mx-auto mb-2 h-9 w-9 text-[var(--tile-amber-fg)]" aria-hidden />
+              <p className="text-[13px] font-semibold text-fg">Pilih foto yang ingin diperjelas</p>
+              <p className="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-subtle">
+                Cocok untuk foto lama, hasil scan, atau foto yang tampak buram.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button disabled={processing} onClick={() => enhanceRef.current?.click()} className="btn btn-primary">
+                  {processing ? "Memproses…" : "Pilih dari perangkat"}
+                </button>
+                <button
+                  disabled={processing}
+                  onClick={() => onOpenStoragePicker("enhance")}
+                  className="btn btn-secondary"
+                >
+                  <Folder className="h-4 w-4" aria-hidden />
+                  Pilih dari berkas tersimpan
+                </button>
+              </div>
+            </div>
+
+            {lastEnhanceResult && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success-border bg-success-soft px-3.5 py-3 text-[12px]">
+                <div>
+                  <p className="font-semibold text-success">Hasil peningkatan terakhir</p>
+                  <p className="text-success/90">
+                    {lastEnhanceResult.originalWidth} × {lastEnhanceResult.originalHeight} →{" "}
+                    <strong className="font-semibold">
+                      {lastEnhanceResult.width} × {lastEnhanceResult.height}
+                    </strong>{" "}
+                    · {formatBytes(lastEnhanceResult.originalSize)} →{" "}
+                    {formatBytes(lastEnhanceResult.enhancedSize)}
+                  </p>
+                </div>
+                <span className="chip chip-success">
+                  {Math.round((lastEnhanceResult.width / lastEnhanceResult.originalWidth) * 100)}% lebih besar
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         {tool === "img2pdf" && (
           <div className="space-y-4">
             <input type="file" ref={img2PdfRef} onChange={onImagesToPDF} multiple accept="image/*" className="hidden" />

@@ -79,6 +79,10 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   bisa melihat dan mengelola berkas semua anggota (ditandai di UI)
 - PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
   profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
+- Studio foto & dokumen yang berjalan penuh di perangkat: foto→PDF, gabung PDF,
+  pasfoto 3×4/4×6, kompres foto, hapus latar belakang (model AI ±40 MB, diunduh
+  sekali setelah pengguna memberi izin), dan peningkatan kualitas foto 2×.
+  Foto tidak pernah diunggah ke server
 - Migrasi database otomatis saat backend start (`schema_migrations`), termasuk
   baseline untuk database lama
 - Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file
@@ -351,3 +355,12 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 Belum ditentukan. Sampai lisensi dipilih, anggap semua hak dilindungi —
 hubungi maintainer sebelum menggunakan kode ini di luar keperluan kontribusi.
+
+### Lisensi pihak ketiga
+
+Alat **Hapus Latar** memakai [`@imgly/background-removal`](https://www.npmjs.com/package/@imgly/background-removal)
+yang dilisensikan **AGPL-3.0**. Selama aplikasi ini hanya dipakai sendiri atau
+di dalam keluarga, tidak ada kewajiban tambahan. Jika nanti aplikasi
+didistribusikan atau dijalankan sebagai layanan publik, AGPL-3.0 mewajibkan
+kode sumber versi yang dipakai ikut dibuka. Alat **Naikkan Kualitas** tidak
+memakai dependensi pihak ketiga (hanya Canvas API), jadi tidak terpengaruh.

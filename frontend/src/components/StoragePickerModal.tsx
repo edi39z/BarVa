@@ -4,8 +4,9 @@ import React from "react";
 import { Check, Cloud, FileText, Folder, HardDrive, Server } from "lucide-react";
 import type { DisplayItem } from "@/lib/nasDisplay";
 import Modal from "@/components/Modal";
+import { MULTI_IMAGE_TOOLS, SINGLE_IMAGE_TOOLS, type StudioToolId } from "@/lib/studio/tools";
 
-export type StudioToolId = "img2pdf" | "mergepdf" | "idphoto" | "compress";
+export type { StudioToolId };
 export type StoragePickerTab = "local" | "nas" | "gdrive";
 
 interface StoragePickerModalProps {
@@ -39,8 +40,10 @@ export default function StoragePickerModal({
   onClose,
   onConfirm,
 }: StoragePickerModalProps) {
+  const isSingleImageTool = SINGLE_IMAGE_TOOLS.includes(tool);
+
   const eligibleItems = localItems.filter((item) => {
-    if (tool === "img2pdf" || tool === "idphoto" || tool === "compress") {
+    if (SINGLE_IMAGE_TOOLS.includes(tool) || MULTI_IMAGE_TOOLS.includes(tool)) {
       return item.type === "image";
     }
     if (tool === "mergepdf") {
@@ -106,7 +109,7 @@ export default function StoragePickerModal({
                 <li key={item.id}>
                   <button
                     onClick={() => {
-                      if (tool === "idphoto" || tool === "compress") {
+                      if (isSingleImageTool) {
                         onSelectedIdsChange([item.id]);
                       } else {
                         onSelectedIdsChange((prev) =>
