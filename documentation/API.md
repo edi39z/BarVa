@@ -17,7 +17,9 @@ Base URL pengembangan: `http://localhost:8080`. Semua endpoint di bawah
 | Tanpa autentikasi | — | `/health`, `/auth/register`, `/auth/login`, `/public/*`, `/gdrive/callback` |
 
 Bila `NAS_ADMIN_KEY` tidak diset di server, endpoint admin hanya menerima
-permintaan dari IP lokal/privat.
+permintaan dari IP lokal/privat. Saat `GIN_MODE=release` (Docker), backend
+menolak start tanpa kunci ini karena di balik proxy semua request tampak
+berasal dari IP privat.
 
 ### Format error
 

@@ -1,6 +1,32 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gin-gonic/gin"
+)
+
+func TestValidateAdminKey(t *testing.T) {
+	cases := []struct {
+		name    string
+		mode    string
+		key     string
+		wantErr bool
+	}{
+		{"release tanpa kunci", gin.ReleaseMode, "", true},
+		{"release kunci spasi", gin.ReleaseMode, "   ", true},
+		{"release dengan kunci", gin.ReleaseMode, "rahasia", false},
+		{"debug tanpa kunci", gin.DebugMode, "", false},
+		{"test tanpa kunci", gin.TestMode, "", false},
+	}
+
+	for _, tc := range cases {
+		err := validateAdminKey(tc.mode, tc.key)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("%s: validateAdminKey(%q, %q) err = %v, wantErr %v", tc.name, tc.mode, tc.key, err, tc.wantErr)
+		}
+	}
+}
 
 func TestOriginAllowed(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "https://nas.example.com")

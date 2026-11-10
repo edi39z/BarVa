@@ -36,8 +36,9 @@ services:
       TEMP_DIR: "/data/tmp"
       MIGRATIONS_DIR: "/app/migrations"
       GIN_MODE: "release"
-      # Opsional: aktifkan proteksi endpoint Drive & undangan.
-      NAS_ADMIN_KEY: "${NAS_ADMIN_KEY:-}"
+      # WAJIB. Di mode release backend menolak start tanpa kunci ini, karena
+      # di balik reverse proxy semua request tampak berasal dari IP privat.
+      NAS_ADMIN_KEY: "${NAS_ADMIN_KEY:?NAS_ADMIN_KEY wajib diisi di deploy/docker/.env}"
       ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-}"
       MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-}"
     volumes:

@@ -77,7 +77,7 @@ Semua opsional; default bekerja untuk localhost.
 | `THUMBNAIL_DIR` | `./data/thumbnails` | Cache pratinjau gambar (`<sha256>_<sisi>.jpg`) |
 | `DATA_DIR` | `./data` | Lokasi `gdrive.json` dan `invites.json` |
 | `APP_URL` | `http://localhost:3000` | Base URL redirect OAuth dan link undangan |
-| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat |
+| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat (mode debug). **Wajib** bila `GIN_MODE=release`, backend menolak start |
 | `ALLOWED_ORIGINS` | *(kosong)* | Origin CORS tambahan, dipisah koma |
 | `MAX_UPLOAD_BYTES` | `10737418240` (10 GiB) | Batas ukuran satu upload |
 
@@ -124,8 +124,14 @@ supaya hanya ada satu sumber kebenaran.
 Untuk produksi:
 
 - jangan ekspos port `5432` ke publik (default sudah `127.0.0.1`)
-- set `NAS_ADMIN_KEY` bila server dapat diakses dari luar jaringan lokal
+- isi `NAS_ADMIN_KEY` (wajib — lihat catatan di bawah)
 - isi `ALLOWED_ORIGINS` dengan domain frontend
+
+`GIN_MODE=release` membuat backend **menolak start** bila `NAS_ADMIN_KEY`
+kosong. Alasannya: di dalam Docker semua request datang dari IP container
+proxy yang privat, sehingga izin "hanya IP lokal" akan membuka `/gdrive/*` dan
+`/invites/*` bagi siapa pun yang bisa menjangkau port 8080. Compose juga
+menolak `up` bila variabel ini belum diisi di `deploy/docker/.env`.
 
 ---
 

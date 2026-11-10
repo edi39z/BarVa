@@ -209,20 +209,20 @@ diambil sebagai bagian dari `DATABASE_URL`.
 docker compose up -d --build
 ```
 
-Migrasi otomatis dijalankan oleh image PostgreSQL karena `migrations/`
-di-mount ke `/docker-entrypoint-initdb.d`. Ini **hanya** berlaku saat volume
-database masih kosong — untuk database yang sudah ada, jalankan migrasi manual.
+Migrasi otomatis dijalankan oleh backend saat start (`MIGRATIONS_DIR`), dengan
+`migrations/` di-mount ke container backend — bukan ke initdb PostgreSQL.
 
 > ⚠️ Sebelum produksi: jangan ekspos port `5432` ke publik (default sudah
-> `127.0.0.1`), set `NAS_ADMIN_KEY` bila server dapat diakses dari luar
-> jaringan lokal, dan isi `ALLOWED_ORIGINS` dengan domain frontend Anda.
+> `127.0.0.1`), isi `NAS_ADMIN_KEY` (wajib di mode `release`), dan isi
+> `ALLOWED_ORIGINS` dengan domain frontend Anda.
 > File `.env` tidak boleh di-commit.
 
 ---
 
 ## Environment Variables
 
-Semua opsional — default bekerja untuk localhost.
+Semua opsional kecuali `NAS_ADMIN_KEY` saat `GIN_MODE=release`; default
+bekerja untuk localhost.
 
 | Variabel | Default | Fungsi |
 |---|---|---|
@@ -233,7 +233,7 @@ Semua opsional — default bekerja untuk localhost.
 | `THUMBNAIL_DIR` | `./data/thumbnails` | Cache pratinjau gambar (`<sha256>_<sisi>.jpg`) |
 | `DATA_DIR` | `./data` | Lokasi `gdrive.json` dan `invites.json` |
 | `APP_URL` | `http://localhost:3000` | Base URL untuk redirect OAuth dan link undangan |
-| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat |
+| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat; **wajib** bila `GIN_MODE=release` |
 | `ALLOWED_ORIGINS` | *(kosong)* | Origin CORS tambahan, dipisah koma |
 | `MAX_UPLOAD_BYTES` | `10737418240` (10 GiB) | Batas ukuran satu upload |
 

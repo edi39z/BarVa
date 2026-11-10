@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -66,6 +67,19 @@ func originAllowed(origin string) bool {
 	return false
 }
 
+// validateAdminKey menolak start di mode release tanpa NAS_ADMIN_KEY.
+//
+// Di Docker, backend berada di belakang reverse proxy sehingga ClientIP
+// adalah IP container (privat). Tanpa kunci, AdminKeyMiddleware akan
+// mengizinkan semua request yang lewat proxy — persis bypass yang ingin
+// ditutup. Mode debug dibiarkan longgar agar `go run` tetap praktis.
+func validateAdminKey(ginMode, adminKey string) error {
+	if ginMode == gin.ReleaseMode && strings.TrimSpace(adminKey) == "" {
+		return errors.New("NAS_ADMIN_KEY wajib diisi saat GIN_MODE=release (buat dengan: openssl rand -hex 32)")
+	}
+	return nil
+}
+
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
@@ -101,6 +115,10 @@ func main() {
 
 	log.Printf("[NAS Backend] Starting daemon on port %s...", port)
 	log.Printf("[NAS Backend] Storage directory: %s", storageDir)
+
+	if err := validateAdminKey(gin.Mode(), os.Getenv("NAS_ADMIN_KEY")); err != nil {
+		log.Fatalf("Fatal: %v", err)
+	}
 
 	// 1. Initialize Storage Engine (Local CAS)
 	store, err := storage.NewLocalStorage(storageDir)
