@@ -20,3 +20,9 @@ WHERE id = $1 LIMIT 1;
 SELECT id, email, username, role, quota_bytes, created_at, updated_at
 FROM users
 ORDER BY created_at ASC;
+
+-- name: UpdateUserQuota :one
+UPDATE users
+SET quota_bytes = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING id, email, username, role, quota_bytes, created_at, updated_at;

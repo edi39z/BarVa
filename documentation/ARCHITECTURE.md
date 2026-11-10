@@ -85,6 +85,11 @@ Poin penting:
   Karena itu upload, rename, dan move bisa mengembalikan `409 CONFLICT`.
 - **`shares` menyimpan hash token**, bukan token asli. Token asli hanya
   dikembalikan sekali saat pembuatan.
+- **`users.quota_bytes` = 0 berarti tanpa batas.** Pemakaian dihitung dari
+  `DISTINCT object_id` milik akun, sehingga dedup CAS tidak dihitung dua kali.
+  Upload melewati batas ditolak `413 QUOTA_EXCEEDED`; owner/admin dapat
+  mengubahnya lewat `PATCH /family/members/:id/quota`, dan kuota baru tidak
+  boleh lebih kecil dari pemakaian saat ini (`409 QUOTA_BELOW_USAGE`).
 
 ---
 

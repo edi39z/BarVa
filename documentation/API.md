@@ -456,6 +456,31 @@ seperti endpoint download.
 Daftar akun yang terdaftar di server. `member` hanya menerima datanya sendiri;
 daftar lengkap (termasuk email anggota lain) hanya untuk `owner`/`admin`.
 
+```json
+{ "data": [ { "id": "uuid", "email": "budi@contoh.id", "username": "budi", "role": "member", "quota_bytes": 107374182400, "quota_used_bytes": 2097152, "created_at": "10 Nov 2026, 14:00" } ] }
+```
+
+`quota_used_bytes` dihitung dari objek aktif milik akun tersebut (sekali per
+sha256), sama seperti `quota_used_bytes` pada `/auth/me`.
+
+### `PATCH /api/v1/family/members/:id/quota`
+
+Hanya `owner`/`admin`. `admin` tidak boleh mengubah kuota `owner`.
+
+```json
+{ "quota_gb": 25 }
+```
+
+`quota_gb: 0` berarti tanpa batas. Nilai harus di antara 0 dan 102400.
+
+| Status | Kode | Arti |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | `quota_gb` kosong atau di luar rentang |
+| `400` | `INVALID_ID` | ID anggota bukan UUID |
+| `403` | `FORBIDDEN` | Bukan owner/admin, atau admin mencoba mengubah owner |
+| `404` | `USER_NOT_FOUND` | Akun tidak ada |
+| `409` | `QUOTA_BELOW_USAGE` | Kuota baru lebih kecil dari pemakaian saat ini |
+
 ### `POST /api/v1/family/invite`
 
 Hanya `owner`/`admin`.

@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Clock,
   Folder,
+  Gauge,
   Globe,
   Image as ImageIcon,
   Link2,
@@ -13,12 +14,18 @@ import {
   ShieldCheck,
   Unlock,
   Users,
+  X,
 } from "lucide-react";
 import type { Invite as ServerInvite } from "@/lib/api/cloud";
 import type { ActiveShare, FamilyMember } from "@/lib/nasDisplay";
 import { formatBytes } from "@/lib/nasDisplay";
 
 export type FamilySubTab = "members" | "shares" | "remote";
+
+/** Byte → string GB ringkas untuk mengisi input (maksimal 4 desimal). */
+function toGigabytes(bytes: number): string {
+  return String(Number((bytes / 1024 ** 3).toFixed(4)));
+}
 
 interface FamilySharingTabProps {
   subTab: FamilySubTab;
@@ -31,6 +38,11 @@ interface FamilySharingTabProps {
   onRevokeInvite: (id: string) => void;
   onRevokeShare: (id: string) => void;
   onOpenFiles: () => void;
+  /** Owner/admin boleh mengubah kuota anggota lain. */
+  canManageQuota: boolean;
+  /** Role pemakai saat ini; admin tidak boleh mengubah kuota owner. */
+  viewerRole: string;
+  onUpdateQuota: (id: string, quotaGB: number) => Promise<void>;
 }
 
 export default function FamilySharingTab({
@@ -44,8 +56,41 @@ export default function FamilySharingTab({
   onRevokeInvite,
   onRevokeShare,
   onOpenFiles,
+  canManageQuota,
+  viewerRole,
+  onUpdateQuota,
 }: FamilySharingTabProps) {
   const pendingInvites = invites.filter((invite) => invite.status === "pending");
+  const [quotaTarget, setQuotaTarget] = useState<FamilyMember | null>(null);
+  const [quotaInput, setQuotaInput] = useState("");
+  const [quotaError, setQuotaError] = useState("");
+  const [quotaSaving, setQuotaSaving] = useState(false);
+
+  const openQuotaModal = (member: FamilyMember) => {
+    setQuotaTarget(member);
+    setQuotaInput(member.quotaBytes > 0 ? toGigabytes(member.quotaBytes) : "0");
+    setQuotaError("");
+  };
+
+  const submitQuota = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!quotaTarget) return;
+    const value = Number(quotaInput.replace(",", "."));
+    if (!Number.isFinite(value) || value < 0) {
+      setQuotaError("Masukkan angka 0 atau lebih.");
+      return;
+    }
+    setQuotaSaving(true);
+    setQuotaError("");
+    try {
+      await onUpdateQuota(quotaTarget.id, value);
+      setQuotaTarget(null);
+    } catch (err) {
+      setQuotaError((err as Error).message);
+    } finally {
+      setQuotaSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -160,10 +205,12 @@ export default function FamilySharingTab({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {members.map((member) => {
-                const percent = Math.min(
-                  100,
-                  Math.round((member.usedBytes / member.quotaBytes) * 100)
-                );
+                const unlimited = member.quotaBytes <= 0;
+                const percent = unlimited
+                  ? 0
+                  : Math.min(100, Math.round((member.usedBytes / member.quotaBytes) * 100));
+                const canEdit =
+                  canManageQuota && !(member.role === "owner" && viewerRole !== "owner");
                 return (
                   <div
                     key={member.id}
@@ -199,15 +246,23 @@ export default function FamilySharingTab({
                       <div className="flex justify-between text-[11px]">
                         <span className="text-zinc-400">Penggunaan Kuota:</span>
                         <span className="font-mono text-zinc-200">
-                          {formatBytes(member.usedBytes)} / {formatBytes(member.quotaBytes)} ({percent}%)
+                          {formatBytes(member.usedBytes)} /{" "}
+                          {unlimited ? "Tanpa batas" : formatBytes(member.quotaBytes)}
+                          {unlimited ? "" : ` (${percent}%)`}
                         </span>
                       </div>
                       <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
-                            percent > 85 ? "bg-rose-500" : percent > 60 ? "bg-amber-500" : "bg-blue-500"
+                            unlimited
+                              ? "bg-zinc-700"
+                              : percent > 85
+                              ? "bg-rose-500"
+                              : percent > 60
+                              ? "bg-amber-500"
+                              : "bg-blue-500"
                           }`}
-                          style={{ width: `${percent}%` }}
+                          style={{ width: `${unlimited ? 100 : percent}%` }}
                         />
                       </div>
                     </div>
@@ -217,9 +272,17 @@ export default function FamilySharingTab({
                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                         Folder Privat Aman
                       </span>
-                      <span className="text-blue-400 hover:text-blue-300 font-medium cursor-pointer">
-                        Detail & Izin
-                      </span>
+                      {canEdit ? (
+                        <button
+                          onClick={() => openQuotaModal(member)}
+                          className="flex items-center gap-1 text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
+                        >
+                          <Gauge className="h-3.5 w-3.5" />
+                          <span>Atur Kuota</span>
+                        </button>
+                      ) : (
+                        <span className="text-zinc-600">Kelola oleh Owner</span>
+                      )}
                     </div>
                   </div>
                 );
@@ -391,6 +454,79 @@ export default function FamilySharingTab({
               </ol>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal pengaturan kuota anggota */}
+      {quotaTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <form
+            onSubmit={submitQuota}
+            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
+                  <Gauge className="h-4 w-4 text-blue-400" />
+                  <span>Atur Kuota Penyimpanan</span>
+                </h3>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  {quotaTarget.name} • {quotaTarget.email}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuotaTarget(null)}
+                className="text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                aria-label="Tutup"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-zinc-400">
+              Terpakai saat ini: <span className="font-mono text-zinc-200">{formatBytes(quotaTarget.usedBytes)}</span>
+            </p>
+
+            <label className="block space-y-1.5">
+              <span className="text-[11px] font-medium text-zinc-300">Kuota (GB)</span>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={quotaInput}
+                onChange={(e) => setQuotaInput(e.target.value)}
+                autoFocus
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-blue-500"
+              />
+              <span className="text-[10px] text-zinc-500">
+                Isi 0 untuk memberi akses tanpa batas. Kuota tidak boleh lebih kecil dari pemakaian.
+              </span>
+            </label>
+
+            {quotaError && (
+              <p className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                {quotaError}
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setQuotaTarget(null)}
+                className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2 rounded-lg cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={quotaSaving}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors cursor-pointer"
+              >
+                {quotaSaving ? "Menyimpan..." : "Simpan"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
