@@ -41,6 +41,12 @@ Prinsip yang dipegang:
 4. **Otorisasi berkas berbasis pemilik + role.** `member` hanya menyentuh
    berkasnya sendiri; `owner` dan `admin` boleh membaca dan mengelola berkas
    semua anggota. Aturannya ada di `internal/handler/access.go`.
+5. **Efek jaringan menunggu mode dan sesi yang pasti.** `connectionMode` awalnya
+   `"nas"` karena gerbang autentikasi yang dirender saat prerender, jadi setiap
+   efek yang memanggil server juga wajib memeriksa `currentUser`. Tanpa itu,
+   sebelum pengguna memilih mode mandiri ada lima request yang tetap jalan ke
+   `localhost:8080` dan gagal — health, dua kali status Drive, undangan, dan
+   daftar anggota. Dijaga oleh tes e2e "mode mandiri tanpa backend".
 
 ---
 

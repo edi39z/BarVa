@@ -39,6 +39,24 @@ test.describe("gerbang autentikasi", () => {
   });
 });
 
+test.describe("mode mandiri tanpa backend", () => {
+  test("tidak mengirim request ke server NAS", async ({ page }) => {
+    const attempts: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes(":8080")) attempts.push(request.url());
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: SKIP_STANDALONE }).click();
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+    await page.waitForTimeout(1500);
+
+    // Dulu ada lima request yang tetap jalan sebelum pengguna memilih mode
+    // mandiri: health, dua kali status Drive, undangan, dan daftar anggota.
+    expect(attempts).toEqual([]);
+  });
+});
+
 test.describe("navigasi tab mode standalone", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");

@@ -297,8 +297,12 @@ export default function Home() {
   // Dulu polling ini jalan tanpa syarat, sehingga di mode mandiri interval
   // 10 detik terus menembak localhost:8080 dan membanjiri konsol dengan
   // ERR_CONNECTION_REFUSED untuk server yang memang tidak dipakai.
+  //
+  // Gerbang `currentUser` penting: sebelum login aplikasi masih menampilkan
+  // gerbang autentikasi yang tidak memakai status server sama sekali, jadi
+  // probe di tahap itu hanya menghasilkan request gagal di konsol.
   useEffect(() => {
-    if (connectionMode !== "nas") return;
+    if (connectionMode !== "nas" || !currentUser) return;
 
     async function checkHealth() {
       try {
@@ -326,7 +330,7 @@ export default function Home() {
     checkGdrive();
     const pingInterval = setInterval(checkHealth, 10000);
     return () => clearInterval(pingInterval);
-  }, [connectionMode, serverUrl]);
+  }, [connectionMode, currentUser, serverUrl]);
 
   // Status jaringan browser. Berbeda dari nasStatus: NAS bisa mati walau
   // internet ada, dan sebaliknya.
@@ -444,9 +448,10 @@ export default function Home() {
   }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
 
   // Segarkan status Drive setiap kali kembali ke dashboard, karena panel
-  // Drive punya state sendiri dan bisa berubah tanpa reload halaman.
+  // Drive punya state sendiri dan bisa berubah tanpa reload halaman. Status
+  // ini milik akun yang sedang masuk, jadi tidak perlu diambil tanpa sesi.
   useEffect(() => {
-    if (activeTab !== "home") return;
+    if (activeTab !== "home" || connectionMode !== "nas" || !currentUser) return;
     let alive = true;
     gdriveStatus()
       .then((s) => {
@@ -458,7 +463,7 @@ export default function Home() {
     return () => {
       alive = false;
     };
-  }, [activeTab]);
+  }, [activeTab, connectionMode, currentUser]);
 
   // Ping Test Handler
   const handleTestPing = async () => {
@@ -593,10 +598,11 @@ export default function Home() {
 
   // Undangan dan anggota tersimpan di server, jadi tidak ada yang bisa dimuat
   // di mode mandiri — dulu tetap dipanggil dan menghasilkan dua request gagal.
+  // Tanpa sesi pun server akan menolak, jadi ditunggu sampai pengguna masuk.
   useEffect(() => {
-    if (connectionMode !== "nas") return;
+    if (connectionMode !== "nas" || !currentUser) return;
     refreshInvites();
-  }, [connectionMode]);
+  }, [connectionMode, currentUser]);
 
   // Validasi token sesi NAS yang tersimpan saat aplikasi dibuka.
   useEffect(() => {
