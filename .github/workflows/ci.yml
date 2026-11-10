@@ -7,6 +7,9 @@
 #   minimum dinaikkan.
 # - Lint frontend belum dijadikan gate karena masih ada temuan lama di kode
 #   yang belum tersentuh; yang dijaga di sini adalah type-check dan build.
+# - Runner dipin ke ubuntu-24.04, bukan ubuntu-latest. Label `-latest` akan
+#   berpindah ke Ubuntu 26 pada Oktober 2026; pinning menjaga hasil build tetap
+#   sama sampai migrasinya diuji sendiri.
 
 name: CI
 
@@ -27,7 +30,7 @@ concurrency:
 jobs:
   backend:
     name: Backend (Go)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: backend
@@ -48,7 +51,7 @@ jobs:
 
   frontend:
     name: Frontend (Next.js)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
