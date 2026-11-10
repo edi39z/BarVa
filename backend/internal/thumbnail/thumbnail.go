@@ -16,9 +16,9 @@ import (
 	"golang.org/x/image/draw"
 
 	// Pendaftaran decoder. GIF/PNG/JPEG dari stdlib, WebP dari x/image.
+	_ "golang.org/x/image/webp"
 	_ "image/gif"
 	_ "image/png"
-	_ "golang.org/x/image/webp"
 )
 
 const (

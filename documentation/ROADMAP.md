@@ -19,9 +19,9 @@ janji tanggal.
 | **Migrasi otomatis** | Runner di backend menerapkan `migrations/*.up.sql` saat start, mencatat di `schema_migrations`, baseline untuk DB lama |
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
 | **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server; folder bisa diunduh sebagai zip streaming |
-| **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata |
+| **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata dengan role & kuota dari undangan |
 | **Google Drive** | OAuth 2.0, refresh token di server, kuota, jelajah folder, unggah, unduh lewat server |
-| **Hardening** | CORS whitelist, admin key, batas ukuran unggah, MIME dari isi berkas, validasi folder induk |
+| **Hardening** | CORS whitelist, admin key wajib di mode release, batas ukuran unggah, MIME dari isi berkas, validasi folder induk, rate limit login & password share |
 | **Deploy** | Dockerfile multi-stage, docker-compose, unit systemd, konfigurasi Nginx |
 
 ---
@@ -36,6 +36,13 @@ efek, dan handler yang menyambungkan komponen-komponen tersebut. Langkah
 berikutnya memindahkan kelompok state ke custom hook
 (`useNasFiles`, `useTrash`, `useShares`, `useStudio`) supaya container hanya
 mengurus komposisi.
+
+### 2. Penegakan kuota anggota
+
+`users.quota_bytes` sudah terisi dari undangan, tetapi belum dicek saat
+unggah. Langkah berikutnya: hitung pemakaian per `owner_id` (sum
+`file_objects.size_bytes` untuk node aktif), tolak unggah yang melewati kuota
+dengan `413 QUOTA_EXCEEDED`, dan tampilkan sisa kuota di pengaturan akun.
 
 ---
 

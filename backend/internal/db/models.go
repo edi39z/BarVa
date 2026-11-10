@@ -58,4 +58,5 @@ type User struct {
 	Role         string
 	CreatedAt    pgtype.Timestamptz
 	UpdatedAt    pgtype.Timestamptz
+	QuotaBytes   int64
 }

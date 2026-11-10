@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -15,16 +16,20 @@ import (
 
 type AuthHandler struct {
 	queries *db.Queries
+	invites *InviteHandler
 }
 
-func NewAuthHandler(queries *db.Queries) *AuthHandler {
-	return &AuthHandler{queries: queries}
+func NewAuthHandler(queries *db.Queries, invites *InviteHandler) *AuthHandler {
+	return &AuthHandler{queries: queries, invites: invites}
 }
 
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Username string `json:"username" binding:"required,min=3,max=64"`
 	Password string `json:"password" binding:"required,min=8"`
+	// InviteToken opsional: bila diisi, role dan kuota diambil dari undangan
+	// alih-alih memakai default "member" tanpa kuota.
+	InviteToken string `json:"invite_token"`
 }
 
 type LoginRequest struct {
@@ -66,10 +71,39 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Pengguna pertama yang mendaftar menjadi owner; sisanya member.
 	role := "member"
+	var quotaBytes int64
+	inviteToken := strings.TrimSpace(req.InviteToken)
+
+	if inviteToken != "" {
+		if h.invites == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": gin.H{"code": "INVITE_UNAVAILABLE", "message": "Penyimpanan undangan belum siap di server ini."},
+			})
+			return
+		}
+		grant, gErr := h.invites.Grant(inviteToken)
+		if gErr != nil {
+			status, code, message := inviteErrorResponse(gErr)
+			c.JSON(status, gin.H{"error": gin.H{"code": code, "message": message}})
+			return
+		}
+		if !strings.EqualFold(grant.Email, strings.TrimSpace(req.Email)) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": gin.H{"code": "INVITE_EMAIL_MISMATCH", "message": "Email harus sama dengan email yang diundang."},
+			})
+			return
+		}
+		role = grant.Role
+		if grant.QuotaGB > 0 {
+			quotaBytes = int64(grant.QuotaGB) * 1024 * 1024 * 1024
+		}
+	}
+
+	// Pengguna pertama yang mendaftar menjadi owner; sisanya mengikuti undangan.
 	if users, err := h.queries.ListUsers(c.Request.Context()); err == nil && len(users) == 0 {
 		role = "owner"
+		quotaBytes = 0
 	}
 
 	user, err := h.queries.CreateUser(c.Request.Context(), db.CreateUserParams{
@@ -77,6 +111,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Username:     req.Username,
 		PasswordHash: hashedPassword,
 		Role:         role,
+		QuotaBytes:   quotaBytes,
 	})
 	if err != nil {
 		c.JSON(http.StatusConflict, gin.H{
@@ -85,15 +120,39 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Tautkan undangan ke akun yang baru dibuat. Kegagalan di sini tidak
+	// membatalkan pendaftaran: akun sudah sah, dan anggota bisa menerima
+	// undangan lagi lewat halaman /invite.
+	if inviteToken != "" {
+		if mErr := h.invites.MarkAccepted(inviteToken, user.ID.String()); mErr != nil {
+			log.Printf("[auth] gagal menandai undangan diterima: %v", mErr)
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"data": gin.H{
-			"id":         user.ID,
-			"email":      user.Email,
-			"username":   user.Username,
-			"role":       user.Role,
-			"created_at": user.CreatedAt,
+			"id":          user.ID,
+			"email":       user.Email,
+			"username":    user.Username,
+			"role":        user.Role,
+			"quota_bytes": user.QuotaBytes,
+			"created_at":  user.CreatedAt,
 		},
 	})
+}
+
+// inviteErrorResponse memetakan error undangan ke status HTTP + kode klien.
+func inviteErrorResponse(err error) (int, string, string) {
+	switch err {
+	case errRevoked:
+		return http.StatusGone, "INVITE_REVOKED", "Undangan telah dicabut oleh pemilik."
+	case errExpired:
+		return http.StatusGone, "INVITE_EXPIRED", "Undangan sudah kedaluwarsa."
+	case errUsed:
+		return http.StatusConflict, "INVITE_USED", "Undangan ini sudah dipakai akun lain."
+	default:
+		return http.StatusNotFound, "INVITE_NOT_FOUND", "Undangan tidak ditemukan."
+	}
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -184,10 +243,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"token":      rawToken,
 			"expires_at": expiresAt,
 			"user": gin.H{
-				"id":       user.ID,
-				"email":    user.Email,
-				"username": user.Username,
-				"role":     user.Role,
+				"id":          user.ID,
+				"email":       user.Email,
+				"username":    user.Username,
+				"role":        user.Role,
+				"quota_bytes": user.QuotaBytes,
 			},
 		},
 	})
@@ -212,11 +272,12 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"id":         user.ID,
-			"email":      user.Email,
-			"username":   user.Username,
-			"role":       user.Role,
-			"created_at": user.CreatedAt,
+			"id":          user.ID,
+			"email":       user.Email,
+			"username":    user.Username,
+			"role":        user.Role,
+			"quota_bytes": user.QuotaBytes,
+			"created_at":  user.CreatedAt,
 		},
 	})
 }

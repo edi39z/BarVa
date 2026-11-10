@@ -226,10 +226,20 @@ func main() {
 	log.Printf("[NAS Backend] Google Drive & undangan aktif (data: %s)", dataDir)
 
 	if dbAvailable && queries != nil {
-		authHandler := handler.NewAuthHandler(queries)
+		authHandler := handler.NewAuthHandler(queries, inviteHandler)
 		filesHandler := handler.NewFilesHandler(queries, store, tempDir, thumbDir)
 		sharesHandler := handler.NewSharesHandler(queries)
 		familyHandler := handler.NewFamilyHandler(queries)
+
+		// Undangan yang diterima harus menunjuk ke UUID user sebenarnya, bukan
+		// ID acak — supaya daftar anggota tidak punya dua identitas.
+		inviteHandler.SetUserResolver(func(ctx context.Context, email string) (string, bool) {
+			user, err := queries.GetUserByEmail(ctx, email)
+			if err != nil {
+				return "", false
+			}
+			return user.ID.String(), true
+		})
 
 		// Public Routes
 		v1 := r.Group("/api/v1")

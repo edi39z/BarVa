@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +24,11 @@ import (
 type InviteHandler struct {
 	store  *store.FileStore
 	appURL string
+
+	// userResolver menautkan member record ke akun PostgreSQL yang sudah ada
+	// (alur "email sudah terdaftar"). Boleh nil bila database belum siap.
+	resolverMu   sync.RWMutex
+	userResolver func(ctx context.Context, email string) (string, bool)
 }
 
 type inviteRecord struct {
@@ -70,6 +77,113 @@ func newID(prefix string) string {
 func hashToken(t string) string {
 	sum := sha256.Sum256([]byte(t))
 	return hex.EncodeToString(sum[:])
+}
+
+// SetUserResolver memasang pencari akun PostgreSQL berdasarkan email. Dipakai
+// untuk menautkan member record ke UUID user yang sebenarnya, bukan ID acak.
+func (h *InviteHandler) SetUserResolver(fn func(ctx context.Context, email string) (string, bool)) {
+	h.resolverMu.Lock()
+	h.userResolver = fn
+	h.resolverMu.Unlock()
+}
+
+func (h *InviteHandler) resolveUserID(ctx context.Context, email string) (string, bool) {
+	h.resolverMu.RLock()
+	fn := h.userResolver
+	h.resolverMu.RUnlock()
+	if fn == nil {
+		return "", false
+	}
+	return fn(ctx, email)
+}
+
+// inviteGrant adalah isi undangan yang boleh memengaruhi akun baru.
+type inviteGrant struct {
+	ID      string
+	Email   string
+	Role    string
+	QuotaGB int
+}
+
+// normalizeInviteRole membatasi role dari undangan ke admin/member. "owner"
+// hanya diberikan otomatis kepada pengguna pertama, tidak lewat tautan.
+func normalizeInviteRole(role string) string {
+	if strings.EqualFold(strings.TrimSpace(role), "admin") {
+		return "admin"
+	}
+	return "member"
+}
+
+// Grant memvalidasi token undangan untuk pembuatan akun. Mengembalikan
+// errRevoked/errExpired/errUsed/errNotFound agar pemanggil bisa memetakan
+// status HTTP.
+func (h *InviteHandler) Grant(token string) (inviteGrant, error) {
+	var db inviteDB
+	if err := h.store.Load(&db); err != nil {
+		return inviteGrant{}, err
+	}
+
+	hash := hashToken(token)
+	for _, inv := range db.Invites {
+		if inv.TokenHash != hash {
+			continue
+		}
+		switch inv.Status {
+		case "revoked":
+			return inviteGrant{}, errRevoked
+		case "accepted":
+			return inviteGrant{}, errUsed
+		}
+		if exp, perr := time.Parse(time.RFC3339, inv.ExpiresAt); perr == nil && time.Now().After(exp) {
+			return inviteGrant{}, errExpired
+		}
+		return inviteGrant{
+			ID:      inv.ID,
+			Email:   inv.Email,
+			Role:    normalizeInviteRole(inv.Role),
+			QuotaGB: inv.QuotaGB,
+		}, nil
+	}
+	return inviteGrant{}, errNotFound
+}
+
+// MarkAccepted menandai undangan diterima dan mencatat anggota dengan UUID
+// user PostgreSQL. Dipanggil setelah akun benar-benar dibuat, sehingga satu
+// anggota tidak lagi punya dua identitas (user DB dan member JSON).
+func (h *InviteHandler) MarkAccepted(token, userID string) error {
+	hash := hashToken(token)
+
+	var db inviteDB
+	return h.store.Update(&db, func() error {
+		now := time.Now()
+		for i := range db.Invites {
+			inv := &db.Invites[i]
+			if inv.TokenHash != hash {
+				continue
+			}
+			if inv.Status != "accepted" {
+				inv.Status = "accepted"
+				inv.AcceptedAt = now.Format(time.RFC3339)
+			}
+			for j := range db.Members {
+				if db.Members[j].InviteID == inv.ID {
+					db.Members[j].ID = userID
+					return nil
+				}
+			}
+			db.Members = append(db.Members, memberRecord{
+				ID:       userID,
+				Name:     inv.Name,
+				Email:    inv.Email,
+				Role:     inv.Role,
+				QuotaGB:  inv.QuotaGB,
+				JoinedAt: now.Format(time.RFC3339),
+				InviteID: inv.ID,
+			})
+			return nil
+		}
+		return errNotFound
+	})
 }
 
 // ---- middleware-ish guard: hanya pemilik ----
@@ -261,6 +375,7 @@ func (h *InviteHandler) Peek(c *gin.Context) {
 func (h *InviteHandler) Accept(c *gin.Context) {
 	token := c.Param("token")
 	hash := hashToken(token)
+	ctx := c.Request.Context()
 	var db inviteDB
 	var result *memberRecord
 
@@ -271,6 +386,9 @@ func (h *InviteHandler) Accept(c *gin.Context) {
 			if inv.TokenHash != hash {
 				continue
 			}
+			if inv.Status == "revoked" {
+				return errRevoked
+			}
 			if inv.Status == "accepted" {
 				// sudah pernah diterima: kembalikan data anggota yang ada
 				for j := range db.Members {
@@ -280,18 +398,23 @@ func (h *InviteHandler) Accept(c *gin.Context) {
 						return nil
 					}
 				}
-			}
-			if inv.Status == "revoked" {
-				return errRevoked
-			}
-			if exp, perr := time.Parse(time.RFC3339, inv.ExpiresAt); perr == nil && now.After(exp) {
-				return errExpired
+			} else {
+				if exp, perr := time.Parse(time.RFC3339, inv.ExpiresAt); perr == nil && now.After(exp) {
+					return errExpired
+				}
+				inv.Status = "accepted"
+				inv.AcceptedAt = now.Format(time.RFC3339)
 			}
 
-			inv.Status = "accepted"
-			inv.AcceptedAt = now.Format(time.RFC3339)
+			// Bila email sudah punya akun di PostgreSQL, pakai UUID itu agar
+			// daftar anggota tidak berisi identitas kedua yang tidak nyata.
+			memberID := newID("usr_")
+			if userID, ok := h.resolveUserID(ctx, inv.Email); ok {
+				memberID = userID
+			}
+
 			m := memberRecord{
-				ID:       newID("usr_"),
+				ID:       memberID,
 				Name:     inv.Name,
 				Email:    inv.Email,
 				Role:     inv.Role,
@@ -331,6 +454,7 @@ func mustRand(n int) []byte {
 var (
 	errRevoked  = &inviteErr{"undangan dicabut"}
 	errExpired  = &inviteErr{"undangan kedaluwarsa"}
+	errUsed     = &inviteErr{"undangan sudah dipakai"}
 	errNotFound = &inviteErr{"undangan tidak ditemukan"}
 )
 

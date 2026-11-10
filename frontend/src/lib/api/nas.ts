@@ -299,6 +299,8 @@ export interface NasUser {
 	email: string;
 	username: string;
 	role: "owner" | "admin" | "member";
+	/** 0 berarti belum dibatasi. */
+	quota_bytes?: number;
 	created_at?: string;
 }
 
@@ -319,11 +321,16 @@ export async function registerNas(input: {
 	email: string;
 	username: string;
 	password: string;
+	/** Bila diisi, server memakai role & kuota dari undangan ini. */
+	inviteToken?: string;
 }): Promise<NasUser> {
+	const { inviteToken, ...rest } = input;
 	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/register`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(input),
+		body: JSON.stringify(
+			inviteToken ? { ...rest, invite_token: inviteToken } : rest
+		),
 	});
 	if (!res.ok) throw new Error(await parseError(res));
 	const json = (await res.json()) as { data: NasUser };

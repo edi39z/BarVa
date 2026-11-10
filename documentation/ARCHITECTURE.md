@@ -46,11 +46,13 @@ Prinsip yang dipegang:
 
 ## 2. Model data
 
-Lima tabel di `migrations/000001_init_schema.up.sql`.
+Lima tabel di `migrations/000001_init_schema.up.sql`, plus kolom
+`users.quota_bytes` dari `000002_user_quota.up.sql`.
 
 ```
 users
-  id, email (unik), username (unik), password_hash, role, created_at, updated_at
+  id, email (unik), username (unik), password_hash, role, quota_bytes,
+  created_at, updated_at
         │
         ├──< sessions      id, user_id, token_hash (unik), user_agent, client_ip,
         │                  expires_at, created_at
@@ -117,10 +119,12 @@ data/storage/
 ```
 POST /auth/register
   └─ Argon2id(password) → users
-     └─ jika tabel users kosong → role = "owner", selain itu "member"
+     ├─ invite_token valid → role & quota_bytes dari undangan
+     │                        (role undangan hanya admin/member)
+     └─ jika tabel users kosong → role = "owner", quota_bytes = 0
 
 POST /auth/login
-  └─ rate limit (5 gagal / 15 menit per IP+username)
+  └─ rate limit (5 gagal / 15 menit per IP+email)
      └─ verifikasi Argon2id
         └─ buat token acak → simpan SHA-256(token) di sessions
            └─ kembalikan token ke klien

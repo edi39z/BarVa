@@ -64,11 +64,28 @@ GET /health
 { "email": "a@b.c", "username": "tester", "password": "rahasia123" }
 ```
 
+`invite_token` opsional. Bila diisi, role dan kuota diambil dari undangan
+(role undangan dibatasi ke `admin`/`member`; `owner` hanya diberikan otomatis
+ke pengguna pertama). Email harus sama dengan email yang diundang.
+
+```json
+{ "email": "a@b.c", "username": "tester", "password": "rahasia123", "invite_token": "..." }
+```
+
 `201` — **tidak** mengembalikan token. Pengguna pertama menjadi `owner`.
 
 ```json
-{ "data": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner", "created_at": "..." } }
+{ "data": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "member", "quota_bytes": 107374182400, "created_at": "..." } }
 ```
+
+`quota_bytes: 0` berarti belum dibatasi. Kegagalan undangan:
+
+| Status | Kode | Arti |
+|---|---|---|
+| `400` | `INVITE_EMAIL_MISMATCH` | Email pendaftaran ≠ email undangan |
+| `404` | `INVITE_NOT_FOUND` | Token tidak dikenal |
+| `409` | `INVITE_USED` | Undangan sudah dipakai akun lain |
+| `410` | `INVITE_REVOKED` / `INVITE_EXPIRED` | Undangan dicabut atau kedaluwarsa |
 
 ### `POST /api/v1/auth/login`
 
@@ -77,7 +94,7 @@ GET /health
 ```
 
 ```json
-{ "data": { "token": "64-hex", "expires_at": "...", "user": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner" } } }
+{ "data": { "token": "64-hex", "expires_at": "...", "user": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner", "quota_bytes": 0 } } }
 ```
 
 Dibatasi 5 kegagalan per 15 menit per kombinasi IP+email → `429 RATE_LIMITED`.
@@ -85,7 +102,7 @@ Dibatasi 5 kegagalan per 15 menit per kombinasi IP+email → `429 RATE_LIMITED`.
 ### `GET /api/v1/auth/me`
 
 ```json
-{ "data": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner", "created_at": "..." } }
+{ "data": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner", "quota_bytes": 0, "created_at": "..." } }
 ```
 
 ### `POST /api/v1/auth/logout`

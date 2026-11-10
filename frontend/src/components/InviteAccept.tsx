@@ -70,13 +70,16 @@ export default function InviteAccept({ token }: { token?: string }) {
     setJoining(true);
     setError("");
     try {
-      // 1. Buat akun. Kalau email sudah terdaftar, lanjut ke login saja.
+      // 1. Buat akun dengan membawa token undangan, supaya server menerapkan
+      //    role dan kuota dari undangan (bukan default member tanpa kuota).
+      //    Kalau email sudah terdaftar, lanjut ke login saja.
       let accountExists = false;
       try {
         await registerNas({
           email: info.email,
           username: username.trim(),
           password,
+          inviteToken: token,
         });
       } catch (err) {
         const msg = (err as Error).message || "";

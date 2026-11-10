@@ -13,11 +13,11 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
-    email, username, password_hash, role
+    email, username, password_hash, role, quota_bytes
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
-RETURNING id, email, username, role, created_at, updated_at
+RETURNING id, email, username, role, quota_bytes, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -25,15 +25,17 @@ type CreateUserParams struct {
 	Username     string
 	PasswordHash string
 	Role         string
+	QuotaBytes   int64
 }
 
 type CreateUserRow struct {
-	ID        pgtype.UUID
-	Email     string
-	Username  string
-	Role      string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID         pgtype.UUID
+	Email      string
+	Username   string
+	Role       string
+	QuotaBytes int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -42,6 +44,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		arg.Username,
 		arg.PasswordHash,
 		arg.Role,
+		arg.QuotaBytes,
 	)
 	var i CreateUserRow
 	err := row.Scan(
@@ -49,6 +52,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.Email,
 		&i.Username,
 		&i.Role,
+		&i.QuotaBytes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -56,20 +60,32 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, username, password_hash, role, created_at, updated_at
+SELECT id, email, username, password_hash, role, quota_bytes, created_at, updated_at
 FROM users
 WHERE email = $1 LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+type GetUserByEmailRow struct {
+	ID           pgtype.UUID
+	Email        string
+	Username     string
+	PasswordHash string
+	Role         string
+	QuotaBytes   int64
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
-	var i User
+	var i GetUserByEmailRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.Role,
+		&i.QuotaBytes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -77,18 +93,19 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, username, role, created_at, updated_at
+SELECT id, email, username, role, quota_bytes, created_at, updated_at
 FROM users
 WHERE id = $1 LIMIT 1
 `
 
 type GetUserByIDRow struct {
-	ID        pgtype.UUID
-	Email     string
-	Username  string
-	Role      string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID         pgtype.UUID
+	Email      string
+	Username   string
+	Role       string
+	QuotaBytes int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error) {
@@ -99,6 +116,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 		&i.Email,
 		&i.Username,
 		&i.Role,
+		&i.QuotaBytes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -106,18 +124,19 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, username, role, created_at, updated_at
+SELECT id, email, username, role, quota_bytes, created_at, updated_at
 FROM users
 ORDER BY created_at ASC
 `
 
 type ListUsersRow struct {
-	ID        pgtype.UUID
-	Email     string
-	Username  string
-	Role      string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID         pgtype.UUID
+	Email      string
+	Username   string
+	Role       string
+	QuotaBytes int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
 
 func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
@@ -134,6 +153,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 			&i.Email,
 			&i.Username,
 			&i.Role,
+			&i.QuotaBytes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
