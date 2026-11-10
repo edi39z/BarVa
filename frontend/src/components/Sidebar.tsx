@@ -239,12 +239,18 @@ export default function Sidebar({
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-2.5 py-2">
-            <Server className="h-4 w-4 text-muted" aria-hidden />
-            <p className="text-[12px] text-muted">
+          // Sama seperti status di atas, kartu ini membuka Pengaturan Server —
+          // dulu berupa <div> sehingga terlihat seperti tombol tapi tidak bisa diklik.
+          <button
+            onClick={onOpenServer}
+            title="Buka pengaturan server"
+            className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-2.5 py-2 text-left transition-colors hover:border-line-strong hover:bg-surface-3"
+          >
+            <Server className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[12px] text-muted">
               {connectionMode === "nas" ? serverUrl.replace(/^https?:\/\//, "") : "Penyimpanan lokal"}
-            </p>
-          </div>
+            </span>
+          </button>
         )}
       </div>
     </aside>

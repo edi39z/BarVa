@@ -233,13 +233,6 @@ export default function HomeDashboard({
     () => ""
   );
 
-  const statusText =
-    connectionMode === "nas"
-      ? nasStatus === "online"
-        ? "Semua berkas aman di server rumah"
-        : "Server rumah sedang tidak terjangkau"
-      : "Berjalan mandiri di perangkat ini";
-
   return (
     <div className="mx-auto max-w-7xl space-y-5 pb-24 lg:pb-6">
       {/* 1. Sapaan utama */}
@@ -287,11 +280,6 @@ export default function HomeDashboard({
                 Buka Studio
               </button>
             </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-[12px] font-medium text-white backdrop-blur-sm">
-            <ShieldCheck className="h-4 w-4" aria-hidden />
-            <span>{statusText}</span>
           </div>
         </div>
       </section>
