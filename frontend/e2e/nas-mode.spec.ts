@@ -14,9 +14,11 @@ async function login(page: import("@playwright/test").Page) {
   await expect(page.getByRole("button", { name: /Semua File/ })).toBeVisible({ timeout: 20_000 });
 }
 
-// PNG 8x8 sederhana untuk memastikan endpoint thumbnail benar-benar dipakai.
+// PNG 8x8 valid (RGBA, filter 0) untuk memastikan endpoint thumbnail benar-benar
+// dipakai. Konstanta lama ternyata rusak — zlib-nya gagal di-dekode Go — dan
+// test sempat lolos hanya karena ada media lain di galeri.
 const PNG_8X8 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR42mP8z8BQz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC",
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAXklEQVR42hXKMQEEMQgAsCqpEpSghPFVoAQlGLpPh2w55/y+S5AUzbCccwWCpGiGvS+EQJAUzbDxQgoESdEMmy+UQJAUzbD1QgsESdEM2y+MQJAUzbDzwgoESdEMyx+KIpRBoj1OHQAAAABJRU5ErkJggg==",
   "base64"
 );
 
@@ -55,10 +57,11 @@ test.describe("mode NAS", () => {
     expect(folderRes.ok()).toBeTruthy();
     const folderId = (await folderRes.json()).data.ID as string;
 
+    const fileName = `e2e-thumb-${Date.now()}.png`;
     const upload = await request.post(`${API}/api/v1/files/upload`, {
       headers: { Authorization: `Bearer ${token}` },
       multipart: {
-        file: { name: `e2e-thumb-${Date.now()}.png`, mimeType: "image/png", buffer: PNG_8X8 },
+        file: { name: fileName, mimeType: "image/png", buffer: PNG_8X8 },
         parent_id: folderId,
       },
     });
@@ -68,7 +71,9 @@ test.describe("mode NAS", () => {
 
     try {
       await page.getByRole("button", { name: /Foto Favorit/ }).click();
-      const thumb = page.locator('img[src*="/thumbnail"]').first();
+      // Cari berkas yang barusan diunggah, bukan sekadar thumbnail pertama:
+      // galeri bisa memuat media lain dari folder berbeda.
+      const thumb = page.locator(`img[alt="${fileName}"]`);
       await expect(thumb).toBeVisible({ timeout: 20_000 });
 
       // naturalWidth > 0 menandakan JPEG benar-benar diterima dan didekode browser.

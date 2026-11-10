@@ -9,8 +9,10 @@ const PASSWORD = process.env.NAS_E2E_PASSWORD || "";
 const API = process.env.NAS_E2E_API || "http://localhost:8080";
 const SHARE_PASSWORD = "rahasia-e2e";
 
+// PNG 8x8 valid (RGBA, filter 0). Lihat catatan di nas-mode.spec.ts: konstanta
+// lama rusak sehingga thumbnail tidak bisa dibuat server.
 const PNG_8X8 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR42mP8z8BQz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC",
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAXklEQVR42hXKMQEEMQgAsCqpEpSghPFVoAQlGLpPh2w55/y+S5AUzbCccwWCpGiGvS+EQJAUzbDxQgoESdEMmy+UQJAUzbD1QgsESdEM2y+MQJAUzbDzwgoESdEMyx+KIpRBoj1OHQAAAABJRU5ErkJggg==",
   "base64"
 );
 
