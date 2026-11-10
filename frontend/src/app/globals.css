@@ -69,6 +69,8 @@
   --tile-rose-fg: #c22a3f;
   --tile-teal: #e3f6f8;
   --tile-teal-fg: #0a7183;
+  --tile-indigo: #e9ecfb;
+  --tile-indigo-fg: #3b47b8;
 }
 
 .dark {
@@ -123,6 +125,8 @@
   --tile-rose-fg: #ff9dac;
   --tile-teal: #102a2e;
   --tile-teal-fg: #6fd8e4;
+  --tile-indigo: #1b1f3a;
+  --tile-indigo-fg: #a8b3ff;
 }
 
 @theme inline {

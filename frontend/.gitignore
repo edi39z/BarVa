@@ -42,6 +42,9 @@ AGENTS.md
 docs/
 frontend/public/Kolase*
 
+# Aset turunan: disalin dari node_modules oleh scripts/sync-pdf-worker.mjs
+public/pdf.worker.min.mjs
+
 # Debug Logs & OS/IDE
 npm-debug.log*
 yarn-debug.log*

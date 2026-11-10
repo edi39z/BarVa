@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  FileType2,
   Folder,
   Layers,
   Scissors,
@@ -20,6 +21,7 @@ import type { StudioToolId } from "@/lib/studio/tools";
 import type { StudioErrorInfo } from "@/lib/studio/errors";
 import type { StudioOutput } from "@/lib/studio/output";
 import IdPhotoPanel from "./studio/IdPhotoPanel";
+import PdfToWordPanel from "./studio/PdfToWordPanel";
 import StudioAlert from "./studio/StudioAlert";
 
 export type { StudioToolId };
@@ -113,6 +115,14 @@ const TOOLS: {
     icon: FileText,
     bg: "var(--tile-purple)",
     fg: "var(--tile-purple-fg)",
+  },
+  {
+    id: "pdf2word",
+    title: "PDF ke Word",
+    subtitle: "Teks jadi bisa diedit",
+    icon: FileType2,
+    bg: "var(--tile-indigo)",
+    fg: "var(--tile-indigo-fg)",
   },
 ];
 
@@ -420,6 +430,16 @@ export default function StudioTab({
             onOpenStoragePicker={onOpenStoragePicker}
             bgModelReady={bgModelReady}
             onBgModelReady={onBgModelReady}
+          />
+        )}
+
+        {tool === "pdf2word" && (
+          <PdfToWordPanel
+            incomingFile={pickedFile}
+            onIncomingFileHandled={onPickedFileHandled}
+            onCommit={onCommitStudioOutput}
+            onSuccess={onSuccess}
+            onOpenStoragePicker={onOpenStoragePicker}
           />
         )}
 

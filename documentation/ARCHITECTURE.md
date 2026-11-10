@@ -344,7 +344,7 @@ menyusun komponen. Semua tampilan besar sudah dipisah ke `src/components/`.
 | `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, banner antrean offline |
 | `TrashTab` | Tabel item terhapus, pulihkan, hapus permanen |
 | `GalleryTab` | Filter kategori dan grid media |
-| `StudioTab` | Enam alat client-side (hapus latar, naikkan kualitas, kompres, pasfoto, foto→PDF, gabung PDF) |
+| `StudioTab` | Tujuh alat client-side (hapus latar, naikkan kualitas, kompres, pasfoto, foto→PDF, gabung PDF, PDF→Word) |
 | `FamilySharingTab` | Anggota, undangan pending, tautan publik, akses jarak jauh |
 | `MediaLightbox` | Pratinjau media dan metadata |
 | `ShareLinkModal`, `MoveItemModal` | Pembuatan link berbagi dan pemindahan item |
@@ -367,13 +367,15 @@ Aturan yang dipegang:
 | Berkas | Isi |
 |---|---|
 | `lib/studio/pdf.ts` | `imagesToPDF`, `mergePDFs` (pdf-lib) |
+| `lib/studio/pdfjs.ts` | `openPdf` — pemuatan pdf.js, worker, dan galat kata sandi |
+| `lib/studio/pdfToWord.ts` | `pdfToWord` — ekstraksi teks per halaman lalu penyusunan `.docx` |
 | `lib/studio/image.ts` | `compressAndResizeImage` (Canvas 2D) |
 | `lib/studio/idphoto.ts` | Ukuran resmi pasfoto, warna latar, `composeIdPhoto` |
 | `lib/studio/ai.ts` | `removeImageBackground` (ONNX di peramban), `enhancePhoto` (Canvas 2D) |
 | `lib/studio/output.ts` | `StudioOutput`, `downloadBlob`, `persistStudioOutput` — satu jalur simpan + unduh |
 | `lib/studio/errors.ts` | `StudioError` + `describeStudioError` — pemetaan galat ke pesan yang bisa ditindaklanjuti |
-| `lib/studio/tools.ts` | `StudioToolId` + daftar alat gambar tunggal/ganda |
-| `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `StudioAlert`, `StudioProgress` |
+| `lib/studio/tools.ts` | `StudioToolId`, pengelompokan alat (foto/PDF), dan `PANEL_TOOLS` |
+| `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `PdfToWordPanel`, `StudioAlert`, `StudioProgress` |
 
 **Hapus Latar Belakang.** Memakai `@imgly/background-removal` dengan model
 `isnet_quint8` (±40 MB) dan `device: "cpu"`. Model diunduh dari CDN IMG.LY pada
@@ -409,3 +411,24 @@ disengaja — kalau kuota penyimpanan penuh, berkas tetap sampai ke pengguna dan
 muncul peringatan `STORAGE_FULL`. `persistStudioOutput` memakai `id` dari record
 `saveLocalFile`, bukan `crypto.randomUUID()` sendiri; versi lama membuat id di
 daftar berbeda dari id di IndexedDB sehingga hasil Studio tidak bisa dihapus.
+
+**PDF ke Word.** Memakai `pdfjs-dist` untuk membaca PDF dan `docx` untuk menyusun
+berkas Word, keduanya di perangkat pengguna. Setiap halaman menghasilkan paragraf
+dari teks yang diekstrak; halaman yang tidak punya teks sama sekali (hasil
+pindai) dirender ke kanvas lalu dimasukkan sebagai gambar, supaya isinya tidak
+hilang. Batasnya 24 karakter — di bawah itu halaman dianggap pindai.
+
+Baris disusun dari posisi `transform` setiap potongan teks (y menurun, x
+menaik), lalu digabung menjadi paragraf bila jarak vertikalnya masih wajar.
+Paragraf baru dimulai saat jarak baris melonjak, ukuran huruf berubah lebih dari
+1,25×, atau baris diawali nomor/tanda daftar. Tata letak rumit (kolom ganda,
+tabel, kotak teks) tidak direproduksi — teks tetap lengkap dan berurutan.
+
+pdf.js berjalan di Web Worker yang berkasnya harus satu origin. `scripts/sync-pdf-worker.mjs`
+menyalin `pdf.worker.min.mjs` dari `node_modules` ke `public/` pada `predev` dan
+`prebuild`; aset itu tidak masuk repo. Modul pdf.js diimpor dinamis karena
+menyentuh `DOMMatrix` saat dimuat, sama seperti modul AI.
+
+PDF terkunci dikenali dari `PasswordException`: galatnya dipetakan ke
+`StudioError("PDF_PASSWORD")` dan panel menampilkan kolom kata sandi, bukan
+pesan umum.

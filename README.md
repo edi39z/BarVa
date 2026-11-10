@@ -80,6 +80,7 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
   profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
 - Studio foto & dokumen yang berjalan penuh di perangkat: foto→PDF, gabung PDF,
+  PDF→Word (teks jadi bisa diedit, halaman hasil pindai masuk sebagai gambar),
   pasfoto dengan ukuran resmi (2×3, 3×4, 4×6, paspor, 2×2 inci) atau ukuran
   kustom dan warna latar bebas lewat kode hex, kompres foto, hapus latar
   belakang (model AI ±40 MB, diunduh sekali setelah pengguna memberi izin), dan

@@ -48,6 +48,12 @@ export function makePdfOutput(bytes: Uint8Array, filename: string): StudioOutput
   };
 }
 
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+export function makeDocxOutput(blob: Blob, filename: string): StudioOutput {
+  return { blob, filename, kind: "document", mimeType: DOCX_MIME };
+}
+
 /**
  * Simpan hasil Studio ke IndexedDB lalu kembalikan item untuk daftar tampilan.
  *

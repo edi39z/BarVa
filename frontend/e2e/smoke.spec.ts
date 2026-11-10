@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
 // Suite ini sengaja tidak butuh backend. Aplikasi dibuka dalam mode
 // standalone (tombol "Lanjut tanpa server") sehingga semua pemeriksaan
@@ -107,6 +108,26 @@ test.describe("navigasi tab mode standalone", () => {
     await expect(page.getByText("Kode warna harus format #RRGGBB.")).toHaveCount(0);
   });
 
+  test("PDF ke Word menghasilkan berkas .docx", async ({ page }) => {
+    await page.getByRole("button", { name: /Studio Foto & PDF/ }).click();
+    await page.getByRole("button", { name: /PDF ke Word/ }).click();
+
+    await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+      name: "surat.pdf",
+      mimeType: "application/pdf",
+      buffer: await makeSamplePdf(),
+    });
+
+    await expect(page.getByText(/2 halaman/).first()).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Ubah ke Word/ }).click();
+    const download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toBe("surat.docx");
+    await expect(page.getByRole("status")).toContainText("2 halaman diubah ke Word");
+  });
+
   test("Sampah disembunyikan di mode standalone", async ({ page }) => {
     await expect(page.getByRole("button", { name: /^Sampah/ })).toHaveCount(0);
   });
@@ -153,3 +174,20 @@ test.describe("halaman pendukung", () => {
     expect(Array.isArray(manifest.icons)).toBe(true);
   });
 });
+
+/**
+ * PDF dua halaman dibuat saat tes berjalan supaya tidak ada berkas biner di
+ * repo: halaman pertama berisi teks, halaman kedua kosong (meniru hasil pindai).
+ */
+async function makeSamplePdf(): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  const page = doc.addPage([595, 842]);
+  page.drawText("SURAT KETERANGAN", { x: 60, y: 760, size: 18, font });
+  page.drawText("Nomor: 123/ABC/2026", { x: 60, y: 730, size: 11, font });
+
+  doc.addPage([595, 842]);
+
+  return Buffer.from(await doc.save());
+}
