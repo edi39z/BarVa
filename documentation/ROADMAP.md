@@ -14,6 +14,7 @@ janji tanggal.
 | **File manager** | Daftar, navigasi folder, unggah, buat folder, ganti nama, pindah, hapus, unduh, pratinjau gambar/video |
 | **Trash** | Daftar item terhapus, pulihkan ke folder asal, hapus permanen dengan pembersihan objek CAS yang tidak terpakai |
 | **RBAC** | `member` hanya berkasnya sendiri; `owner`/`admin` menjangkau semua berkas. Pindah lintas pemilik dan pembuatan node di pohon orang lain ditolak |
+| **Thumbnail** | Pratinjau JPEG 320/960 px dibuat server, di-cache per sha256, dipakai galeri dan grid berkas |
 | **PWA offline** | Service worker menyimpan shell aplikasi + halaman `/offline`, profil terakhir di-cache, banner status jaringan, dan antrean upload offline di IndexedDB yang terkirim otomatis saat online |
 | **Migrasi otomatis** | Runner di backend menerapkan `migrations/*.up.sql` saat start, mencatat di `schema_migrations`, baseline untuk DB lama |
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
@@ -41,7 +42,7 @@ mengurus komposisi.
 ## Ide jangka panjang
 
 - Aplikasi pendamping untuk sinkronisasi otomatis kamera
-- Thumbnail dan transkode video di server
+- Transkode video di server (thumbnail gambar sudah ada)
 - Dukungan penyimpanan sekunder (S3-compatible)
 - Pencarian isi dokumen
 - Pemrosesan gambar di server (resize, konversi) selain yang sudah ada di browser

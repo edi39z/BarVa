@@ -197,6 +197,33 @@ token Google.
 
 ---
 
+### 4.7 Thumbnail gambar
+
+Galeri dan grid berkas tidak lagi memuat foto asli. Browser meminta
+`GET /files/:id/thumbnail?size=small` (320 px) atau `large` (960 px), dan server
+mengirim JPEG kecil.
+
+```
+node → cek izin (canAccessNode) → cek MIME image/*
+     → cache hit? kirim file <sha256>_<sisi>.jpg
+     → cache miss: buka objek CAS → DecodeConfig (tolak > 80 MP)
+                   → image.Decode → CatmullRom.Scale → JPEG q=82
+                   → tulis cache (tmp + rename) → kirim
+```
+
+Keputusan penting:
+
+- Cache memakai `sha256` objek, bukan id node. Objek CAS immutable, jadi satu
+  pratinjau dipakai ulang oleh semua node yang menunjuk isi sama.
+- `ETag` = `<sha256>-<sisi>` dan `Cache-Control: immutable`, sehingga browser
+  tidak meminta ulang. `If-None-Match` yang cocok dijawab `304`.
+- Transparansi PNG/GIF dikomposit ke latar putih karena keluaran berupa JPEG.
+- Decoder: JPEG/PNG/GIF dari stdlib, WebP dari `golang.org/x/image/webp`.
+  Format lain (mis. HEIC) dijawab `415 UNSUPPORTED_IMAGE`.
+- Video belum punya poster; UI menampilkan ikon play.
+
+---
+
 ## 5. Otorisasi berkas
 
 Setiap node punya `owner_id`. Akses ditentukan oleh pemilik node dan role

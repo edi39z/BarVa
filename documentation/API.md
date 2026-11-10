@@ -206,6 +206,20 @@ Mengirim berkas dengan `Content-Disposition: attachment`.
 
 Mendukung `Range` (`206 Partial Content`) untuk pemutar video.
 
+### `GET /api/v1/files/:id/thumbnail?size=small|large`
+
+Mengirim pratinjau JPEG dari berkas gambar. `size` default `small` (sisi
+terpanjang 320 px); `large` 960 px. Hanya untuk berkas dengan MIME `image/*`.
+
+- Respons memakai `ETag: "<sha256>-<sisi>"` dan
+  `Cache-Control: private, max-age=31536000, immutable`. Kirim
+  `If-None-Match` untuk mendapat `304 Not Modified`.
+- Pratinjau dibuat sekali lalu disimpan di `THUMBNAIL_DIR`
+  (`<sha256>_<sisi>.jpg`), jadi permintaan berikutnya tidak men-dekode ulang.
+- Kode kesalahan: `400 IS_DIRECTORY`, `400 INVALID_SIZE`,
+  `415 NOT_IMAGE` (MIME bukan gambar), `415 UNSUPPORTED_IMAGE` (isi tidak bisa
+  didekode, mis. HEIC), `413 IMAGE_TOO_LARGE` (di atas 80 MP), `403 FORBIDDEN`.
+
 ---
 
 ## Trash

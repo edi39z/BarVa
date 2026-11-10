@@ -230,6 +230,7 @@ Semua opsional — default bekerja untuk localhost.
 | `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable` | Koneksi PostgreSQL |
 | `STORAGE_DIR` | `./data/storage` | Akar penyimpanan objek (CAS) |
 | `TEMP_DIR` | `./data/tmp` | Temp upload sebelum dipindah atomik |
+| `THUMBNAIL_DIR` | `./data/thumbnails` | Cache pratinjau gambar (`<sha256>_<sisi>.jpg`) |
 | `DATA_DIR` | `./data` | Lokasi `gdrive.json` dan `invites.json` |
 | `APP_URL` | `http://localhost:3000` | Base URL untuk redirect OAuth dan link undangan |
 | `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat |
