@@ -103,8 +103,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Image ubuntu-24.04 dari GitHub sudah membawa pustaka sistem yang dibutuhkan
+      # Chromium, jadi `--with-deps` (apt-get, ~3 menit) tidak dipakai. Kalau suatu
+      # saat browser gagal diluncurkan karena pustaka hilang, tambahkan `--with-deps`.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Build
         run: npm run build
