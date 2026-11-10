@@ -217,6 +217,9 @@ node → cek izin (canAccessNode) → cek MIME image/*
 
 Keputusan penting:
 
+- Daftar media galeri diambil dari `GET /media`, satu query datar atas seluruh
+  pohon berkas (bukan traversal folder satu per satu). Tanpa ini galeri hanya
+  menampilkan isi folder yang sedang dibuka, padahal labelnya "media keluarga".
 - Cache memakai `sha256` objek, bukan id node. Objek CAS immutable, jadi satu
   pratinjau dipakai ulang oleh semua node yang menunjuk isi sama.
 - `ETag` = `<sha256>-<sisi>` dan `Cache-Control: immutable`, sehingga browser

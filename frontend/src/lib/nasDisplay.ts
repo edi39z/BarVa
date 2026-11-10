@@ -38,7 +38,6 @@ export interface ActiveShare {
   permission: "viewer" | "uploader";
   expiresAtStr: string;
   hasPassword: boolean;
-  downloadsCount: number;
 }
 
 export function formatBytes(bytes: number): string {

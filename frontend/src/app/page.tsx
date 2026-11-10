@@ -43,6 +43,7 @@ import {
   fetchMe,
   logoutNas,
   listNasFiles,
+  listNasMedia,
   createNasFolder,
   deleteNasFile,
   renameNasFile,
@@ -158,6 +159,10 @@ export default function Home() {
   const [nasItems, setNasItems] = useState<DisplayItem[]>([]);
   const [nasFilesLoading, setNasFilesLoading] = useState(false);
   const [nasFilesError, setNasFilesError] = useState("");
+
+  // Media NAS lintas folder untuk galeri. Dipisah dari nasItems karena
+  // nasItems hanya berisi isi folder yang sedang dibuka.
+  const [mediaItems, setMediaItems] = useState<DisplayItem[]>([]);
 
   // Trash NAS — item yang sudah di-soft-delete tapi belum dihapus permanen
   const [trashItems, setTrashItems] = useState<TrashedNode[]>([]);
@@ -293,6 +298,29 @@ export default function Home() {
     }
     loadNasFiles(currentFolderId);
   }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
+
+  // Galeri memuat media lintas folder setiap kali tabnya dibuka, supaya
+  // unggahan/hapus terbaru langsung terlihat tanpa memuat seluruh pohon berkas.
+  useEffect(() => {
+    if (connectionMode !== "nas" || !currentUser) {
+      setMediaItems([]);
+      return;
+    }
+    if (activeTab !== "gallery") return;
+
+    let cancelled = false;
+    listNasMedia()
+      .then((nodes) => {
+        if (!cancelled) setMediaItems(nodes.map(nasNodeToDisplay));
+      })
+      .catch(() => {
+        if (!cancelled) setMediaItems([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectionMode, currentUser, activeTab]);
 
   // Muat isi trash dari server NAS.
   const loadTrash = useCallback(async () => {
@@ -539,7 +567,6 @@ export default function Home() {
                 })
               : "Tanpa batas",
             hasPassword: Boolean(r.HasPassword),
-            downloadsCount: 0,
           };
         })
       );
@@ -1204,6 +1231,10 @@ export default function Home() {
   // Sumber data UI: server NAS saat mode NAS, IndexedDB saat standalone.
   const activeItems = connectionMode === "nas" ? nasItems : localItems;
 
+  // Galeri memakai media lintas folder di mode NAS; di standalone seluruh
+  // item lokal memang sudah terkumpul di satu tempat.
+  const galleryItems = connectionMode === "nas" ? mediaItems : localItems;
+
   // Owner/admin bisa melihat berkas anggota lain; UI perlu menandainya agar
   // tidak tertukar dengan berkas sendiri.
   const isForeignItem = (item: DisplayItem) =>
@@ -1352,7 +1383,7 @@ export default function Home() {
           {/* TAB 2: GALLERY VIEW */}
           {activeTab === "gallery" && (
             <GalleryTab
-              items={activeItems}
+              items={galleryItems}
               category={galleryCategory}
               onCategoryChange={setGalleryCategory}
               onOpen={setSelectedMedia}

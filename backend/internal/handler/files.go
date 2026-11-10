@@ -151,6 +151,48 @@ func (h *FilesHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": nodes})
 }
 
+// Batas jumlah media yang dikirim ke galeri. Satu keluarga tidak akan
+// melewati ini, tetapi batas tetap ada supaya respons tidak meledak.
+const (
+	defaultMediaLimit = 500
+	maxMediaLimit     = 2000
+)
+
+// ListMedia mengembalikan seluruh foto & video milik pengguna lintas folder.
+// Galeri memakai ini agar media di subfolder tidak tersembunyi.
+func (h *FilesHandler) ListMedia(c *gin.Context) {
+	userId, ok := auth.GetUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
+		return
+	}
+
+	limit := defaultMediaLimit
+	if raw := c.Query("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > maxMediaLimit {
+		limit = maxMediaLimit
+	}
+
+	nodes, err := h.queries.ListMediaNodes(c.Request.Context(), db.ListMediaNodesParams{
+		AllOwners: canManageAllFiles(c),
+		OwnerID:   userId,
+		RowLimit:  int32(limit),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		return
+	}
+	if nodes == nil {
+		nodes = []db.ListMediaNodesRow{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": nodes})
+}
+
 func (h *FilesHandler) CreateFolder(c *gin.Context) {
 	userId, ok := auth.GetUserID(c)
 	if !ok {

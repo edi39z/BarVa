@@ -38,15 +38,28 @@ test.describe("mode NAS", () => {
     await expect(page.locator("body")).not.toContainText("Masuk ke server pribadi Anda");
   });
 
-  test("galeri memuat thumbnail dari server", async ({ page, request }) => {
+  test("galeri memuat thumbnail dari server, termasuk media di subfolder", async ({
+    page,
+    request,
+  }) => {
     await login(page);
     const token = await page.evaluate(() => localStorage.getItem("nas_auth_token"));
     expect(token).toBeTruthy();
+
+    // Media sengaja diunggah ke subfolder: galeri harus menjangkau seluruh
+    // pohon berkas, bukan hanya isi folder yang sedang dibuka.
+    const folderRes = await request.post(`${API}/api/v1/files/folder`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name: `e2e-galeri-${Date.now()}` },
+    });
+    expect(folderRes.ok()).toBeTruthy();
+    const folderId = (await folderRes.json()).data.ID as string;
 
     const upload = await request.post(`${API}/api/v1/files/upload`, {
       headers: { Authorization: `Bearer ${token}` },
       multipart: {
         file: { name: `e2e-thumb-${Date.now()}.png`, mimeType: "image/png", buffer: PNG_8X8 },
+        parent_id: folderId,
       },
     });
     expect(upload.ok()).toBeTruthy();
@@ -64,6 +77,9 @@ test.describe("mode NAS", () => {
         .toBeGreaterThan(0);
     } finally {
       await request.delete(`${API}/api/v1/files/${nodeId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await request.delete(`${API}/api/v1/files/${folderId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
     }

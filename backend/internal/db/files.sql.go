@@ -196,6 +196,75 @@ func (q *Queries) GetNodeByID(ctx context.Context, id pgtype.UUID) (GetNodeByIDR
 	return i, err
 }
 
+const listMediaNodes = `-- name: ListMediaNodes :many
+SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
+       n.deleted_at, n.created_at, n.updated_at,
+       o.size_bytes, o.mime_type
+FROM file_nodes n
+JOIN file_objects o ON o.id = n.object_id
+WHERE ($1::boolean OR n.owner_id = $2)
+  AND n.deleted_at IS NULL
+  AND n.is_directory = FALSE
+  AND (o.mime_type LIKE 'image/%' OR o.mime_type LIKE 'video/%')
+ORDER BY n.created_at DESC
+LIMIT $3::int
+`
+
+type ListMediaNodesParams struct {
+	AllOwners bool
+	OwnerID   pgtype.UUID
+	RowLimit  int32
+}
+
+type ListMediaNodesRow struct {
+	ID          pgtype.UUID
+	OwnerID     pgtype.UUID
+	ParentID    pgtype.UUID
+	Name        string
+	IsDirectory bool
+	ObjectID    pgtype.UUID
+	DeletedAt   pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	SizeBytes   int64
+	MimeType    string
+}
+
+// ListMediaNodes mengambil seluruh foto & video aktif milik pengguna (atau
+// semua pemilik untuk owner/admin) tanpa peduli folder. Dipakai galeri supaya
+// media di subfolder tetap terlihat, bukan hanya isi folder yang sedang dibuka.
+func (q *Queries) ListMediaNodes(ctx context.Context, arg ListMediaNodesParams) ([]ListMediaNodesRow, error) {
+	rows, err := q.db.Query(ctx, listMediaNodes, arg.AllOwners, arg.OwnerID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMediaNodesRow
+	for rows.Next() {
+		var i ListMediaNodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.ParentID,
+			&i.Name,
+			&i.IsDirectory,
+			&i.ObjectID,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SizeBytes,
+			&i.MimeType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNodesByParent = `-- name: ListNodesByParent :many
 SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        n.deleted_at, n.created_at, n.updated_at,

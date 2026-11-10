@@ -262,6 +262,7 @@ func main() {
 
 				// File Manager & Media Streaming
 				protected.GET("/files", filesHandler.List)
+				protected.GET("/media", filesHandler.ListMedia)
 				protected.POST("/files/folder", filesHandler.CreateFolder)
 				protected.POST("/files/upload", filesHandler.Upload)
 				protected.DELETE("/files/:id", filesHandler.SoftDelete)

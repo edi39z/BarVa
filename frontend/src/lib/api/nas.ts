@@ -206,6 +206,18 @@ export async function listNasFiles(parentId?: string | null): Promise<NasFileNod
 	return json.data ?? [];
 }
 
+/**
+ * Seluruh foto & video lintas folder. Galeri memakai ini agar media di
+ * subfolder tetap terlihat, bukan hanya isi folder yang sedang dibuka.
+ */
+export async function listNasMedia(limit?: number): Promise<NasFileNode[]> {
+	const query = limit ? `?limit=${limit}` : "";
+	const res = await nasFetch(`/api/v1/media${query}`);
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasFileNode[] | null };
+	return json.data ?? [];
+}
+
 export async function createNasFolder(
 	name: string,
 	parentId?: string | null

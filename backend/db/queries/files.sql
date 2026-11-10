@@ -31,6 +31,22 @@ WHERE (sqlc.arg(all_owners)::boolean OR n.owner_id = sqlc.arg(owner_id))
   AND n.deleted_at IS NULL
 ORDER BY n.is_directory DESC, n.name ASC;
 
+-- ListMediaNodes mengambil seluruh foto & video aktif milik pengguna (atau
+-- semua pemilik untuk owner/admin) tanpa peduli folder. Dipakai galeri supaya
+-- media di subfolder tetap terlihat, bukan hanya isi folder yang sedang dibuka.
+-- name: ListMediaNodes :many
+SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
+       n.deleted_at, n.created_at, n.updated_at,
+       o.size_bytes, o.mime_type
+FROM file_nodes n
+JOIN file_objects o ON o.id = n.object_id
+WHERE (sqlc.arg(all_owners)::boolean OR n.owner_id = sqlc.arg(owner_id))
+  AND n.deleted_at IS NULL
+  AND n.is_directory = FALSE
+  AND (o.mime_type LIKE 'image/%' OR o.mime_type LIKE 'video/%')
+ORDER BY n.created_at DESC
+LIMIT sqlc.arg(row_limit)::int;
+
 -- name: GetNodeByID :one
 SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        n.deleted_at, n.created_at, n.updated_at,

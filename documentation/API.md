@@ -155,6 +155,16 @@ Query: `parent_id` (opsional). Tanpa parameter = isi akar.
 Nama field memakai **PascalCase** karena struct Go tanpa json tag. Folder
 diurutkan lebih dulu, lalu nama.
 
+### `GET /api/v1/media`
+
+Seluruh berkas `image/*` dan `video/*` yang masih aktif, **lintas folder**,
+urut `created_at` terbaru. Galeri memakai endpoint ini supaya foto di subfolder
+tidak tersembunyi saat folder lain sedang dibuka.
+
+- Query `limit` opsional (default 500, maksimum 2000).
+- Bentuk item sama dengan `GET /api/v1/files`.
+- Owner/admin melihat media semua anggota; `member` hanya miliknya sendiri.
+
 ### `POST /api/v1/files/folder`
 
 ```json
