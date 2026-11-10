@@ -152,6 +152,12 @@ cd backend && sqlc generate
   fungsional.
 - **Dependensi baru:** hindari bila stdlib atau fitur platform sudah cukup.
   Jelaskan alasannya di PR.
+- **Override dependensi:** `frontend/package.json` punya `overrides` untuk
+  memaksa `zod` 4.x di dalam `@imgly/background-removal`, yang masih
+  mencantumkan `^3.23.8`. Paket itu membundel salinan zod-nya sendiri ke
+  `dist/`, jadi tidak ada kode yang memuat zod dari `node_modules`; override
+  ini hanya membuang salinan rentan (GHSA-mrhx-c7xc-m3w5) dari pohon
+  dependensi. Hapus override-nya begitu versi hulu ikut naik.
 
 ### Frontend
 
