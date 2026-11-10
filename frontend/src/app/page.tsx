@@ -25,7 +25,18 @@ import {
   Invite as ServerInvite,
   Member as ServerMember,
 } from "@/lib/api/cloud";
-import { compressAndResizeImage, createIDPhoto, CompressionResult } from "@/lib/studio/image";
+import { compressAndResizeImage, CompressionResult } from "@/lib/studio/image";
+import {
+  describeStudioError,
+  type StudioErrorInfo,
+} from "@/lib/studio/errors";
+import {
+  downloadBlob,
+  makeImageOutput,
+  makePdfOutput,
+  persistStudioOutput,
+  type StudioOutput,
+} from "@/lib/studio/output";
 import {
   BG_MODEL_READY_KEY,
   enhancePhoto,
@@ -201,16 +212,15 @@ export default function Home() {
   const [activeStudioTool, setActiveStudioTool] = useState<StudioToolId>("img2pdf");
   const [studioProcessing, setStudioProcessing] = useState(false);
   const [studioSuccessMsg, setStudioSuccessMsg] = useState("");
+  const [studioError, setStudioError] = useState<StudioErrorInfo | null>(null);
+  // Berkas dari Storage Picker yang menunggu diolah panel alatnya sendiri.
+  const [studioPickedFile, setStudioPickedFile] = useState<File | null>(null);
 
   // Unified Storage Picker for Studio Tools (Local / NAS / Drive)
   const [storagePickerOpen, setStoragePickerOpen] = useState(false);
   const [storagePickerTool, setStoragePickerTool] = useState<StudioToolId>("img2pdf");
   const [storagePickerTab, setStoragePickerTab] = useState<"local" | "nas" | "gdrive">("local");
   const [selectedStorageIds, setSelectedStorageIds] = useState<string[]>([]);
-
-  // ID Photo settings
-  const [idPhotoRatio, setIdPhotoRatio] = useState<"3x4" | "4x6">("3x4");
-  const [idPhotoBg, setIdPhotoBg] = useState<string>("#dc2626"); // Red
 
   // Image compress settings
   const [compressQuality, setCompressQuality] = useState<number>(0.75);
@@ -239,7 +249,6 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const studioImg2PdfRef = useRef<HTMLInputElement>(null);
   const studioMergePdfRef = useRef<HTMLInputElement>(null);
-  const studioIdPhotoRef = useRef<HTMLInputElement>(null);
   const studioCompressRef = useRef<HTMLInputElement>(null);
   const studioRemoveBgRef = useRef<HTMLInputElement>(null);
   const studioEnhanceRef = useRef<HTMLInputElement>(null);
@@ -943,34 +952,41 @@ export default function Home() {
     }
   };
 
-  // Simpan hasil olahan Studio ke penyimpanan lokal + daftar tampilan.
-  const persistStudioImage = useCallback(
-    async (blob: Blob, filename: string, mimeType: string, dimensions?: string) => {
-      await saveLocalFile(filename, blob, "image", mimeType);
-      const newItem: DisplayItem = {
-        id: crypto.randomUUID(),
-        name: filename,
-        type: "image",
-        sizeStr: formatBytes(blob.size),
-        sizeBytes: blob.size,
-        dimensions,
-        updatedAt: "Baru saja (Studio)",
-        parentId: currentFolderId,
-        blob,
-      };
-      setLocalItems((prev) => [newItem, ...prev]);
+  // Unduh hasil olahan Studio lalu simpan ke pustaka lokal.
+  //
+  // Unduhan dilakukan lebih dulu: kalau kuota IndexedDB penuh, berkas tetap
+  // sampai ke pengguna dan hanya pesan simpan yang muncul.
+  const commitStudioOutput = useCallback(
+    async (output: StudioOutput): Promise<{ saved: boolean }> => {
+      downloadBlob(output.blob, output.filename);
+      try {
+        const item = await persistStudioOutput(output, currentFolderId);
+        setLocalItems((prev) => [item, ...prev]);
+        return { saved: true };
+      } catch (err) {
+        setStudioError(describeStudioError(err));
+        return { saved: false };
+      }
     },
     [currentFolderId]
   );
 
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Model hapus latar sudah ada di perangkat: simpan penandanya supaya kartu
+  // persetujuan unduhan tidak muncul lagi setelah halaman dimuat ulang.
+  const markBgModelReady = useCallback(() => {
+    try {
+      window.localStorage.setItem(BG_MODEL_READY_KEY, "1");
+    } catch {
+      // abaikan: penanda ini hanya untuk kenyamanan antarmuka
+    }
+    setBgModelJustDownloaded(true);
+  }, []);
+
+  // Beberapa alat menolak berkas yang jumlahnya kurang. Pesannya sama polanya,
+  // jadi disusun di satu tempat agar tidak muncul sebagai `alert()` terpisah.
+  const notifyIncompleteInput = useCallback((message: string, hint?: string) => {
+    setStudioError({ code: "INPUT_INCOMPLETE", title: "Berkas belum cukup", message, hint, tone: "warn" });
+  }, []);
 
   // Unified Storage Picker Handlers for Studio
   const handleOpenStoragePicker = (tool: StudioToolId) => {
@@ -981,12 +997,13 @@ export default function Home() {
 
   const handleExecuteStorageSelection = async () => {
     if (selectedStorageIds.length === 0) {
-      alert("Silakan pilih minimal 1 berkas dari penyimpanan.");
+      notifyIncompleteInput("Pilih minimal satu berkas dari penyimpanan.");
       return;
     }
 
     setStudioProcessing(true);
     setStudioSuccessMsg("");
+    setStudioError(null);
     setStoragePickerOpen(false);
 
     try {
@@ -1001,108 +1018,72 @@ export default function Home() {
       }
 
       if (files.length === 0) {
-        alert("Berkas fisik belum tersedia di memori perangkat.");
-        setStudioProcessing(false);
+        setStudioError({
+          code: "IMAGE_INVALID",
+          title: "Berkas tidak bisa dibaca",
+          message: "Isi berkas ini belum tersedia di memori perangkat.",
+          hint: "Buka berkasnya sekali dari daftar utama, lalu ulangi.",
+          tone: "danger",
+        });
+        return;
+      }
+
+      // Alat berpanel mengolah berkasnya sendiri: cukup teruskan berkasnya,
+      // lalu panel yang mengurus pratinjau, opsi, dan penyimpanan.
+      if (storagePickerTool === "idphoto") {
+        setStudioPickedFile(files[0]);
+        setActiveStudioTool("idphoto");
         return;
       }
 
       if (storagePickerTool === "img2pdf") {
         const pdfBytes = await imagesToPDF(files);
-        const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
         const filename = `Foto_Dokumen_${Date.now()}.pdf`;
-        await saveLocalFile(filename, blob, "document", "application/pdf");
-        const newItem: DisplayItem = {
-          id: crypto.randomUUID(),
-          name: filename,
-          type: "document",
-          sizeStr: formatBytes(blob.size),
-          sizeBytes: blob.size,
-          updatedAt: "Baru saja (Studio)",
-          parentId: currentFolderId,
-          blob,
-        };
-        setLocalItems((prev) => [newItem, ...prev]);
+        await commitStudioOutput(makePdfOutput(pdfBytes, filename));
         setStudioSuccessMsg(`Berhasil! ${files.length} foto dari penyimpanan berhasil digabung menjadi ${filename}.`);
       } else if (storagePickerTool === "mergepdf") {
         if (files.length < 2) {
-          alert("Silakan pilih minimal 2 file PDF untuk digabungkan.");
-          setStudioProcessing(false);
+          notifyIncompleteInput(
+            "Penggabungan butuh dua berkas PDF atau lebih.",
+            "Tandai beberapa berkas sekaligus di daftar penyimpanan."
+          );
           return;
         }
         const mergedBytes = await mergePDFs(files);
-        const blob = new Blob([mergedBytes as unknown as BlobPart], { type: "application/pdf" });
         const filename = `Merged_Document_${Date.now()}.pdf`;
-        await saveLocalFile(filename, blob, "document", "application/pdf");
-        const newItem: DisplayItem = {
-          id: crypto.randomUUID(),
-          name: filename,
-          type: "document",
-          sizeStr: formatBytes(blob.size),
-          sizeBytes: blob.size,
-          updatedAt: "Baru saja (Studio)",
-          parentId: currentFolderId,
-          blob,
-        };
-        setLocalItems((prev) => [newItem, ...prev]);
+        await commitStudioOutput(makePdfOutput(mergedBytes, filename));
         setStudioSuccessMsg(`Berhasil! ${files.length} berkas PDF dari penyimpanan digabung menjadi ${filename}.`);
-      } else if (storagePickerTool === "idphoto") {
-        const blob = await createIDPhoto(files[0], idPhotoRatio, idPhotoBg);
-        const filename = `Pasfoto_${idPhotoRatio}_${Date.now()}.jpg`;
-        await saveLocalFile(filename, blob, "image", "image/jpeg");
-        const newItem: DisplayItem = {
-          id: crypto.randomUUID(),
-          name: filename,
-          type: "image",
-          sizeStr: formatBytes(blob.size),
-          sizeBytes: blob.size,
-          dimensions: idPhotoRatio === "3x4" ? "354 × 472 px" : "472 × 709 px",
-          updatedAt: "Baru saja (Studio)",
-          parentId: currentFolderId,
-          blob,
-        };
-        setLocalItems((prev) => [newItem, ...prev]);
-        setStudioSuccessMsg(`Pasfoto ukuran ${idPhotoRatio} berhasil dibuat dari berkas penyimpanan lokal.`);
       } else if (storagePickerTool === "compress") {
         const result = await compressAndResizeImage(files[0], 1920, compressQuality, "image/jpeg");
         setLastCompressResult(result);
         const filename = `Compressed_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
-        await saveLocalFile(filename, result.blob, "image", "image/jpeg");
-        const newItem: DisplayItem = {
-          id: crypto.randomUUID(),
-          name: filename,
-          type: "image",
-          sizeStr: formatBytes(result.compressedSize),
-          sizeBytes: result.compressedSize,
-          dimensions: `${result.width} × ${result.height}`,
-          updatedAt: "Baru saja (Studio)",
-          parentId: currentFolderId,
-          blob: result.blob,
-        };
-        setLocalItems((prev) => [newItem, ...prev]);
+        await commitStudioOutput(
+          makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
+        );
         setStudioSuccessMsg(`Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`);
       } else if (storagePickerTool === "removebg") {
         const result = await removeImageBackground(files[0], setBgProgress);
         const filename = `TanpaLatar_${files[0].name.replace(/\.[^/.]+$/, "")}.png`;
-        await persistStudioImage(result.blob, filename, "image/png", `${result.width} × ${result.height}`);
-        try {
-          window.localStorage.setItem(BG_MODEL_READY_KEY, "1");
-        } catch {
-          // abaikan: hanya penanda agar tidak menanyakan unduhan lagi
-        }
-        setBgModelJustDownloaded(true);
+        await commitStudioOutput(
+          makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
+        );
+        markBgModelReady();
         setStudioSuccessMsg(`Latar belakang ${files[0].name} berhasil dihapus dan disimpan sebagai ${filename}.`);
       } else if (storagePickerTool === "enhance") {
         const result = await enhancePhoto(files[0]);
         setLastEnhanceResult(result);
         const filename = `Diperjelas_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
-        await persistStudioImage(result.blob, filename, "image/jpeg", `${result.width} × ${result.height}`);
+        await commitStudioOutput(
+          makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
+        );
         setStudioSuccessMsg(`Foto diperjelas menjadi ${result.width} × ${result.height} px.`);
       }
     } catch (err) {
       console.error(err);
-      alert("Gagal memproses berkas dari penyimpanan.");
+      setStudioError(describeStudioError(err));
     } finally {
       setStudioProcessing(false);
+      setBgProgress(null);
     }
   };
 
@@ -1207,34 +1188,17 @@ export default function Home() {
 
     setStudioProcessing(true);
     setStudioSuccessMsg("");
+    setStudioError(null);
     try {
       const pdfBytes = await imagesToPDF(Array.from(files));
-      const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
       const filename = `Foto_Dokumen_${Date.now()}.pdf`;
 
-      await saveLocalFile(filename, blob, "document", "application/pdf");
-      const newItem: DisplayItem = {
-        id: crypto.randomUUID(),
-        name: filename,
-        type: "document",
-        sizeStr: formatBytes(blob.size),
-        sizeBytes: blob.size,
-        updatedAt: "Baru saja (Studio)",
-        blob,
-      };
-      setLocalItems((prev) => [newItem, ...prev]);
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      await commitStudioOutput(makePdfOutput(pdfBytes, filename));
 
       setStudioSuccessMsg(`Berhasil! ${files.length} foto digabung menjadi ${filename} dan tersimpan di penyimpanan lokal.`);
     } catch (err) {
       console.error(err);
-      alert("Gagal membuat PDF dari gambar.");
+      setStudioError(describeStudioError(err));
     } finally {
       setStudioProcessing(false);
       if (studioImg2PdfRef.current) studioImg2PdfRef.current.value = "";
@@ -1245,85 +1209,30 @@ export default function Home() {
   const handleMergePDFs = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length < 2) {
-      alert("Silakan pilih minimal 2 file PDF untuk digabungkan.");
+      notifyIncompleteInput(
+        "Penggabungan butuh dua berkas PDF atau lebih.",
+        "Tahan Ctrl (Windows) atau Shift saat memilih agar beberapa berkas ikut terpilih."
+      );
+      if (studioMergePdfRef.current) studioMergePdfRef.current.value = "";
       return;
     }
 
     setStudioProcessing(true);
     setStudioSuccessMsg("");
+    setStudioError(null);
     try {
       const mergedBytes = await mergePDFs(Array.from(files));
-      const blob = new Blob([mergedBytes as unknown as BlobPart], { type: "application/pdf" });
       const filename = `Merged_Document_${Date.now()}.pdf`;
 
-      await saveLocalFile(filename, blob, "document", "application/pdf");
-      const newItem: DisplayItem = {
-        id: crypto.randomUUID(),
-        name: filename,
-        type: "document",
-        sizeStr: formatBytes(blob.size),
-        sizeBytes: blob.size,
-        updatedAt: "Baru saja (Studio)",
-        blob,
-      };
-      setLocalItems((prev) => [newItem, ...prev]);
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      await commitStudioOutput(makePdfOutput(mergedBytes, filename));
 
       setStudioSuccessMsg(`Berhasil! ${files.length} dokumen PDF telah digabung menjadi ${filename}.`);
     } catch (err) {
       console.error(err);
-      alert("Gagal menggabungkan PDF. Pastikan file tidak terkunci password.");
+      setStudioError(describeStudioError(err));
     } finally {
       setStudioProcessing(false);
       if (studioMergePdfRef.current) studioMergePdfRef.current.value = "";
-    }
-  };
-
-  // Studio: ID Photo (Pasfoto)
-  const handleCreateIDPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setStudioProcessing(true);
-    setStudioSuccessMsg("");
-    try {
-      const file = files[0];
-      const blob = await createIDPhoto(file, idPhotoRatio, idPhotoBg);
-      const filename = `Pasfoto_${idPhotoRatio}_${Date.now()}.jpg`;
-
-      await saveLocalFile(filename, blob, "image", "image/jpeg");
-      const newItem: DisplayItem = {
-        id: crypto.randomUUID(),
-        name: filename,
-        type: "image",
-        sizeStr: formatBytes(blob.size),
-        sizeBytes: blob.size,
-        dimensions: idPhotoRatio === "3x4" ? "354 × 472 px" : "472 × 709 px",
-        updatedAt: "Baru saja (Studio)",
-        blob,
-      };
-      setLocalItems((prev) => [newItem, ...prev]);
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      setStudioSuccessMsg(`Pasfoto ukuran ${idPhotoRatio} berhasil dibuat dan diunduh.`);
-    } catch (err) {
-      console.error(err);
-      alert("Gagal memproses pasfoto.");
-    } finally {
-      setStudioProcessing(false);
-      if (studioIdPhotoRef.current) studioIdPhotoRef.current.value = "";
     }
   };
 
@@ -1334,37 +1243,21 @@ export default function Home() {
 
     setStudioProcessing(true);
     setStudioSuccessMsg("");
+    setStudioError(null);
     try {
       const file = files[0];
       const result = await compressAndResizeImage(file, 1920, compressQuality, "image/jpeg");
       setLastCompressResult(result);
 
       const filename = `Compressed_${file.name.replace(/\.[^/.]+$/, "")}.jpg`;
-      await saveLocalFile(filename, result.blob, "image", "image/jpeg");
-
-      const newItem: DisplayItem = {
-        id: crypto.randomUUID(),
-        name: filename,
-        type: "image",
-        sizeStr: formatBytes(result.compressedSize),
-        sizeBytes: result.compressedSize,
-        dimensions: `${result.width} × ${result.height}`,
-        updatedAt: "Baru saja (Studio)",
-        blob: result.blob,
-      };
-      setLocalItems((prev) => [newItem, ...prev]);
-
-      const url = URL.createObjectURL(result.blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      await commitStudioOutput(
+        makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
+      );
 
       setStudioSuccessMsg(`Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`);
     } catch (err) {
       console.error(err);
-      alert("Gagal mengompresi gambar.");
+      setStudioError(describeStudioError(err));
     } finally {
       setStudioProcessing(false);
       if (studioCompressRef.current) studioCompressRef.current.value = "";
@@ -1378,6 +1271,7 @@ export default function Home() {
 
     setStudioProcessing(true);
     setStudioSuccessMsg("");
+    setStudioError(null);
     setBgProgress({ phase: "download", percent: 0 });
 
     try {
@@ -1385,19 +1279,15 @@ export default function Home() {
       const result = await removeImageBackground(file, setBgProgress);
       const filename = `TanpaLatar_${file.name.replace(/\.[^/.]+$/, "")}.png`;
 
-      await persistStudioImage(result.blob, filename, "image/png", `${result.width} × ${result.height}`);
-      downloadBlob(result.blob, filename);
+      await commitStudioOutput(
+        makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
+      );
 
-      try {
-        window.localStorage.setItem(BG_MODEL_READY_KEY, "1");
-      } catch {
-        // abaikan: hanya penanda agar tidak menanyakan unduhan lagi
-      }
-      setBgModelJustDownloaded(true);
+      markBgModelReady();
       setStudioSuccessMsg(`Latar belakang berhasil dihapus. Hasil disimpan sebagai ${filename}.`);
     } catch (err) {
       console.error(err);
-      alert("Gagal menghapus latar belakang. Saat pemakaian pertama, pastikan internet tersedia untuk mengunduh model.");
+      setStudioError(describeStudioError(err));
     } finally {
       setBgProgress(null);
       setStudioProcessing(false);
@@ -1412,6 +1302,7 @@ export default function Home() {
 
     setStudioProcessing(true);
     setStudioSuccessMsg("");
+    setStudioError(null);
 
     try {
       const file = files[0];
@@ -1419,15 +1310,16 @@ export default function Home() {
       setLastEnhanceResult(result);
 
       const filename = `Diperjelas_${file.name.replace(/\.[^/.]+$/, "")}.jpg`;
-      await persistStudioImage(result.blob, filename, "image/jpeg", `${result.width} × ${result.height}`);
-      downloadBlob(result.blob, filename);
+      await commitStudioOutput(
+        makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
+      );
 
       setStudioSuccessMsg(
         `Foto diperjelas menjadi ${result.width} × ${result.height} px (sebelumnya ${result.originalWidth} × ${result.originalHeight} px).`
       );
     } catch (err) {
       console.error(err);
-      alert("Gagal meningkatkan kualitas foto.");
+      setStudioError(describeStudioError(err));
     } finally {
       setStudioProcessing(false);
       if (studioEnhanceRef.current) studioEnhanceRef.current.value = "";
@@ -1609,21 +1501,15 @@ export default function Home() {
               successMsg={studioSuccessMsg}
               img2PdfRef={studioImg2PdfRef}
               mergePdfRef={studioMergePdfRef}
-              idPhotoRef={studioIdPhotoRef}
               compressRef={studioCompressRef}
               removeBgRef={studioRemoveBgRef}
               enhanceRef={studioEnhanceRef}
               onImagesToPDF={handleImagesToPDF}
               onMergePDFs={handleMergePDFs}
-              onCreateIDPhoto={handleCreateIDPhoto}
               onCompressImage={handleCompressImage}
               onRemoveBackground={handleRemoveBackground}
               onEnhancePhoto={handleEnhancePhoto}
               onOpenStoragePicker={handleOpenStoragePicker}
-              idPhotoRatio={idPhotoRatio}
-              onIdPhotoRatioChange={setIdPhotoRatio}
-              idPhotoBg={idPhotoBg}
-              onIdPhotoBgChange={setIdPhotoBg}
               compressQuality={compressQuality}
               onCompressQualityChange={setCompressQuality}
               lastCompressResult={lastCompressResult}
@@ -1632,6 +1518,13 @@ export default function Home() {
               bgProgress={bgProgress}
               onGrantBgConsent={() => setBgConsentGranted(true)}
               lastEnhanceResult={lastEnhanceResult}
+              error={studioError}
+              onDismissError={() => setStudioError(null)}
+              onSuccess={setStudioSuccessMsg}
+              pickedFile={studioPickedFile}
+              onPickedFileHandled={() => setStudioPickedFile(null)}
+              onCommitStudioOutput={commitStudioOutput}
+              onBgModelReady={markBgModelReady}
             />
           )}
 

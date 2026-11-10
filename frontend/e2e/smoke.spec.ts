@@ -76,10 +76,40 @@ test.describe("navigasi tab mode standalone", () => {
     await expect(page.getByText("Pilih foto yang ingin diperjelas")).toBeVisible();
   });
 
+  test("pasfoto menyediakan ukuran resmi dan warna latar kustom", async ({ page }) => {
+    await page.getByRole("button", { name: /Studio Foto & PDF/ }).click();
+    await page.getByRole("button", { name: /Pasfoto/ }).click();
+
+    await expect(page.getByText("Pilih foto untuk dijadikan pasfoto")).toBeVisible();
+
+    // Ukuran resmi yang paling sering diminta instansi.
+    for (const label of ["2 × 3 cm", "3 × 4 cm", "4 × 6 cm"]) {
+      await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
+    }
+    await expect(page.getByText(/354 × 472 px/)).toBeVisible();
+
+    // Ukuran kustom memakai satuan fisik (dengan DPI) atau piksel langsung.
+    await page.getByRole("button", { name: "Kustom", exact: true }).click();
+    await expect(page.getByLabel("Satuan")).toBeVisible();
+    await expect(page.getByLabel("DPI")).toBeVisible();
+
+    // Warna latar: pilihan cepat mengisi kode hex, dan hex bisa diketik sendiri.
+    const hex = page.getByLabel("Kode warna latar");
+    await page.getByRole("button", { name: "Warna Biru" }).click();
+    await expect(hex).toHaveValue("#2563eb");
+
+    await hex.fill("#12345");
+    await expect(hex).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText("Kode warna harus format #RRGGBB.")).toBeVisible();
+
+    await hex.fill("#123abc");
+    await expect(hex).toHaveAttribute("aria-invalid", "false");
+    await expect(page.getByText("Kode warna harus format #RRGGBB.")).toHaveCount(0);
+  });
+
   test("Sampah disembunyikan di mode standalone", async ({ page }) => {
     await expect(page.getByRole("button", { name: /^Sampah/ })).toHaveCount(0);
   });
-
   test("kembali ke Beranda berhasil", async ({ page }) => {
     await page.getByRole("button", { name: /Galeri Foto/ }).click();
     await expect(page.getByRole("heading", { name: "Galeri Foto & Video" })).toBeVisible();
