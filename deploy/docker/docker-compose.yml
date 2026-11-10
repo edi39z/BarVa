@@ -10,7 +10,6 @@ services:
       POSTGRES_DB: nas_db
     volumes:
       - nas_pgdata:/var/lib/postgresql/data
-      - ../../migrations:/docker-entrypoint-initdb.d:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -35,6 +34,7 @@ services:
       DATABASE_URL: "postgres://nas_admin:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di deploy/docker/.env}@postgres:5432/nas_db?sslmode=disable"
       STORAGE_DIR: "/data/storage"
       TEMP_DIR: "/data/tmp"
+      MIGRATIONS_DIR: "/app/migrations"
       GIN_MODE: "release"
       # Opsional: aktifkan proteksi endpoint Drive & undangan.
       NAS_ADMIN_KEY: "${NAS_ADMIN_KEY:-}"
@@ -43,6 +43,8 @@ services:
     volumes:
       - nas_storage:/data/storage
       - nas_tmp:/data/tmp
+      # Migrasi dijalankan backend saat start; jangan mount ke initdb postgres.
+      - ../../migrations:/app/migrations:ro
     ports:
       - "8080:8080"
     networks:

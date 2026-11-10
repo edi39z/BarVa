@@ -17,6 +17,7 @@ Environment="PORT=8080"
 Environment="DATABASE_URL=postgres://nas:nas_secure_pass@localhost:5432/nas_db?sslmode=disable"
 Environment="STORAGE_DIR=/opt/nas/data/storage"
 Environment="TEMP_DIR=/opt/nas/data/tmp"
+Environment="MIGRATIONS_DIR=/opt/nas/migrations"
 Environment="GIN_MODE=release"
 # Opsional — isi untuk membuka endpoint Drive/undangan dari luar jaringan lokal.
 # Environment="NAS_ADMIN_KEY=isi-dengan-key-panjang-acak"

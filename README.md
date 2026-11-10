@@ -75,11 +75,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   bisa melihat dan mengelola berkas semua anggota (ditandai di UI)
 - PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
   profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
+- Migrasi database otomatis saat backend start (`schema_migrations`), termasuk
+  baseline untuk database lama
 - Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file
-
-### Belum selesai
-
-- **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
 
 ---
 

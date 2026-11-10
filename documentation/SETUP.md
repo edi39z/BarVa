@@ -22,8 +22,11 @@ Docker opsional, hanya untuk jalur container.
 
 ```bash
 createdb nas_db
-psql -d nas_db -f migrations/000001_init_schema.up.sql
 ```
+
+Tidak perlu menjalankan SQL manual: backend menerapkan migrasi dari folder
+`migrations/` saat start, lalu mencatat versi yang sudah dijalankan di tabel
+`schema_migrations`.
 
 Skema membuat lima tabel: `users`, `sessions`, `file_objects`, `file_nodes`,
 `shares`, plus index yang dibutuhkan (termasuk unique index nama per folder).
@@ -36,9 +39,10 @@ postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable
 
 Kalau berbeda, set `DATABASE_URL`.
 
-> Belum ada tool migrasi otomatis. Untuk perubahan skema berikutnya, buat
-> `migrations/000002_*.up.sql` dan jalankan manual. Jangan mengubah migrasi yang
-> sudah pernah dijalankan.
+> Untuk perubahan skema, buat `migrations/000002_*.up.sql` lalu restart
+> backend. Jangan mengubah migrasi yang sudah pernah dijalankan — runner hanya
+> menambah, tidak pernah mengulang. Database lama yang skemanya dibuat manual
+> akan di-baseline otomatis (migrasi pertama ditandai sudah diterapkan).
 
 ---
 
@@ -112,9 +116,9 @@ Gunakan huruf dan angka saja, karena nilainya dirangkai menjadi `DATABASE_URL`.
 docker compose up -d --build
 ```
 
-Migrasi dijalankan otomatis oleh image PostgreSQL karena `migrations/` di-mount
-ke `/docker-entrypoint-initdb.d`. Ini hanya berlaku saat volume database masih
-kosong.
+Migrasi dijalankan oleh backend saat start (`MIGRATIONS_DIR=/app/migrations`).
+Compose me-mount `migrations/` ke container backend, bukan ke initdb PostgreSQL,
+supaya hanya ada satu sumber kebenaran.
 
 Untuk produksi:
 

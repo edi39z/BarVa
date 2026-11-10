@@ -18,6 +18,7 @@ import (
 	"nas-backend/internal/auth"
 	"nas-backend/internal/db"
 	"nas-backend/internal/handler"
+	"nas-backend/internal/migrate"
 	"nas-backend/internal/storage"
 )
 
@@ -120,6 +121,22 @@ func main() {
 		log.Printf("[NAS Backend] Peringatan: Ping ke PostgreSQL gagal (%v). Menjalankan mode storage-only.", pingErr)
 	} else {
 		log.Println("[NAS Backend] Koneksi PostgreSQL berhasil terhubung.")
+
+		// Terapkan migrasi sebelum handler melayani request.
+		migrateCtx, migrateCancel := context.WithTimeout(context.Background(), 60*time.Second)
+		migrationsDir := migrate.ResolveDir()
+		switch {
+		case migrationsDir == "":
+			log.Println("[NAS Backend] Peringatan: folder migrasi tidak ditemukan; migrasi dilewati.")
+		default:
+			if mErr := migrate.Run(migrateCtx, pool, migrationsDir); mErr != nil {
+				migrateCancel()
+				log.Fatalf("Fatal: migrasi database gagal: %v", mErr)
+			}
+			log.Printf("[NAS Backend] Migrasi database siap (dir: %s)", migrationsDir)
+		}
+		migrateCancel()
+
 		queries = db.New(pool)
 		dbAvailable = true
 	}
