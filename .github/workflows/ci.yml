@@ -10,6 +10,11 @@
 # - Runner dipin ke ubuntu-24.04, bukan ubuntu-latest. Label `-latest` akan
 #   berpindah ke Ubuntu 26 pada Oktober 2026; pinning menjaga hasil build tetap
 #   sama sampai migrasinya diuji sendiri.
+# - Job e2e menjalankan `e2e/smoke.spec.ts` saja. Suite lain (nas-mode,
+#   offline-upload, public-share) butuh backend hidup dan akun uji, jadi
+#   sengaja dilewati di sini.
+# - Semua job diberi timeout-minutes supaya proses yang menggantung tidak
+#   memakan kuota 360 menit bawaan GitHub.
 
 name: CI
 
@@ -31,6 +36,7 @@ jobs:
   backend:
     name: Backend (Go)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -52,6 +58,7 @@ jobs:
   frontend:
     name: Frontend (Next.js)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -75,3 +82,47 @@ jobs:
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      # Server produksi dinyalakan dan dimatikan oleh Playwright sendiri lewat
+      # `webServer` di playwright.config.ts, jadi tidak perlu langkah terpisah.
+      - name: Smoke test
+        run: npx playwright test e2e/smoke.spec.ts
+
+      # Trace dan screenshot hanya disimpan saat gagal (lihat playwright.config.ts),
+      # jadi unggahan ini kosong pada run yang hijau.
+      - name: Upload hasil Playwright
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-results
+          path: frontend/test-results
+          retention-days: 7
+          if-no-files-found: ignore

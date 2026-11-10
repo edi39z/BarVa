@@ -317,7 +317,7 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
    ```bash
    cd backend  && go build ./... && go test ./...
    cd frontend && npx tsc --noEmit && npm run build
-   cd frontend && npm run test:e2e   # butuh `npm start` di port 3000
+   cd frontend && npm run test:e2e   # Playwright menyalakan servernya sendiri
    ```
 4. Commit dengan pesan yang jelas:
    ```
