@@ -39,6 +39,36 @@ export function setStoredToken(token: string | null): void {
 	}
 }
 
+/**
+ * True bila backend berada di host yang sama dengan halaman.
+ *
+ * Cookie sesi memakai SameSite default (Lax) yang membandingkan *situs*, bukan
+ * port, sehingga `localhost:3000 → localhost:8080` dan `nas.local → nas.local:8080`
+ * tetap mengirim cookie. Dalam kondisi itu URL media tidak perlu ditempeli
+ * token, dan token berhenti muncul di access log server.
+ *
+ * Bila backend ada di host lain (mis. IP Tailscale berbeda), token tetap
+ * ditempel lewat query karena <img>/<video> tidak bisa mengirim header.
+ */
+function sameHostAsServer(): boolean {
+	if (typeof window === "undefined") return false;
+	try {
+		const base = getStoredServerUrl();
+		if (!base) return true; // URL relatif = origin yang sama
+		return new URL(base).hostname === window.location.hostname;
+	} catch {
+		return false;
+	}
+}
+
+/** Menambahkan ?token= hanya bila cookie tidak akan ikut terkirim. */
+function appendSessionToken(params: URLSearchParams): URLSearchParams {
+	if (sameHostAsServer()) return params;
+	const token = getStoredToken();
+	if (token) params.set("token", token);
+	return params;
+}
+
 // Profil terakhir disimpan agar aplikasi tetap bisa dibuka saat offline.
 // Isinya hanya data publik (id, email, username, role) — bukan kredensial.
 export function getStoredUser(): NasUser | null {
@@ -147,20 +177,15 @@ export async function uploadToNas(
 
 export function getStreamUrl(fileId: string): string {
 	const base = getStoredServerUrl();
-	const token = getStoredToken();
-	if (token) {
-		return `${base}/api/v1/files/${fileId}/stream?token=${encodeURIComponent(token)}`;
-	}
-	return `${base}/api/v1/files/${fileId}/stream`;
+	const query = appendSessionToken(new URLSearchParams()).toString();
+	return `${base}/api/v1/files/${fileId}/stream${query ? `?${query}` : ""}`;
 }
 
-// URL pratinjau kecil untuk tag <img>. Token lewat query karena elemen gambar
-// tidak bisa mengirim header Authorization.
+// URL pratinjau kecil untuk tag <img>. Token hanya ditempel bila cookie sesi
+// tidak ikut terkirim (backend di host lain).
 export function getThumbnailUrl(fileId: string, size: "small" | "large" = "small"): string {
 	const base = getStoredServerUrl();
-	const token = getStoredToken();
-	const params = new URLSearchParams({ size });
-	if (token) params.set("token", token);
+	const params = appendSessionToken(new URLSearchParams({ size }));
 	return `${base}/api/v1/files/${fileId}/thumbnail?${params.toString()}`;
 }
 
@@ -259,11 +284,8 @@ export async function moveNasFile(id: string, parentId: string | null): Promise<
 
 export function getDownloadUrl(fileId: string): string {
 	const base = getStoredServerUrl();
-	const token = getStoredToken();
-	if (token) {
-		return `${base}/api/v1/files/${fileId}/download?token=${encodeURIComponent(token)}`;
-	}
-	return `${base}/api/v1/files/${fileId}/download`;
+	const query = appendSessionToken(new URLSearchParams()).toString();
+	return `${base}/api/v1/files/${fileId}/download${query ? `?${query}` : ""}`;
 }
 
 // ---------------- Trash (soft-delete recovery) ----------------
@@ -357,6 +379,10 @@ export async function loginNas(input: {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
+		// Set-Cookie dari backend hanya disimpan bila request lintas-origin
+		// membawa kredensial. Cookie inilah yang membuat <img>/<video> bisa
+		// mengakses media tanpa token di URL.
+		credentials: "include",
 	});
 	if (!res.ok) throw new Error(await parseError(res));
 	const json = (await res.json()) as {

@@ -12,7 +12,8 @@ Base URL pengembangan: `http://localhost:8080`. Semua endpoint di bawah
 | Jenis | Cara | Dipakai oleh |
 |---|---|---|
 | Sesi pengguna | `Authorization: Bearer <token>` | `/auth/me`, `/files/*`, `/shares`, `/family/*` |
-| Sesi lewat query | `?token=<token>` | `/files/:id/download`, `/files/:id/stream` (karena `<img>`/`<video>` tidak bisa mengirim header) |
+| Sesi lewat cookie | `nas_session` (HttpOnly) | Otomatis untuk `<img>`/`<video>` dan endpoint yang sama |
+| Sesi lewat query | `?token=<token>` | `/files/:id/download`, `/files/:id/stream` **hanya bila** backend di host berbeda dari halaman |
 | Admin key | `X-Admin-Key: <kunci>` | `/gdrive/*`, `/invites/*` |
 | Tanpa autentikasi | — | `/health`, `/auth/register`, `/auth/login`, `/public/*`, `/gdrive/callback` |
 
