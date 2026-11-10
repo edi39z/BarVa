@@ -16,7 +16,7 @@ import {
 import { makeImageOutput } from "@/lib/studio/output";
 import StudioAlert from "./StudioAlert";
 import StudioProgress from "./StudioProgress";
-import type { StudioPanelProps } from "./types";
+import type { BgModelPanelProps } from "./types";
 
 const DEFAULT_COLOR = "#dc2626";
 
@@ -33,7 +33,7 @@ export default function IdPhotoPanel({
   onOpenStoragePicker,
   bgModelReady,
   onBgModelReady,
-}: StudioPanelProps) {
+}: BgModelPanelProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
   const sourceUrlRef = useRef<string | null>(null);

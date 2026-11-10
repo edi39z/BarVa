@@ -15,6 +15,10 @@ export interface StudioPanelProps {
   onCommit: (output: StudioOutput) => Promise<{ saved: boolean }>;
   onSuccess: (message: string) => void;
   onOpenStoragePicker: (tool: StudioToolId) => void;
+}
+
+/** Panel yang memakai model hapus latar perlu tahu status unduhan modelnya. */
+export interface BgModelPanelProps extends StudioPanelProps {
   /** Model AI hapus latar sudah pernah diunduh di perangkat ini. */
   bgModelReady: boolean;
   /** Dipanggil panel setelah model berhasil diunduh dan dipakai. */

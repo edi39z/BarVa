@@ -4,7 +4,7 @@ import React from "react";
 import { Check, Cloud, FileText, Folder, HardDrive, Server } from "lucide-react";
 import type { DisplayItem } from "@/lib/nasDisplay";
 import Modal from "@/components/Modal";
-import { MULTI_IMAGE_TOOLS, SINGLE_IMAGE_TOOLS, type StudioToolId } from "@/lib/studio/tools";
+import { isPdfTool, isSingleFileTool, MULTI_IMAGE_TOOLS, SINGLE_IMAGE_TOOLS, type StudioToolId } from "@/lib/studio/tools";
 
 export type { StudioToolId };
 export type StoragePickerTab = "local" | "nas" | "gdrive";
@@ -40,13 +40,13 @@ export default function StoragePickerModal({
   onClose,
   onConfirm,
 }: StoragePickerModalProps) {
-  const isSingleImageTool = SINGLE_IMAGE_TOOLS.includes(tool);
+  const isSingleTool = isSingleFileTool(tool);
 
   const eligibleItems = localItems.filter((item) => {
     if (SINGLE_IMAGE_TOOLS.includes(tool) || MULTI_IMAGE_TOOLS.includes(tool)) {
       return item.type === "image";
     }
-    if (tool === "mergepdf") {
+    if (isPdfTool(tool)) {
       return item.type === "document" && item.name.toLowerCase().endsWith(".pdf");
     }
     return true;
@@ -98,7 +98,7 @@ export default function StoragePickerModal({
             <FileText className="mx-auto mb-2 h-8 w-8 text-subtle" aria-hidden />
             <p className="text-[12.5px] font-semibold text-fg">Belum ada berkas yang cocok</p>
             <p className="mx-auto mt-1 max-w-xs text-[11.5px] leading-relaxed text-subtle">
-              Unggah {tool === "mergepdf" ? "berkas PDF" : "foto"} lebih dulu lewat menu Semua Berkas.
+              Unggah {isPdfTool(tool) ? "berkas PDF" : "foto"} lebih dulu lewat menu Semua Berkas.
             </p>
           </div>
         ) : (
@@ -109,7 +109,7 @@ export default function StoragePickerModal({
                 <li key={item.id}>
                   <button
                     onClick={() => {
-                      if (isSingleImageTool) {
+                      if (isSingleTool) {
                         onSelectedIdsChange([item.id]);
                       } else {
                         onSelectedIdsChange((prev) =>

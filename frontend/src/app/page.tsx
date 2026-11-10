@@ -44,7 +44,7 @@ import {
   type BgProgress,
   type EnhanceResult,
 } from "@/lib/studio/ai";
-import type { StudioToolId } from "@/lib/studio/tools";
+import { PANEL_TOOLS, type StudioToolId } from "@/lib/studio/tools";
 import {
   pingNasServer,
   getStoredServerUrl,
@@ -1030,9 +1030,9 @@ export default function Home() {
 
       // Alat berpanel mengolah berkasnya sendiri: cukup teruskan berkasnya,
       // lalu panel yang mengurus pratinjau, opsi, dan penyimpanan.
-      if (storagePickerTool === "idphoto") {
+      if (PANEL_TOOLS.includes(storagePickerTool)) {
         setStudioPickedFile(files[0]);
-        setActiveStudioTool("idphoto");
+        setActiveStudioTool(storagePickerTool);
         return;
       }
 

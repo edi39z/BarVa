@@ -100,6 +100,11 @@ npm run dev
 Buka `http://localhost:3000`, pilih **Private NAS**, lalu daftar. Pengguna
 pertama otomatis menjadi **owner**.
 
+`npm run dev` dan `npm run build` menjalankan `scripts/sync-pdf-worker.mjs` lebih
+dulu. Skrip itu menyalin `pdf.worker.min.mjs` dari `pdfjs-dist` ke `public/`
+karena Web Worker pdf.js harus dilayani dari origin sendiri. Berkas hasil
+salinan tidak masuk repo — sudah terdaftar di `.gitignore`.
+
 Alamat backend ditentukan di dua tempat:
 
 - `frontend/src/lib/api/cloud.ts` → `const PORT = "8080"`
