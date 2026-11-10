@@ -153,6 +153,39 @@ cd backend && sqlc generate
 - **Dependensi baru:** hindari bila stdlib atau fitur platform sudah cukup.
   Jelaskan alasannya di PR.
 
+### Dependensi dengan advisory terbuka
+
+`npm audit` di `frontend/` masih melaporkan 2 temuan **high** dari `zod` < 4.6.6
+(GHSA-mrhx-c7xc-m3w5: habisnya memori saat memvalidasi koleksi berbatas yang
+sangat besar). Sumbernya `@imgly/background-removal`, yang mencantumkan
+`zod: ^3.23.8`; versi terbarunya (1.7.0) belum naik dan zod tidak merilis patch
+untuk jalur 3.x.
+
+**Jangan "perbaiki" dengan `overrides`.** Sudah dicoba dan gagal: paket itu
+mengekspor `Config` lewat `dist/src/schema.d.ts` yang memakai nama tipe zod 3
+(`z.ZodEffects`, `z.ZodDefault`, `z.ZodObject`). Dengan zod 4 tipe itu tidak
+resolve, `Config` jatuh menjadi `any`, dan `model`, `device`, serta
+`output.format` tidak diperiksa lagi — sementara `progress` kehilangan tipe
+parameternya. Diuji dua arah: dengan zod 3 ketiga nilai salah ditolak `tsc`,
+dengan zod 4 semuanya lolos.
+
+Risiko ini diterima karena dua hal:
+
+1. Zod **ikut ter-bundel** ke `dist/index.mjs` dan `dist/index.cjs` library
+   (3.24.2 di-inline, 0 `import`/`require` eksternal). Menghapus salinan di
+   `node_modules` hanya menghilangkan laporan audit; kode yang benar-benar
+   jalan di peramban tidak berubah.
+2. `ConfigSchema` tidak memakai batas koleksi dan hanya memvalidasi objek
+   konfigurasi yang aplikasi kirim sendiri lewat `removeImageBackground()`,
+   bukan input pengguna. Jalur yang disorot advisory tidak tercapai.
+
+Tinjau ulang saat `@imgly/background-removal` naik ke zod 4 — waktu itu override
+tidak lagi diperlukan dan tipe `Config` kembali berfungsi.
+
+8 temuan **moderate** yang tersisa berasal dari `minimatch` lewat
+`eslint-config-next`. Perbaikannya butuh downgrade breaking
+(`eslint-config-next` → 15.5.29), jadi juga sengaja tidak disentuh.
+
 ### Frontend
 
 `frontend/src/app/page.tsx` masih berupa satu berkas besar. Saat menyentuhnya:
