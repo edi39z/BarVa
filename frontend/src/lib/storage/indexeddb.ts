@@ -13,6 +13,18 @@ export interface StoredFile {
   updatedAt: string;
 }
 
+export interface QueuedUpload {
+  id: string;
+  name: string;
+  blob: Blob;
+  mimeType: string;
+  parentId: string | null;
+  overwrite: boolean;
+  attempts: number;
+  lastError?: string;
+  createdAt: string;
+}
+
 interface NASDatabase extends DBSchema {
   files: {
     key: string;
@@ -23,10 +35,17 @@ interface NASDatabase extends DBSchema {
       "by-favorite": number;
     };
   };
+  upload_queue: {
+    key: string;
+    value: QueuedUpload;
+    indexes: {
+      "by-created": string;
+    };
+  };
 }
 
 const DB_NAME = "nas_local_storage";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<NASDatabase>> | null = null;
 
@@ -39,6 +58,11 @@ function getDB(): Promise<IDBPDatabase<NASDatabase>> {
           store.createIndex("by-type", "type");
           store.createIndex("by-created", "createdAt");
           store.createIndex("by-favorite", "isFavorite");
+        }
+        // Store antrean upload ditambahkan di versi 2; data files lama tetap.
+        if (!db.objectStoreNames.contains("upload_queue")) {
+          const queue = db.createObjectStore("upload_queue", { keyPath: "id" });
+          queue.createIndex("by-created", "createdAt");
         }
       },
     });
@@ -104,4 +128,53 @@ export async function toggleFavorite(id: string): Promise<boolean> {
   file.updatedAt = new Date().toISOString();
   await db.put("files", file);
   return !!file.isFavorite;
+}
+
+// ---------------- Antrean upload offline ----------------
+
+export async function enqueueUpload(
+  name: string,
+  blob: Blob,
+  parentId: string | null,
+  overwrite: boolean,
+  mimeType: string
+): Promise<QueuedUpload> {
+  const db = await getDB();
+  const item: QueuedUpload = {
+    id: crypto.randomUUID(),
+    name,
+    blob,
+    mimeType,
+    parentId,
+    overwrite,
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+  };
+  await db.put("upload_queue", item);
+  return item;
+}
+
+export async function listQueuedUploads(): Promise<QueuedUpload[]> {
+  const db = await getDB();
+  const items = await db.getAllFromIndex("upload_queue", "by-created");
+  return items;
+}
+
+export async function countQueuedUploads(): Promise<number> {
+  const db = await getDB();
+  return db.count("upload_queue");
+}
+
+export async function deleteQueuedUpload(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("upload_queue", id);
+}
+
+export async function markQueuedUploadFailed(id: string, message: string): Promise<void> {
+  const db = await getDB();
+  const item = await db.get("upload_queue", id);
+  if (!item) return;
+  item.attempts += 1;
+  item.lastError = message;
+  await db.put("upload_queue", item);
 }

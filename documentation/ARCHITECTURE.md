@@ -266,3 +266,26 @@ akan berakhir di layar login yang tidak bisa dipakai.
 
 Naikkan `CACHE_VERSION` di `sw.js` bila strategi cache berubah; cache lama
 dihapus pada tahap `activate`.
+
+### 7.1 Antrean upload offline
+
+Upload yang gagal karena tidak ada koneksi tidak dibuang. Berkas disimpan utuh
+sebagai `Blob` di IndexedDB (`nas_local_storage`, object store `upload_queue`,
+skema versi 2) lalu dikirim ulang otomatis ketika koneksi kembali.
+
+| Tahap | Fungsi | Perilaku |
+|---|---|---|
+| Masuk antrean | `enqueueUpload()` (`lib/storage/indexeddb.ts`) | Dipanggil dari `handleRealFileUpload` bila `navigator.onLine === false` atau error jaringan |
+| Kirim ulang | `flushUploadQueue()` (`lib/uploadQueue.ts`) | Iterasi antrean; sukses → hapus item; gagal → simpan `lastError` dan hentikan loop bila offline/401 |
+| Pemicu | `useEffect` di `page.tsx` | Saat mount, saat event `online`, dan tombol "Unggah sekarang" pada banner |
+
+Detail penting:
+
+- Item antrean menyimpan `parentId` asal, jadi berkas kembali ke folder tempat
+  ia diunggah meskipun pengguna sudah berpindah folder.
+- Loop berhenti pada kegagalan sesi (`401`/pesan "sesi berakhir") supaya tidak
+  menandai seluruh antrean gagal berulang kali.
+- `flushUploadQueue` mengembalikan `{uploaded, failed, pending}`; UI memakai
+  `pending` untuk banner dan menyegarkan daftar berkas bila `uploaded > 0`.
+- Antrean tidak dihapus saat logout. Ini disengaja: berkas milik pengguna tetap
+  ada di perangkat dan akan dikirim setelah login lagi.

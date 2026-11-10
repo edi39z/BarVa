@@ -65,8 +65,11 @@ import {
   getAllLocalFiles,
   deleteLocalFile,
   toggleFavorite,
+  enqueueUpload,
+  countQueuedUploads,
   StoredFile,
 } from "@/lib/storage/indexeddb";
+import { flushUploadQueue } from "@/lib/uploadQueue";
 import { imagesToPDF, mergePDFs } from "@/lib/studio/pdf";
 import {
   createInvite,
@@ -288,6 +291,10 @@ export default function Home() {
   const [trashError, setTrashError] = useState("");
   const [trashBusyId, setTrashBusyId] = useState<string | null>(null);
 
+  // Antrean upload offline
+  const [pendingUploads, setPendingUploads] = useState(0);
+  const [flushingQueue, setFlushingQueue] = useState(false);
+
   // Studio State
   const [activeStudioTool, setActiveStudioTool] = useState<"img2pdf" | "mergepdf" | "idphoto" | "compress">("img2pdf");
   const [studioProcessing, setStudioProcessing] = useState(false);
@@ -434,6 +441,38 @@ export default function Home() {
   useEffect(() => {
     loadTrash();
   }, [loadTrash]);
+
+  // Kirim antrean upload begitu koneksi kembali, dan segarkan jumlah antrean.
+  useEffect(() => {
+    if (connectionMode !== "nas" || !currentUser) return;
+
+    let alive = true;
+    const syncCount = () =>
+      countQueuedUploads()
+        .then((n) => {
+          if (alive) setPendingUploads(n);
+        })
+        .catch(() => undefined);
+
+    const run = async () => {
+      if (!navigator.onLine) {
+        syncCount();
+        return;
+      }
+      const result = await flushUploadQueue();
+      if (!alive) return;
+      setPendingUploads(result.pending);
+      if (result.uploaded > 0) loadNasFiles(currentFolderId);
+    };
+
+    syncCount();
+    run();
+    window.addEventListener("online", run);
+    return () => {
+      alive = false;
+      window.removeEventListener("online", run);
+    };
+  }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
 
   // Segarkan status Drive setiap kali kembali ke dashboard, karena panel
   // Drive punya state sendiri dan bisa berubah tanpa reload halaman.
@@ -789,6 +828,34 @@ export default function Home() {
   };
 
   // Handle Real Upload (Dual-Mode: NAS Streaming + IndexedDB Fallback)
+  // Simpan upload ke IndexedDB saat server tidak terjangkau, lalu kirim
+  // otomatis lewat flushUploadQueue ketika online.
+  const queueOfflineUpload = async (file: File) => {
+    try {
+      await enqueueUpload(file.name, file, currentFolderId, false, file.type);
+      setPendingUploads(await countQueuedUploads());
+      alert(
+        `"${file.name}" disimpan di antrean dan akan diunggah otomatis saat koneksi ke server kembali.`
+      );
+    } catch (err) {
+      alert(`Gagal menyimpan ke antrean offline: ${(err as Error).message}`);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleFlushQueue = async () => {
+    setFlushingQueue(true);
+    try {
+      const result = await flushUploadQueue();
+      setPendingUploads(result.pending);
+      if (result.uploaded > 0) await loadNasFiles(currentFolderId);
+    } finally {
+      setFlushingQueue(false);
+    }
+  };
+
   const handleRealFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -807,11 +874,21 @@ export default function Home() {
       // Mode NAS: unggah ke server, lalu ambil ulang daftar dari server
       // supaya yang tampil adalah data nyata, bukan salinan lokal.
       if (connectionMode === "nas") {
+        if (!navigator.onLine) {
+          await queueOfflineUpload(file);
+          return;
+        }
+
         const report = (percent: number) => setUploadProgress(Math.max(10, percent));
         try {
           await uploadToNas(file, currentFolderId, report);
         } catch (err) {
           const msg = (err as Error).message || "";
+          // Server tidak terjangkau (bukan penolakan validasi): antrekan.
+          if (!/sudah ada/i.test(msg) && (err instanceof TypeError || /fetch|network|jaringan/i.test(msg))) {
+            await queueOfflineUpload(file);
+            return;
+          }
           // Backend menolak nama duplikat; tawarkan ganti, jangan langsung gagal.
           if (!/sudah ada/i.test(msg)) throw err;
           if (!confirm(`"${file.name}" sudah ada di folder ini. Ganti dengan versi baru?`)) {
@@ -2117,6 +2194,22 @@ export default function Home() {
           {/* TAB 1: FILE EXPLORER */}
           {activeTab === "files" && (
             <div className="space-y-6">
+              {pendingUploads > 0 && (
+                <div className="rounded-xl bg-sky-950/50 border border-sky-800/60 px-4 py-2.5 text-xs flex items-center gap-2">
+                  <Upload className="h-3.5 w-3.5 text-sky-300 shrink-0" />
+                  <span className="text-sky-200">
+                    {pendingUploads} berkas menunggu koneksi ke server untuk diunggah.
+                  </span>
+                  <button
+                    onClick={handleFlushQueue}
+                    disabled={!isOnline || flushingQueue}
+                    className="ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${flushingQueue ? "animate-spin" : ""}`} />
+                    <span>{flushingQueue ? "Mengunggah..." : "Unggah sekarang"}</span>
+                  </button>
+                </div>
+              )}
               {/* Storage Source Switcher & Stats */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-lg w-fit text-xs">
