@@ -62,6 +62,30 @@ cd frontend && npx tsc --noEmit && npm run build
 Sertakan di deskripsi PR: **apa** yang berubah, **kenapa**, dan **bagaimana**
 Anda mengujinya.
 
+### Test e2e frontend
+
+```bash
+cd frontend && npm run test:e2e
+```
+
+Suite tanpa backend berjalan di mode standalone dan hanya butuh frontend
+hidup di `http://localhost:3000` (`npm run build && npm start`). Bila frontend
+berjalan di port lain, set `NAS_E2E_BASE_URL`.
+
+Test yang membutuhkan backend dan akun uji di-skip secara default. Untuk
+menjalankannya:
+
+```bash
+NAS_E2E_SERVER=1 \
+NAS_E2E_EMAIL=akun@uji.local \
+NAS_E2E_PASSWORD=rahasia123 \
+npm run test:e2e
+```
+
+Playwright memakai Chromium yang sudah terpasang di mesin. Bila tidak ada,
+jalankan `npx playwright install chromium` atau set `PLAYWRIGHT_CHROMIUM_PATH`
+ke executable Chrome/Chromium lain.
+
 ---
 
 ## Aturan teknis

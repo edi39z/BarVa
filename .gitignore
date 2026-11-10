@@ -21,6 +21,14 @@ coverage/
 .vercel/
 
 # ==========================================
+# Playwright
+# ==========================================
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.playwright/
+
+# ==========================================
 # Executables & Backup Files
 # ==========================================
 *.exe
