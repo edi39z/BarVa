@@ -286,6 +286,11 @@ export default function Sidebar({
           <p className="text-[10px] text-zinc-500 truncate">
             {currentUser.email}
           </p>
+          {Boolean(currentUser.quota_bytes) && (
+            <p className="text-[10px] text-zinc-500 font-mono truncate">
+              {formatBytes(currentUser.quota_used_bytes ?? 0)} / {formatBytes(currentUser.quota_bytes ?? 0)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">

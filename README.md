@@ -67,7 +67,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - Folder, soft delete, download, dan streaming video via HTTP 206
 - Google Drive OAuth (kuota, jelajah folder, upload, download lewat server)
 - Undangan anggota keluarga (token di-hash, status pending/accepted/revoked);
-  penerima undangan membuat akun nyata lalu langsung bisa login
+  penerima undangan membuat akun nyata dengan role & kuota dari undangan
+- Kuota anggota ditegakkan saat upload (`413 QUOTA_EXCEEDED`), dihitung dari
+  objek unik sehingga dedup tidak dihitung dua kali; pemakaian tampil di sidebar
 - Share link publik: password opsional, masa berlaku, halaman `/s/:token` yang
   benar-benar mengunduh dari server; share folder bisa diunduh sebagai satu
   arsip zip yang dialirkan langsung tanpa file sementara

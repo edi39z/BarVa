@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -234,6 +235,63 @@ func (h *FilesHandler) CreateFolder(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": node})
 }
 
+// quotaExceeded melaporkan apakah unggahan baru akan melewati kuota.
+// Kuota 0 berarti belum dibatasi.
+func quotaExceeded(quota, used, incoming int64) bool {
+	if quota <= 0 {
+		return false
+	}
+	return used+incoming > quota
+}
+
+// humanBytes merapikan angka byte untuk pesan error.
+func humanBytes(n int64) string {
+	const unit = int64(1024)
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := unit, 0
+	for v := n / unit; v >= unit; v /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// enforceQuota mengirim 413 bila unggahan akan melewati kuota anggota dan
+// mengembalikan true (respons sudah ditulis). Objek yang sudah dimiliki
+// dilewatkan karena dedup CAS tidak menambah pemakaian.
+func (h *FilesHandler) enforceQuota(c *gin.Context, userId pgtype.UUID, sha256Hex string, incoming int64) bool {
+	user, err := h.queries.GetUserByID(c.Request.Context(), userId)
+	if err != nil || user.QuotaBytes <= 0 {
+		return false
+	}
+
+	usage, err := h.queries.GetOwnerUsage(c.Request.Context(), db.GetOwnerUsageParams{
+		OwnerID: userId,
+		Sha256:  sha256Hex,
+	})
+	if err != nil {
+		// Gagal membaca pemakaian tidak boleh memblokir unggahan pengguna.
+		log.Printf("[upload] gagal menghitung pemakaian kuota: %v", err)
+		return false
+	}
+	if usage.HasObject || !quotaExceeded(user.QuotaBytes, usage.UsedBytes, incoming) {
+		return false
+	}
+
+	c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+		"error": gin.H{
+			"code": "QUOTA_EXCEEDED",
+			"message": fmt.Sprintf(
+				"Kuota penyimpanan tidak cukup: terpakai %s dari %s, berkas ini %s.",
+				humanBytes(usage.UsedBytes), humanBytes(user.QuotaBytes), humanBytes(incoming),
+			),
+		},
+	})
+	return true
+}
+
 func (h *FilesHandler) Upload(c *gin.Context) {
 	userId, ok := auth.GetUserID(c)
 	if !ok {
@@ -285,6 +343,13 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 	_ = tmpFile.Close()
 
 	hashHex := hex.EncodeToString(hasher.Sum(nil))
+
+	// Kuota diperiksa setelah hash diketahui: mengunggah ulang berkas yang
+	// sudah dimiliki tidak menambah pemakaian (dedup CAS), jadi tidak boleh
+	// ditolak hanya karena ukurannya besar.
+	if h.enforceQuota(c, userId, hashHex, copiedBytes) {
+		return
+	}
 
 	// Reopen tmp file to store via StorageProvider
 	reader, err := os.Open(tmpPath)

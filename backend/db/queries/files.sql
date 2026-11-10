@@ -47,6 +47,32 @@ WHERE (sqlc.arg(all_owners)::boolean OR n.owner_id = sqlc.arg(owner_id))
 ORDER BY n.created_at DESC
 LIMIT sqlc.arg(row_limit)::int;
 
+-- GetOwnerUsage menghitung pemakaian disk seorang pemilik untuk penegakan
+-- kuota. Objek dihitung sekali saja (DISTINCT object_id) supaya berkas yang
+-- sama di dua folder tidak dihitung dua kali, dan dedup CAS tetap dihargai.
+-- has_object menandakan objek dengan sha256 tersebut sudah dimiliki pemilik,
+-- sehingga upload ulang tidak menambah pemakaian.
+-- name: GetOwnerUsage :one
+WITH owned AS (
+    SELECT DISTINCT n.object_id
+    FROM file_nodes n
+    WHERE n.owner_id = sqlc.arg(owner_id)
+      AND n.deleted_at IS NULL
+      AND n.object_id IS NOT NULL
+)
+SELECT
+    COALESCE((
+        SELECT SUM(o.size_bytes)
+        FROM owned x
+        JOIN file_objects o ON o.id = x.object_id
+    ), 0)::bigint AS used_bytes,
+    EXISTS (
+        SELECT 1
+        FROM owned x
+        JOIN file_objects o ON o.id = x.object_id
+        WHERE o.sha256 = sqlc.arg(sha256)
+    ) AS has_object;
+
 -- name: GetNodeByID :one
 SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        n.deleted_at, n.created_at, n.updated_at,

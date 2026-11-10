@@ -809,6 +809,13 @@ export default function Home() {
         }
         setUploadProgress(100);
         await loadNasFiles(currentFolderId);
+        // Segarkan pemakaian kuota yang tampil di sidebar.
+        try {
+          const me = await fetchMe();
+          if (me) setCurrentUser(me);
+        } catch {
+          // Diabaikan: angka kuota boleh tertinggal, unggahan sudah berhasil.
+        }
         setTimeout(() => {
           setIsUploading(false);
         }, 400);

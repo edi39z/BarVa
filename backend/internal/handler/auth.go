@@ -270,14 +270,25 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
+	// Pemakaian dihitung dari objek aktif milik pengguna; kegagalan hitung
+	// tidak boleh menggagalkan /me, cukup tampil 0.
+	var usedBytes int64
+	if usage, uErr := h.queries.GetOwnerUsage(c.Request.Context(), db.GetOwnerUsageParams{
+		OwnerID: userId,
+		Sha256:  "",
+	}); uErr == nil {
+		usedBytes = usage.UsedBytes
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"id":          user.ID,
-			"email":       user.Email,
-			"username":    user.Username,
-			"role":        user.Role,
-			"quota_bytes": user.QuotaBytes,
-			"created_at":  user.CreatedAt,
+			"id":               user.ID,
+			"email":            user.Email,
+			"username":         user.Username,
+			"role":             user.Role,
+			"quota_bytes":      user.QuotaBytes,
+			"quota_used_bytes": usedBytes,
+			"created_at":       user.CreatedAt,
 		},
 	})
 }

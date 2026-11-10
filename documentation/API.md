@@ -103,8 +103,11 @@ Dibatasi 5 kegagalan per 15 menit per kombinasi IP+email → `429 RATE_LIMITED`.
 ### `GET /api/v1/auth/me`
 
 ```json
-{ "data": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner", "quota_bytes": 0, "created_at": "..." } }
+{ "data": { "id": "uuid", "email": "a@b.c", "username": "tester", "role": "owner", "quota_bytes": 0, "quota_used_bytes": 0, "created_at": "..." } }
 ```
+
+`quota_used_bytes` adalah pemakaian disk saat ini (objek aktif, dihitung sekali
+per sha256). `quota_bytes = 0` berarti tanpa batas.
 
 ### `POST /api/v1/auth/logout`
 
@@ -190,7 +193,18 @@ tidak tersembunyi saat folder lain sedang dibuka.
 { "data": { "node": { "ID": "...", "Name": "foto.jpg", "...": "..." }, "object": { "sha256": "...", "size_bytes": 12345 } } }
 ```
 
-`413 FILE_TOO_LARGE` bila melebihi batas.
+`413 FILE_TOO_LARGE` bila melebihi batas per berkas.
+
+`413 QUOTA_EXCEEDED` bila kuota anggota tidak cukup:
+
+```json
+{ "error": { "code": "QUOTA_EXCEEDED", "message": "Kuota penyimpanan tidak cukup: terpakai 97.7 KB dari 1.0 MB, berkas ini 1.9 MB." } }
+```
+
+Kuota dihitung dari objek aktif milik pengguna, dan objek yang sama hanya
+dihitung sekali. Mengunggah ulang berkas yang sudah dimiliki **tidak** ditolak
+meski kuota hampir penuh, karena isinya tidak menambah pemakaian disk.
+`quota_bytes = 0` berarti tanpa batas.
 
 ### `PATCH /api/v1/files/:id`
 

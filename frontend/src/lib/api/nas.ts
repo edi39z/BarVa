@@ -335,6 +335,8 @@ export interface NasUser {
 	role: "owner" | "admin" | "member";
 	/** 0 berarti belum dibatasi. */
 	quota_bytes?: number;
+	/** Pemakaian disk saat ini; 0 bila server tidak bisa menghitung. */
+	quota_used_bytes?: number;
 	created_at?: string;
 }
 
