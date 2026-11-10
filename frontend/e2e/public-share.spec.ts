@@ -76,17 +76,17 @@ test.describe("halaman share publik", () => {
     try {
       await page.goto(`/s/${share.rawToken}`);
 
-      await expect(page.getByText("Berkas Siap Diunduh")).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText("Berkas siap diunduh")).toBeVisible({ timeout: 20_000 });
       await expect(page.getByText(fileName)).toBeVisible();
-      await expect(page.getByText("Berkas ini diproteksi kata sandi:")).toBeVisible();
+      await expect(page.getByText("Berkas ini dilindungi kata sandi")).toBeVisible();
 
       await page.locator('input[type="password"]').fill("sandi-salah");
-      await page.getByRole("button", { name: "Buka Tautan" }).click();
+      await page.getByRole("button", { name: "Buka tautan" }).click();
       await expect(page.getByText("Kata sandi salah.")).toBeVisible();
 
       await page.locator('input[type="password"]').fill(SHARE_PASSWORD);
-      await page.getByRole("button", { name: "Buka Tautan" }).click();
-      await expect(page.getByRole("button", { name: /Unduh Berkas Sekarang/ })).toBeVisible();
+      await page.getByRole("button", { name: "Buka tautan" }).click();
+      await expect(page.getByRole("button", { name: /Unduh berkas/ })).toBeVisible();
 
       // Unduhan diuji lewat request, bukan klik tombol, agar browser tidak
       // membuka dialog simpan berkas saat test berjalan.
@@ -126,8 +126,8 @@ test.describe("halaman share publik", () => {
     try {
       await page.goto(`/s/${share.rawToken}`);
 
-      await expect(page.getByText("Folder Dibagikan")).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByRole("button", { name: /Unduh Folder \(ZIP\)/ })).toBeVisible();
+      await expect(page.getByText("Folder dibagikan")).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole("button", { name: /Unduh folder \(ZIP\)/i })).toBeVisible();
 
       const archive = await request.get(
         `${API}/api/v1/public/share/${share.rawToken}/archive`

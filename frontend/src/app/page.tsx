@@ -65,6 +65,7 @@ import FileExplorerTab from "@/components/FileExplorerTab";
 import GalleryTab from "@/components/GalleryTab";
 import HomeDashboard from "@/components/HomeDashboard";
 import MediaLightbox from "@/components/MediaLightbox";
+import MobileNav from "@/components/MobileNav";
 import MoveItemModal from "@/components/MoveItemModal";
 import ServerSettingsModal from "@/components/ServerSettingsModal";
 import Sidebar from "@/components/Sidebar";
@@ -1305,7 +1306,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-canvas text-fg">
       {/* Hidden file input for real uploads */}
       <input
         type="file"
@@ -1332,7 +1333,7 @@ export default function Home() {
       />
 
       {/* 2. MAIN WORKSPACE */}
-      <main className="flex-1 flex flex-col min-w-0 bg-zinc-950">
+      <main id="konten-utama" className="flex min-w-0 flex-1 flex-col bg-canvas">
         <WorkspaceHeader
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -1350,7 +1351,8 @@ export default function Home() {
         />
 
         {/* Content Body Based on Tab */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="scroll-area flex-1 px-4 py-5 md:px-6 md:py-6">
+          <div className="space-y-5">
           {/* TAB 0: HOME BENTO DASHBOARD (MATCHING REFERENCE UI) */}
           {activeTab === "home" && (
             <HomeDashboard
@@ -1483,8 +1485,19 @@ export default function Home() {
               onUpdateQuota={handleUpdateMemberQuota}
             />
           )}
+          </div>
         </div>
       </main>
+
+      {/* Navigasi bawah untuk HP; sidebar disembunyikan di layar kecil */}
+      <MobileNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        connectionMode={connectionMode}
+        onOpenServer={() => setServerModalOpen(true)}
+        onInstallPwa={handleInstallPwa}
+        onLogout={handleLogout}
+      />
 
       {/* 3. LIGHTBOX / MEDIA DETAIL MODAL */}
       {selectedMedia && (

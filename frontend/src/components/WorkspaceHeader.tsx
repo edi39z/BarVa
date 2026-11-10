@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
-import { Plus, RefreshCw, Search, Upload, Wifi, WifiOff } from "lucide-react";
+import React, { useEffect, useRef } from "react";
+import { FolderPlus, RefreshCw, Search, Upload, Wifi, WifiOff, X } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface WorkspaceHeaderProps {
   searchQuery: string;
@@ -34,110 +35,161 @@ export default function WorkspaceHeader({
   onUpload,
   onCreateFolder,
 }: WorkspaceHeaderProps) {
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Pintasan Ctrl/⌘ + K memfokuskan pencarian, seperti pada referensi desain.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <>
-{/* Top Navbar */}
-<header className="h-16 border-b border-zinc-800/80 px-6 flex items-center justify-between shrink-0 bg-zinc-950/80 backdrop-blur-md">
-  {/* Search Bar */}
-  <div className="relative w-96">
-    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-    <input
-      type="text"
-      placeholder="Cari foto, dokumen, video..."
-      value={searchQuery}
-      onChange={(e) => onSearchChange(e.target.value)}
-      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/80 transition-colors"
-    />
-  </div>
+      <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur-md md:px-6">
+        {/* Logo hanya di layar kecil, karena sidebar disembunyikan */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-solid text-base font-bold text-white shadow-brand">
+            N
+          </div>
+        </div>
 
-  {/* Action Buttons */}
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() => onOpenServer()}
-      className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer"
-      title="Status Server NAS Homelab"
-    >
-      {nasStatus === "online" ? (
-        <>
-          <Wifi className="h-3.5 w-3.5 text-emerald-400" />
-          <span>NAS {nasLatency ? `${nasLatency}ms` : "Online"}</span>
-        </>
-      ) : (
-        <>
-          <WifiOff className="h-3.5 w-3.5 text-rose-400" />
-          <span>NAS Offline</span>
-        </>
+        {/* Pencarian */}
+        <div className="relative min-w-0 flex-1 md:max-w-md">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle"
+            aria-hidden
+          />
+          <input
+            ref={searchRef}
+            type="search"
+            aria-label="Cari berkas, foto, atau dokumen"
+            placeholder="Cari berkas, foto, atau dokumen…"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="input h-10 rounded-full pl-10 pr-16 text-[13px]"
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-subtle transition-colors hover:bg-surface-3 hover:text-fg"
+              aria-label="Hapus pencarian"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          ) : (
+            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium text-subtle sm:block">
+              Ctrl K
+            </kbd>
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Status server ringkas; detail ada di modal pengaturan */}
+          <button
+            onClick={onOpenServer}
+            className="hidden items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface-3 hover:text-fg sm:flex"
+            title={
+              connectionMode === "nas" && nasStatus === "online"
+                ? `Server tersambung${nasLatency ? ` · ${nasLatency} ms` : ""}`
+                : "Lihat status dan pengaturan server"
+            }
+          >
+            {connectionMode === "nas" && nasStatus === "online" ? (
+              <>
+                <Wifi className="h-3.5 w-3.5 text-success" aria-hidden />
+                <span className="text-success">Tersambung</span>
+              </>
+            ) : connectionMode === "nas" ? (
+              <>
+                <WifiOff className="h-3.5 w-3.5 text-danger" aria-hidden />
+                <span className="text-danger">Terputus</span>
+              </>
+            ) : (
+              <>
+                <Wifi className="h-3.5 w-3.5 text-warn" aria-hidden />
+                <span className="text-warn">Mode mandiri</span>
+              </>
+            )}
+          </button>
+
+          <ThemeToggle />
+
+          <button
+            onClick={onCreateFolder}
+            className="btn btn-secondary hidden md:inline-flex"
+            aria-label="Buat folder baru"
+          >
+            <FolderPlus className="h-4 w-4" aria-hidden />
+            <span>Folder Baru</span>
+          </button>
+
+          <button onClick={onUpload} className="btn btn-primary px-3 md:px-4" aria-label="Unggah berkas">
+            <Upload className="h-4 w-4" aria-hidden />
+            <span className="hidden md:inline">Unggah Berkas</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Jaringan perangkat terputus */}
+      {!isOnline && (
+        <div
+          role="status"
+          className="flex items-center gap-2.5 border-b border-danger-border bg-danger-soft px-4 py-2.5 text-[12.5px] text-danger md:px-6"
+        >
+          <WifiOff className="h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            <strong className="font-semibold">Tidak ada internet.</strong> Berkas di server belum
+            bisa dibuka. Berkas yang tersimpan di perangkat tetap bisa dipakai.
+          </span>
+        </div>
       )}
-    </button>
 
-    <button
-      onClick={() => onUpload()}
-      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition-all shadow-sm shadow-blue-600/30 active:scale-95 cursor-pointer"
-    >
-      <Upload className="h-3.5 w-3.5" />
-      <span>Upload File Asli</span>
-    </button>
+      {/* Server NAS mati padahal jaringan ada */}
+      {connectionMode === "nas" && nasStatus === "offline" && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-warn-border bg-warn-soft px-4 py-2.5 text-[12.5px] text-warn md:px-6"
+        >
+          <WifiOff className="h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            <strong className="font-semibold">Server rumah tidak terjangkau.</strong> Periksa
+            koneksi ke <span className="font-mono">{serverUrl}</span>.
+          </span>
+          <button
+            onClick={onOpenServer}
+            className="font-semibold underline underline-offset-2 hover:no-underline"
+          >
+            Buka pengaturan
+          </button>
+        </div>
+      )}
 
-    <button
-      onClick={onCreateFolder}
-      className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-medium px-3.5 py-2 rounded-lg transition-colors cursor-pointer"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      <span>Folder Baru</span>
-    </button>
-  </div>
-</header>
-
-{/* Offline Browser Alert Banner */}
-{!isOnline && (
-  <div className="bg-rose-950/60 border-b border-rose-800/60 px-6 py-2.5 flex items-center justify-between text-xs animate-in slide-in-from-top duration-200">
-    <div className="flex items-center gap-2.5 text-rose-200">
-      <WifiOff className="h-4 w-4 text-rose-400 shrink-0" />
-      <span>
-        <strong>Kamu sedang offline.</strong> Berkas di server NAS tidak dapat dibuka sampai
-        koneksi kembali; berkas mode standalone (IndexedDB) tetap tersedia.
-      </span>
-    </div>
-  </div>
-)}
-
-{/* Offline Fallback Alert Banner */}
-{connectionMode === "nas" && nasStatus === "offline" && (
-  <div className="bg-amber-950/60 border-b border-amber-800/60 px-6 py-2.5 flex items-center justify-between text-xs animate-in slide-in-from-top duration-200">
-    <div className="flex items-center gap-2.5 text-amber-300">
-      <WifiOff className="h-4 w-4 text-amber-400 shrink-0" />
-      <span>
-        <strong>NAS Server Offline:</strong> Tidak dapat terhubung ke <code>{serverUrl}</code>. Sistem otomatis mengalihkan penyimpanan ke cache offline (IndexedDB).
-      </span>
-    </div>
-    <button
-      onClick={() => onOpenServer()}
-      className="text-amber-400 hover:text-white underline font-medium cursor-pointer"
-    >
-      Konfigurasi Server
-    </button>
-  </div>
-)}
-
-{/* Upload Progress Bar */}
-{isUploading && (
-  <div className="bg-blue-950/60 border-b border-blue-800/50 px-6 py-2.5 flex items-center justify-between text-xs animate-in slide-in-from-top duration-200">
-    <div className="flex items-center gap-3">
-      <RefreshCw className="h-3.5 w-3.5 text-blue-400 animate-spin" />
-      <span className="text-blue-200">
-        Menyimpan file & verifikasi SHA-256: <code className="font-mono text-white">{uploadFileName}</code> ({uploadProgress}%)
-      </span>
-    </div>
-    <div className="w-48 bg-blue-900/40 h-2 rounded-full overflow-hidden border border-blue-700/50">
-      <div
-        className="bg-blue-400 h-full transition-all duration-200"
-        style={{ width: `${uploadProgress}%` }}
-      />
-    </div>
-  </div>
-)}
-
-
+      {/* Progres unggah */}
+      {isUploading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-3 border-b border-brand-border bg-brand-soft px-4 py-2.5 text-[12.5px] text-brand md:px-6"
+        >
+          <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">
+            Mengunggah <strong className="font-semibold">{uploadFileName}</strong> — {uploadProgress}%
+          </span>
+          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-surface md:w-44">
+            <div
+              className="h-full rounded-full bg-brand-solid transition-all duration-200"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }

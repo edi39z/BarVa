@@ -42,12 +42,12 @@ function fmtBytes(n: number): string {
 }
 
 function fileIcon(mime: string) {
-  if (mime.includes("folder")) return <Folder className="h-4 w-4 text-amber-400 shrink-0" />;
-  if (mime.startsWith("image/")) return <ImageIcon className="h-4 w-4 text-purple-400 shrink-0" />;
-  if (mime.startsWith("video/")) return <Film className="h-4 w-4 text-emerald-400 shrink-0" />;
+  if (mime.includes("folder")) return <Folder className="h-4 w-4 shrink-0 text-[var(--tile-amber-fg)]" aria-hidden />;
+  if (mime.startsWith("image/")) return <ImageIcon className="h-4 w-4 shrink-0 text-[var(--tile-purple-fg)]" aria-hidden />;
+  if (mime.startsWith("video/")) return <Film className="h-4 w-4 shrink-0 text-[var(--tile-green-fg)]" aria-hidden />;
   if (mime.includes("zip") || mime.includes("rar") || mime.includes("tar"))
-    return <FileArchive className="h-4 w-4 text-orange-400 shrink-0" />;
-  return <FileText className="h-4 w-4 text-indigo-400 shrink-0" />;
+    return <FileArchive className="h-4 w-4 shrink-0 text-[var(--tile-amber-fg)]" aria-hidden />;
+  return <FileText className="h-4 w-4 shrink-0 text-[var(--tile-blue-fg)]" aria-hidden />;
 }
 
 export default function GoogleDrivePanel() {
@@ -198,220 +198,204 @@ export default function GoogleDrivePanel() {
   const pct = quota && quota.limit > 0 ? Math.min(100, (quota.usage / quota.limit) * 100) : 0;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pt-2">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+    <div className="mx-auto max-w-5xl space-y-4 pb-24 lg:pb-6">
+      <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-zinc-100 flex items-center gap-2">
-            <Cloud className="h-5 w-5 text-emerald-400" />
-            <span>Google Drive</span>
-          </h2>
-          <p className="text-xs text-zinc-400">
-            Terhubung lewat server NAS — token di-refresh otomatis, tidak pernah
-            kedaluwarsa tiap 1 jam.
+          <h1 className="flex items-center gap-2 text-[17px] font-bold text-fg">
+            <Cloud className="h-[18px] w-[18px] text-[var(--tile-green-fg)]" aria-hidden />
+            Google Drive
+          </h1>
+          <p className="mt-1 max-w-xl text-[12.5px] leading-relaxed text-subtle">
+            Sambungkan akun Google agar berkas Drive bisa dibuka dari sini. Izin diperbarui otomatis
+            oleh server.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {status?.connected ? (
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Terhubung
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400 bg-zinc-800/60 border border-zinc-700 px-2.5 py-1 rounded-full">
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-              Belum terhubung
-            </span>
-          )}
-        </div>
+        {status?.connected ? (
+          <span className="chip chip-success">
+            <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
+            Terhubung
+          </span>
+        ) : (
+          <span className="chip chip-neutral">
+            <span className="h-1.5 w-1.5 rounded-full bg-subtle" aria-hidden />
+            Belum terhubung
+          </span>
+        )}
       </div>
 
       {msg && (
-        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs flex items-start gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-xl border border-success-border bg-success-soft px-3.5 py-2.5 text-[12.5px] text-success"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span>{msg}</span>
         </div>
       )}
       {err && (
-        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-start gap-2">
-          <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-danger-border bg-danger-soft px-3.5 py-2.5 text-[12.5px] text-danger"
+        >
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span className="break-all">{err}</span>
         </div>
       )}
 
-      {/* STEP 1 — kredensial OAuth (sekali saja) */}
+      {/* Langkah 1 — kredensial OAuth */}
       {status && !status.has_client && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+        <div className="card space-y-4 p-4 sm:p-5">
           <div className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-semibold text-zinc-100">
-              Langkah 1 — Daftarkan aplikasi sekali saja
-            </h3>
+            <KeyRound className="h-4 w-4 text-warn" aria-hidden />
+            <h2 className="text-[14px] font-bold text-fg">Langkah 1 — Daftarkan aplikasi (sekali saja)</h2>
           </div>
-          <div className="text-[11px] text-zinc-400 space-y-1.5 leading-relaxed">
+          <div className="space-y-2 text-[12px] leading-relaxed text-muted">
             <p>
-              Supaya token tidak mati dalam 1 jam, aplikasi butuh{" "}
-              <strong className="text-zinc-200">refresh token</strong> miliknya
-              sendiri. Ini butuh satu OAuth Client dari Google Cloud Console —
-              dibuat <strong className="text-zinc-200">satu kali</strong>, lalu
-              dipakai selamanya oleh semua anggota keluarga.
+              Agar akses tidak terputus setiap jam, server butuh izin permanen dari akun Google Anda.
+              Ini cukup dilakukan satu kali oleh pemilik NAS.
             </p>
-            <ol className="list-decimal ml-4 space-y-1">
+            <ol className="ml-4 list-decimal space-y-1">
               <li>
-                Buka <span className="font-mono text-blue-400">console.cloud.google.com</span>{" "}
-                → buat project (nama bebas).
+                Buka <span className="font-mono text-brand">console.cloud.google.com</span>, buat
+                project baru.
               </li>
               <li>
-                Menu <strong>APIs &amp; Services → Library</strong> → aktifkan{" "}
-                <strong>Google Drive API</strong>.
+                Buka <strong className="font-semibold text-fg">APIs &amp; Services → Library</strong>,
+                aktifkan <strong className="font-semibold text-fg">Google Drive API</strong>.
               </li>
               <li>
-                <strong>OAuth consent screen</strong> → tipe <em>External</em> →
-                tambahkan email Anda sebagai <em>Test user</em>.
+                Isi <strong className="font-semibold text-fg">OAuth consent screen</strong> tipe{" "}
+                <em>External</em>, tambahkan email Anda sebagai test user.
               </li>
               <li>
-                <strong>Credentials → Create Credentials → OAuth client ID</strong>{" "}
-                → tipe <em>Web application</em>.
+                Buat <strong className="font-semibold text-fg">OAuth client ID</strong> tipe{" "}
+                <em>Web application</em>.
               </li>
               <li>
-                Di <em>Authorized redirect URIs</em>, tempel:{" "}
-                <code className="text-amber-300 break-all">{redirectUri}</code>
+                Tempel alamat ini di <em>Authorized redirect URIs</em>:{" "}
+                <code className="break-all text-warn">{redirectUri}</code>
               </li>
-              <li>Salin Client ID &amp; Client Secret ke kolom di bawah.</li>
+              <li>Salin Client ID dan Client Secret ke kolom di bawah.</li>
             </ol>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <input
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               placeholder="Client ID (…apps.googleusercontent.com)"
-              className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+              aria-label="Client ID"
+              className="input"
             />
             <input
               type="password"
               value={clientSecret}
               onChange={(e) => setClientSecret(e.target.value)}
               placeholder="Client Secret"
-              className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+              aria-label="Client Secret"
+              className="input"
             />
             <input
               value={redirectUri}
               onChange={(e) => setRedirectUri(e.target.value)}
               placeholder="Redirect URI"
-              className="sm:col-span-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+              aria-label="Redirect URI"
+              className="input font-mono sm:col-span-2"
             />
           </div>
 
           <button
             onClick={handleSaveClient}
             disabled={busy || !clientId || !clientSecret}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+            className="btn btn-primary w-full sm:w-auto"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            <span>Simpan Kredensial</span>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ShieldCheck className="h-4 w-4" aria-hidden />}
+            Simpan kredensial
           </button>
         </div>
       )}
 
-      {/* STEP 2 — hubungkan akun */}
+      {/* Langkah 2 — hubungkan akun */}
       {status && status.has_client && !status.connected && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center space-y-3">
-          <div className="h-12 w-12 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-            <Cloud className="h-6 w-6 text-emerald-400" />
-          </div>
-          <h3 className="text-sm font-semibold text-zinc-100">
-            Langkah 2 — Hubungkan akun Google Anda
-          </h3>
-          <p className="text-[11px] text-zinc-400 max-w-md mx-auto">
-            Anda akan diarahkan ke halaman izin Google. Pilih{" "}
-            <strong className="text-zinc-200">akun utama</strong> (yang punya
-            Google One 5 TB). Setelah selesai, server menyimpan refresh token dan
-            memperbarui akses otomatis.
+        <div className="card space-y-3 p-6 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-success-soft text-success">
+            <Cloud className="h-6 w-6" aria-hidden />
+          </span>
+          <h2 className="text-[14px] font-bold text-fg">Langkah 2 — Hubungkan akun Google</h2>
+          <p className="mx-auto max-w-md text-[12px] leading-relaxed text-muted">
+            Anda akan diarahkan ke halaman izin Google. Pilih akun utama yang menyimpan berkas Drive.
+            Setelah selesai, server menyimpan izin tersebut dan memperbaruinya otomatis.
           </p>
-          <button
-            onClick={handleConnect}
-            disabled={busy}
-            className="mx-auto flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-            <span>Hubungkan &amp; Beri Izin</span>
+          <button onClick={handleConnect} disabled={busy} className="btn btn-primary mx-auto">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ExternalLink className="h-4 w-4" aria-hidden />}
+            Hubungkan akun
           </button>
         </div>
       )}
 
-      {/* Terhubung */}
       {status?.connected && (
         <>
           {!status.full_drive && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs flex items-start gap-2">
-              <Info className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 rounded-xl border border-warn-border bg-warn-soft px-3.5 py-2.5 text-[12px] text-warn">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>
-                Izin saat ini hanya <code>drive.file</code>, jadi Google
-                menyembunyikan file lama Anda. Putuskan koneksi lalu hubungkan
-                ulang lewat tombol di panel ini agar memakai izin penuh.
+                Izin saat ini hanya <code>drive.file</code>, sehingga berkas lama tidak terlihat.
+                Putuskan koneksi lalu hubungkan ulang agar memakai izin penuh.
               </span>
             </div>
           )}
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="card space-y-4 p-4 sm:p-5">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <Cloud className="h-5 w-5 text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-zinc-100">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-success-soft text-success">
+                  <Cloud className="h-5 w-5" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold text-fg">
                     {email || status.email || "Akun Google"}
                   </p>
-                  <p className="text-[11px] text-zinc-500">
-                    Refresh token aktif • akses diperbarui otomatis oleh server
-                  </p>
+                  <p className="text-[11.5px] text-subtle">Akses diperbarui otomatis oleh server</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => loadDrive({ folder, q: search })}
-                  className="flex items-center gap-1.5 text-[11px] text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${loadingFiles ? "animate-spin" : ""}`} />
-                  <span>Muat ulang</span>
+                <button onClick={() => loadDrive({ folder, q: search })} className="btn btn-sm btn-secondary">
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingFiles ? "animate-spin" : ""}`} aria-hidden />
+                  Muat ulang
                 </button>
-                <button
-                  onClick={handleDisconnect}
-                  className="flex items-center gap-1.5 text-[11px] text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  <span>Putuskan</span>
+                <button onClick={handleDisconnect} className="btn btn-sm btn-danger">
+                  <LogOut className="h-3.5 w-3.5" aria-hidden />
+                  Putuskan
                 </button>
               </div>
             </div>
 
             {quota && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+              <div>
+                <div className="flex items-center justify-between text-[11.5px] text-muted">
                   <span>
                     {fmtBytes(quota.usage)} dari {fmtBytes(quota.limit)} terpakai
                   </span>
-                  <span className="font-mono text-zinc-500">{pct.toFixed(1)}%</span>
+                  <span className="font-semibold tabular-nums text-fg">{pct.toFixed(1)}%</span>
                 </div>
-                <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
+                <div
+                  className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-3"
+                  role="progressbar"
+                  aria-label="Pemakaian Google Drive"
+                  aria-valuenow={Math.round(pct)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div className="h-full rounded-full bg-success transition-all" style={{ width: `${pct}%` }} />
                 </div>
-                <p className="text-[10px] text-zinc-500">
-                  Sisa {fmtBytes(Math.max(0, quota.limit - quota.usage))}
-                </p>
+                <p className="mt-1 text-[11px] text-subtle">Sisa {fmtBytes(Math.max(0, quota.limit - quota.usage))}</p>
               </div>
             )}
           </div>
 
-          {/* Search + breadcrumb */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
-              <Search className="h-3.5 w-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" aria-hidden />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -422,117 +406,94 @@ export default function GoogleDrivePanel() {
                     loadDrive({ folder: "", q: search });
                   }
                 }}
-                placeholder="Cari file di seluruh Drive lalu tekan Enter..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                placeholder="Cari berkas di Drive, lalu tekan Enter…"
+                aria-label="Cari berkas di Google Drive"
+                className="input pl-9"
               />
             </div>
             {(folder || crumbs.length > 0) && (
-              <button
-                onClick={goBack}
-                className="flex items-center gap-1.5 text-[11px] text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded-xl transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Kembali</span>
+              <button onClick={goBack} className="btn btn-secondary">
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                Kembali
               </button>
             )}
           </div>
 
           {crumbs.length > 0 && (
-            <p className="text-[11px] text-zinc-500">
-              {crumbs.map((c) => c.name).join(" / ")}
-            </p>
+            <p className="text-[11.5px] text-subtle">{crumbs.map((c) => c.name).join(" / ")}</p>
           )}
 
-          {/* File list */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="card overflow-hidden">
             {loadingFiles ? (
-              <div className="p-10 flex items-center justify-center gap-2 text-zinc-400 text-xs">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Memuat isi Drive...</span>
+              <div className="flex items-center justify-center gap-2 p-10 text-[12.5px] text-muted">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Memuat isi Drive…
               </div>
             ) : files.length === 0 ? (
-              <div className="p-10 text-center space-y-1">
-                <p className="text-xs font-medium text-zinc-300">
-                  Tidak ada file di sini
-                </p>
-                <p className="text-[11px] text-zinc-500">
-                  Coba kata kunci lain, atau pastikan akun yang terhubung berisi
-                  file.
-                </p>
+              <div className="space-y-1 p-10 text-center">
+                <p className="text-[12.5px] font-semibold text-fg">Tidak ada berkas di sini</p>
+                <p className="text-[11.5px] text-subtle">Coba kata kunci lain atau buka folder lain.</p>
               </div>
             ) : (
-              <table className="w-full text-left text-xs">
-                <thead className="bg-zinc-950 text-zinc-500 border-b border-zinc-800">
-                  <tr>
-                    <th className="py-2.5 px-4 font-medium">Nama</th>
-                    <th className="py-2.5 px-4 font-medium">Ukuran</th>
-                    <th className="py-2.5 px-4 font-medium">Diubah</th>
-                    <th className="py-2.5 px-4 font-medium text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/70">
-                  {files.map((f) => {
-                    const isFolder = f.mimeType.includes("folder");
-                    return (
-                      <tr key={f.id} className="hover:bg-zinc-800/40">
-                        <td className="py-2.5 px-4">
-                          <button
-                            onClick={() => (isFolder ? openFolder(f) : undefined)}
-                            className={`flex items-center gap-2 max-w-md text-left ${
-                              isFolder ? "hover:text-amber-300 cursor-pointer" : "cursor-default"
-                            }`}
+              <ul className="divide-y divide-line">
+                {files.map((f) => {
+                  const isFolder = f.mimeType.includes("folder");
+                  return (
+                    <li key={f.id} className="flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-surface-2">
+                      <button
+                        onClick={() => (isFolder ? openFolder(f) : undefined)}
+                        className={`flex min-w-0 flex-1 items-center gap-2 text-left ${
+                          isFolder ? "hover:text-brand" : "cursor-default"
+                        }`}
+                      >
+                        {fileIcon(f.mimeType)}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12.5px] font-medium text-fg">{f.name}</span>
+                          <span className="block text-[11px] text-subtle">
+                            {f.size ? fmtBytes(Number(f.size)) : isFolder ? "Folder" : "—"}
+                            {f.modifiedTime
+                              ? ` · ${new Date(f.modifiedTime).toLocaleDateString("id-ID", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}`
+                              : ""}
+                          </span>
+                        </span>
+                      </button>
+                      {!isFolder && (
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <a
+                            href={gdriveDownloadUrl(f.id)}
+                            className="icon-btn h-9 w-9"
+                            title="Unduh lewat server"
+                            aria-label={`Unduh ${f.name}`}
                           >
-                            {fileIcon(f.mimeType)}
-                            <span className="truncate text-zinc-200">{f.name}</span>
-                          </button>
-                        </td>
-                        <td className="py-2.5 px-4 font-mono text-zinc-400">
-                          {f.size ? fmtBytes(Number(f.size)) : isFolder ? "—" : "—"}
-                        </td>
-                        <td className="py-2.5 px-4 text-zinc-400">
-                          {f.modifiedTime
-                            ? new Date(f.modifiedTime).toLocaleDateString("id-ID", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "—"}
-                        </td>
-                        <td className="py-2.5 px-4 text-right">
-                          {!isFolder && (
-                            <div className="inline-flex items-center gap-1">
-                              <a
-                                href={gdriveDownloadUrl(f.id)}
-                                className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 px-1.5 py-1"
-                                title="Unduh lewat server NAS"
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                              </a>
-                              {f.webViewLink && (
-                                <a
-                                  href={f.webViewLink}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-zinc-400 hover:text-white px-1.5 py-1"
-                                  title="Buka di Google Drive"
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                              )}
-                            </div>
+                            <Download className="h-4 w-4" aria-hidden />
+                          </a>
+                          {f.webViewLink && (
+                            <a
+                              href={f.webViewLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="icon-btn h-9 w-9"
+                              title="Buka di Google Drive"
+                              aria-label={`Buka ${f.name} di Google Drive`}
+                            >
+                              <ExternalLink className="h-4 w-4" aria-hidden />
+                            </a>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
 
-          <p className="text-[10px] text-zinc-600">
-            File diunduh melalui backend {backendBase()} — access token Google
-            tidak pernah dikirim ke browser.
+          <p className="text-[10.5px] text-subtle">
+            Berkas diunduh lewat server {backendBase()} — token Google tidak pernah dikirim ke browser.
           </p>
         </>
       )}

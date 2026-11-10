@@ -12,9 +12,9 @@ function InviteFromQuery() {
 
 export default function InvitePage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center p-4 font-sans">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas p-4 text-fg">
       <Suspense
-        fallback={<div className="text-zinc-400 text-xs">Memuat undangan...</div>}
+        fallback={<div className="text-[12px] text-muted">Memuat undangan…</div>}
       >
         <InviteFromQuery />
       </Suspense>

@@ -35,9 +35,9 @@ test.describe("antrean upload offline", () => {
     await page.locator('input[type="password"]').fill(PASSWORD);
     await page.locator('button[type="submit"]').click();
 
-    await expect(page.getByRole("button", { name: /Semua File/ })).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("button", { name: /Semua File/ }).click();
-    await expect(page.getByText("Lokal Device (IndexedDB)")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Semua Berkas/ })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+    await expect(page.getByRole("button", { name: /Perangkat ini/ })).toBeVisible();
 
     const name = `e2e-offline-${Date.now()}.txt`;
     await context.setOffline(true);
@@ -54,11 +54,11 @@ test.describe("antrean upload offline", () => {
     expect(alert.message()).toContain("disimpan di antrean");
     await alert.accept();
 
-    await expect(page.getByText(/berkas menunggu koneksi ke server/)).toBeVisible();
+    await expect(page.getByText(/berkas menunggu koneksi/)).toBeVisible();
     expect(await queueSize(page)).toBe(1);
 
     await context.setOffline(false);
-    await expect(page.getByText(/berkas menunggu koneksi ke server/)).toHaveCount(0, {
+    await expect(page.getByText(/berkas menunggu koneksi/)).toHaveCount(0, {
       timeout: 20_000,
     });
     expect(await queueSize(page)).toBe(0);

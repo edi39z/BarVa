@@ -15,6 +15,7 @@ import {
   Clock,
 } from "lucide-react";
 import { backendBase } from "@/lib/api/cloud";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type ShareInfo = {
   node_name: string;
@@ -35,12 +36,13 @@ function fmtBytes(n: number | null | undefined): string {
 
 function iconFor(mime: string | null) {
   const m = (mime || "").toLowerCase();
-  if (m.startsWith("image/")) return <ImageIcon className="h-6 w-6 text-purple-400" />;
+  if (m.startsWith("image/"))
+    return <ImageIcon className="h-6 w-6 text-[var(--tile-purple-fg)]" aria-hidden />;
   if (m.startsWith("video/") || m.startsWith("audio/"))
-    return <Film className="h-6 w-6 text-emerald-400" />;
+    return <Film className="h-6 w-6 text-[var(--tile-green-fg)]" aria-hidden />;
   if (m.includes("zip") || m.includes("rar") || m.includes("7z") || m.includes("gzip"))
-    return <FileArchive className="h-6 w-6 text-amber-400" />;
-  return <FileText className="h-6 w-6 text-blue-400" />;
+    return <FileArchive className="h-6 w-6 text-[var(--tile-amber-fg)]" aria-hidden />;
+  return <FileText className="h-6 w-6 text-[var(--tile-blue-fg)]" aria-hidden />;
 }
 
 function PublicShareContent() {
@@ -133,148 +135,137 @@ function PublicShareContent() {
   }
 
   return (
-    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center">
-      <div className="flex items-center justify-center gap-2.5">
-        <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
-          N
-        </div>
-        <span className="font-semibold text-sm tracking-wide text-zinc-100">NAS Project Cloud</span>
+    <div className="w-full max-w-md space-y-4">
+      <div className="flex justify-end">
+        <ThemeToggle />
       </div>
 
-      {loading && (
-        <div className="py-10 flex flex-col items-center gap-3 text-zinc-400">
-          <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
-          <p className="text-xs">Memeriksa tautan...</p>
-        </div>
-      )}
-
-      {!loading && error && !info && (
-        <div className="space-y-3">
-          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2 text-left">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+      <div className="card space-y-5 p-5 text-center sm:p-6">
+        <div className="flex items-center justify-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-solid font-bold text-white shadow-brand">
+            N
           </div>
-          <a
-            href="/"
-            className="block w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs py-3 rounded-xl transition-colors"
-          >
-            Buka Aplikasi NAS
+          <span className="text-[13.5px] font-bold tracking-tight text-fg">NAS Project</span>
+        </div>
+
+        {loading && (
+          <div className="flex flex-col items-center gap-2 py-10 text-muted">
+            <Loader2 className="h-6 w-6 animate-spin text-brand" aria-hidden />
+            <p className="text-[12px]">Memeriksa tautan…</p>
+          </div>
+        )}
+
+        {!loading && error && !info && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-left text-[12px] text-danger">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>{error}</span>
+            </div>
+            <a href="/" className="btn btn-secondary w-full">
+              Buka aplikasi
+            </a>
+          </div>
+        )}
+
+        {!loading && info && (
+          <>
+            <div className="space-y-1.5">
+              <span className="chip chip-brand">Tautan berbagi</span>
+              <h1 className="pt-1 text-[18px] font-bold text-fg">
+                {info.is_directory ? "Folder dibagikan" : "Berkas siap diunduh"}
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-3.5 rounded-2xl border border-line bg-surface-2 p-4 text-left">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface">
+                {iconFor(info.mime_type)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[12.5px] font-semibold text-fg" title={info.node_name}>
+                  {info.node_name}
+                </h2>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-subtle">
+                  <span>{fmtBytes(info.size_bytes)}</span>
+                  <span className="inline-flex items-center gap-1 text-success">
+                    <ShieldCheck className="h-3 w-3" aria-hidden /> Diperiksa server
+                  </span>
+                </p>
+                {info.expires_at && (
+                  <p className="mt-1 flex items-center gap-1 text-[10.5px] text-subtle">
+                    <Clock className="h-3 w-3" aria-hidden />
+                    Berlaku sampai{" "}
+                    {new Date(info.expires_at).toLocaleString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {!unlocked ? (
+              <form onSubmit={handleUnlock} className="space-y-2.5 text-left">
+                <label htmlFor="share-pass" className="flex items-center gap-1.5 text-[12px] font-semibold text-fg">
+                  <Lock className="h-3.5 w-3.5 text-warn" aria-hidden />
+                  {info.is_directory
+                    ? "Folder ini dilindungi kata sandi"
+                    : "Berkas ini dilindungi kata sandi"}
+                </label>
+                <input
+                  id="share-pass"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Masukkan kata sandi"
+                  className="input"
+                />
+                {error && (
+                  <p className="flex items-center gap-1 text-[11.5px] text-danger">
+                    <AlertCircle className="h-3.5 w-3.5" aria-hidden /> {error}
+                  </p>
+                )}
+                <button type="submit" disabled={checking} className="btn btn-primary btn-lg w-full">
+                  {checking && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                  {checking ? "Memeriksa…" : "Buka tautan"}
+                </button>
+              </form>
+            ) : info.is_directory ? (
+              <div className="space-y-2">
+                <button onClick={handleDownloadArchive} disabled={downloading} className="btn btn-primary btn-lg w-full">
+                  <Download className="h-4 w-4" aria-hidden />
+                  {downloading ? "Menyiapkan arsip…" : "Unduh folder (ZIP)"}
+                </button>
+                <p className="text-[11px] leading-relaxed text-subtle">
+                  Seluruh isi folder dikemas dalam satu arsip. Untuk folder besar, unduhan bisa
+                  memakan waktu.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button onClick={handleDownload} disabled={downloading} className="btn btn-primary btn-lg w-full">
+                  <Download className="h-4 w-4" aria-hidden />
+                  {downloading ? "Menyiapkan unduhan…" : "Unduh berkas"}
+                </button>
+                <p className="text-[11px] text-subtle">
+                  Diunduh langsung dari penyimpanan pribadi pemilik tautan.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="flex items-center justify-between border-t border-line pt-3 text-[10.5px] text-subtle">
+          <span className="font-mono">
+            {token ? `${token.substring(0, 10)}…` : "—"}
+          </span>
+          <a href="/" className="font-semibold text-brand hover:underline">
+            Buka aplikasi →
           </a>
         </div>
-      )}
-
-      {!loading && info && (
-        <>
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full">
-              Tautan Berbagi Publik
-            </span>
-            <h1 className="text-lg font-bold text-zinc-100 pt-2">
-              {info.is_directory ? "Folder Dibagikan" : "Berkas Siap Diunduh"}
-            </h1>
-          </div>
-
-          <div className="bg-zinc-950 border border-zinc-800/80 rounded-2xl p-5 flex items-center gap-4 text-left">
-            <div className="h-12 w-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-              {iconFor(info.mime_type)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xs font-semibold text-zinc-200 truncate" title={info.node_name}>
-                {info.node_name}
-              </h2>
-              <div className="flex items-center gap-2 text-[11px] text-zinc-500 mt-0.5 flex-wrap">
-                <span>{fmtBytes(info.size_bytes)}</span>
-                <span>•</span>
-                <span className="font-mono text-emerald-400 flex items-center gap-1">
-                  <ShieldCheck className="h-3 w-3" /> Akses tervalidasi server
-                </span>
-              </div>
-              {info.expires_at && (
-                <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Berlaku sampai{" "}
-                  {new Date(info.expires_at).toLocaleString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {!unlocked ? (
-            <form onSubmit={handleUnlock} className="space-y-3 pt-1 text-left">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-amber-400" />
-                <span>
-                  {info.is_directory
-                    ? "Folder ini diproteksi kata sandi:"
-                    : "Berkas ini diproteksi kata sandi:"}
-                </span>
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan kata sandi pembuka..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
-              />
-              {error && (
-                <p className="text-[11px] text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" /> {error}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={checking}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium text-xs py-2.5 rounded-xl transition-all cursor-pointer"
-              >
-                {checking && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                <span>{checking ? "Memeriksa..." : "Buka Tautan"}</span>
-              </button>
-            </form>
-          ) : info.is_directory ? (
-            <div className="space-y-3 pt-1">
-              <button
-                onClick={handleDownloadArchive}
-                disabled={downloading}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-3 rounded-xl transition-all shadow-lg shadow-blue-600/25 active:scale-[0.99] cursor-pointer disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                <span>{downloading ? "Menyiapkan Arsip..." : "Unduh Folder (ZIP)"}</span>
-              </button>
-              <p className="text-[10px] text-zinc-500 leading-relaxed">
-                Seluruh isi folder dikemas dalam satu arsip zip dan dialirkan langsung dari server
-                pemilik. Untuk folder besar, unduhan bisa memakan waktu.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 pt-1">
-              <button
-                onClick={handleDownload}
-                disabled={downloading}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-3 rounded-xl transition-all shadow-lg shadow-blue-600/25 active:scale-[0.99] cursor-pointer disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                <span>{downloading ? "Menyiapkan Unduhan..." : "Unduh Berkas Sekarang"}</span>
-              </button>
-              <p className="text-[10px] text-zinc-500">
-                Diunduh langsung dari server penyimpanan privat pemilik.
-              </p>
-            </div>
-          )}
-        </>
-      )}
-
-      <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-500">
-        <span>
-          Token: <code className="font-mono text-zinc-400">{token ? `${token.substring(0, 10)}...` : "—"}</code>
-        </span>
-        <a href="/" className="text-blue-400 hover:underline">Buka Aplikasi NAS →</a>
       </div>
     </div>
   );
@@ -282,8 +273,8 @@ function PublicShareContent() {
 
 export default function PublicSharePage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center p-4">
-      <Suspense fallback={<div className="text-zinc-400 text-xs">Memuat berkas berbagi...</div>}>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas p-4 text-fg">
+      <Suspense fallback={<div className="text-[12px] text-muted">Memuat berkas…</div>}>
         <PublicShareContent />
       </Suspense>
     </div>

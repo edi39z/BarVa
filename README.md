@@ -13,6 +13,7 @@ ada langganan, dan file tetap di tangan Anda.
 
 **Dokumentasi lengkap ada di [`documentation/`](documentation/):**
 [Arsitektur](documentation/ARCHITECTURE.md) ·
+[Antarmuka](documentation/UI.md) ·
 [Setup](documentation/SETUP.md) ·
 [API](documentation/API.md) ·
 [Kontribusi](documentation/CONTRIBUTING.md) ·
@@ -88,7 +89,8 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 
 **Frontend**
 - Next.js 16 (App Router), React 19, TypeScript strict
-- Tailwind CSS 4, lucide-react
+- Tailwind CSS 4 dengan token desain di `globals.css` (mode terang & gelap)
+- lucide-react
 - IndexedDB (`idb`) untuk mode standalone
 
 **Backend**
