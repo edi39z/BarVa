@@ -217,3 +217,5 @@ Sertakan:
 - potongan log backend bila ada
 
 Untuk masalah keamanan, jangan buka issue publik — hubungi maintainer langsung.
+
+<!-- uji filter path: baris ini hanya dokumentasi -->
