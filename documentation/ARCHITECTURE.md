@@ -344,7 +344,7 @@ menyusun komponen. Semua tampilan besar sudah dipisah ke `src/components/`.
 | `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, banner antrean offline |
 | `TrashTab` | Tabel item terhapus, pulihkan, hapus permanen |
 | `GalleryTab` | Filter kategori dan grid media |
-| `StudioTab` | Empat alat client-side (foto→PDF, gabung PDF, pasfoto, kompres) |
+| `StudioTab` | Enam alat client-side (hapus latar, naikkan kualitas, kompres, pasfoto, foto→PDF, gabung PDF) |
 | `FamilySharingTab` | Anggota, undangan pending, tautan publik, akses jarak jauh |
 | `MediaLightbox` | Pratinjau media dan metadata |
 | `ShareLinkModal`, `MoveItemModal` | Pembuatan link berbagi dan pemindahan item |
@@ -356,5 +356,30 @@ Aturan yang dipegang:
   props. Ini menjaga container sebagai satu-satunya pemilik state.
 - Tipe bersama (`DisplayItem`, `FamilyMember`, `ActiveShare`, `formatBytes`,
   `nasNodeToDisplay`) ada di `lib/nasDisplay.ts`, bukan di `page.tsx`.
-- `AppTab` dan `StudioTool` dideklarasikan di `HomeDashboard` dan dipakai ulang
-  oleh `Sidebar`, sehingga penambahan tab cukup diubah di satu tempat.
+- `AppTab` dideklarasikan di `HomeDashboard` dan dipakai ulang oleh `Sidebar`,
+  sehingga penambahan tab cukup diubah di satu tempat.
+- `StudioToolId` ada di `lib/studio/tools.ts` dan dipakai `StudioTab`,
+  `StoragePickerModal`, serta `page.tsx` — menambah alat baru cukup diubah di
+  satu tempat itu.
+
+### 8.1 Modul Studio
+
+| Berkas | Isi |
+|---|---|
+| `lib/studio/pdf.ts` | `imagesToPDF`, `mergePDFs` (pdf-lib) |
+| `lib/studio/image.ts` | `compressAndResizeImage`, `createIDPhoto` (Canvas 2D) |
+| `lib/studio/ai.ts` | `removeImageBackground` (ONNX di peramban), `enhancePhoto` (Canvas 2D) |
+| `lib/studio/tools.ts` | `StudioToolId` + daftar alat gambar tunggal/ganda |
+
+**Hapus Latar Belakang.** Memakai `@imgly/background-removal` dengan model
+`isnet_quint8` (±40 MB) dan `device: "cpu"`. Model diunduh dari CDN IMG.LY pada
+pemakaian pertama lalu disimpan di cache peramban; foto sendiri tidak pernah
+keluar dari perangkat. Karena unduhannya besar, UI menampilkan kartu izin lebih
+dulu dan baru mengaktifkan pemilih berkas setelah pengguna menyetujuinya.
+Penanda `localStorage` `nas-bg-model-ready` mencegah pertanyaan berulang.
+Modul ini diimpor secara dinamis agar tidak membebani bundel awal.
+
+**Naikkan Kualitas Foto.** Tanpa model: `createImageBitmap` → perbesaran
+bertahap 2× (interpolasi `imageSmoothingQuality: "high"`) → satu lintasan piksel
+untuk unsharp mask + koreksi kontras/saturasi → JPEG kualitas 0.92. Ukuran
+keluaran dibatasi 8 MP / 4000 px agar canvas tidak kehabisan memori di ponsel.

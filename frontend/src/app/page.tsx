@@ -32,6 +32,14 @@ import {
 } from "@/lib/api/cloud";
 import { compressAndResizeImage, createIDPhoto, CompressionResult } from "@/lib/studio/image";
 import {
+  BG_MODEL_READY_KEY,
+  enhancePhoto,
+  removeImageBackground,
+  type BgProgress,
+  type EnhanceResult,
+} from "@/lib/studio/ai";
+import type { StudioToolId } from "@/lib/studio/tools";
+import {
   pingNasServer,
   getStoredServerUrl,
   setStoredServerUrl,
@@ -179,13 +187,13 @@ export default function Home() {
   const [flushingQueue, setFlushingQueue] = useState(false);
 
   // Studio State
-  const [activeStudioTool, setActiveStudioTool] = useState<"img2pdf" | "mergepdf" | "idphoto" | "compress">("img2pdf");
+  const [activeStudioTool, setActiveStudioTool] = useState<StudioToolId>("img2pdf");
   const [studioProcessing, setStudioProcessing] = useState(false);
   const [studioSuccessMsg, setStudioSuccessMsg] = useState("");
 
   // Unified Storage Picker for Studio Tools (Local / NAS / Drive)
   const [storagePickerOpen, setStoragePickerOpen] = useState(false);
-  const [storagePickerTool, setStoragePickerTool] = useState<"img2pdf" | "mergepdf" | "idphoto" | "compress">("img2pdf");
+  const [storagePickerTool, setStoragePickerTool] = useState<StudioToolId>("img2pdf");
   const [storagePickerTab, setStoragePickerTab] = useState<"local" | "nas" | "gdrive">("local");
   const [selectedStorageIds, setSelectedStorageIds] = useState<string[]>([]);
 
@@ -197,11 +205,33 @@ export default function Home() {
   const [compressQuality, setCompressQuality] = useState<number>(0.75);
   const [lastCompressResult, setLastCompressResult] = useState<CompressionResult | null>(null);
 
+  // AI tools: hapus latar belakang (model diunduh sekali) + peningkatan foto
+  const [bgModelJustDownloaded, setBgModelJustDownloaded] = useState(false);
+  const [bgConsentGranted, setBgConsentGranted] = useState(false);
+  const [bgProgress, setBgProgress] = useState<BgProgress | null>(null);
+  const [lastEnhanceResult, setLastEnhanceResult] = useState<EnhanceResult | null>(null);
+
+  // Model hapus latar belakang cukup diunduh sekali per perangkat.
+  const bgModelStored = React.useSyncExternalStore(
+    () => () => {},
+    () => {
+      try {
+        return window.localStorage.getItem(BG_MODEL_READY_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false
+  );
+  const bgModelReady = bgModelStored || bgModelJustDownloaded;
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const studioImg2PdfRef = useRef<HTMLInputElement>(null);
   const studioMergePdfRef = useRef<HTMLInputElement>(null);
   const studioIdPhotoRef = useRef<HTMLInputElement>(null);
   const studioCompressRef = useRef<HTMLInputElement>(null);
+  const studioRemoveBgRef = useRef<HTMLInputElement>(null);
+  const studioEnhanceRef = useRef<HTMLInputElement>(null);
 
   // Load files from IndexedDB and Check NAS Server Health on mount
   useEffect(() => {
@@ -892,8 +922,37 @@ export default function Home() {
     }
   };
 
+  // Simpan hasil olahan Studio ke penyimpanan lokal + daftar tampilan.
+  const persistStudioImage = useCallback(
+    async (blob: Blob, filename: string, mimeType: string, dimensions?: string) => {
+      await saveLocalFile(filename, blob, "image", mimeType);
+      const newItem: DisplayItem = {
+        id: crypto.randomUUID(),
+        name: filename,
+        type: "image",
+        sizeStr: formatBytes(blob.size),
+        sizeBytes: blob.size,
+        dimensions,
+        updatedAt: "Baru saja (Studio)",
+        parentId: currentFolderId,
+        blob,
+      };
+      setLocalItems((prev) => [newItem, ...prev]);
+    },
+    [currentFolderId]
+  );
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Unified Storage Picker Handlers for Studio
-  const handleOpenStoragePicker = (tool: "img2pdf" | "mergepdf" | "idphoto" | "compress") => {
+  const handleOpenStoragePicker = (tool: StudioToolId) => {
     setStoragePickerTool(tool);
     setSelectedStorageIds([]);
     setStoragePickerOpen(true);
@@ -1000,6 +1059,23 @@ export default function Home() {
         };
         setLocalItems((prev) => [newItem, ...prev]);
         setStudioSuccessMsg(`Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`);
+      } else if (storagePickerTool === "removebg") {
+        const result = await removeImageBackground(files[0], setBgProgress);
+        const filename = `TanpaLatar_${files[0].name.replace(/\.[^/.]+$/, "")}.png`;
+        await persistStudioImage(result.blob, filename, "image/png", `${result.width} × ${result.height}`);
+        try {
+          window.localStorage.setItem(BG_MODEL_READY_KEY, "1");
+        } catch {
+          // abaikan: hanya penanda agar tidak menanyakan unduhan lagi
+        }
+        setBgModelJustDownloaded(true);
+        setStudioSuccessMsg(`Latar belakang ${files[0].name} berhasil dihapus dan disimpan sebagai ${filename}.`);
+      } else if (storagePickerTool === "enhance") {
+        const result = await enhancePhoto(files[0]);
+        setLastEnhanceResult(result);
+        const filename = `Diperjelas_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
+        await persistStudioImage(result.blob, filename, "image/jpeg", `${result.width} × ${result.height}`);
+        setStudioSuccessMsg(`Foto diperjelas menjadi ${result.width} × ${result.height} px.`);
       }
     } catch (err) {
       console.error(err);
@@ -1274,6 +1350,69 @@ export default function Home() {
     }
   };
 
+  // Studio: Hapus latar belakang (model ISNet, berjalan di perangkat)
+  const handleRemoveBackground = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setStudioProcessing(true);
+    setStudioSuccessMsg("");
+    setBgProgress({ phase: "download", percent: 0 });
+
+    try {
+      const file = files[0];
+      const result = await removeImageBackground(file, setBgProgress);
+      const filename = `TanpaLatar_${file.name.replace(/\.[^/.]+$/, "")}.png`;
+
+      await persistStudioImage(result.blob, filename, "image/png", `${result.width} × ${result.height}`);
+      downloadBlob(result.blob, filename);
+
+      try {
+        window.localStorage.setItem(BG_MODEL_READY_KEY, "1");
+      } catch {
+        // abaikan: hanya penanda agar tidak menanyakan unduhan lagi
+      }
+      setBgModelJustDownloaded(true);
+      setStudioSuccessMsg(`Latar belakang berhasil dihapus. Hasil disimpan sebagai ${filename}.`);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghapus latar belakang. Saat pemakaian pertama, pastikan internet tersedia untuk mengunduh model.");
+    } finally {
+      setBgProgress(null);
+      setStudioProcessing(false);
+      if (studioRemoveBgRef.current) studioRemoveBgRef.current.value = "";
+    }
+  };
+
+  // Studio: Naikkan kualitas foto (perbesar 2x + penajaman, tanpa model)
+  const handleEnhancePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setStudioProcessing(true);
+    setStudioSuccessMsg("");
+
+    try {
+      const file = files[0];
+      const result = await enhancePhoto(file);
+      setLastEnhanceResult(result);
+
+      const filename = `Diperjelas_${file.name.replace(/\.[^/.]+$/, "")}.jpg`;
+      await persistStudioImage(result.blob, filename, "image/jpeg", `${result.width} × ${result.height}`);
+      downloadBlob(result.blob, filename);
+
+      setStudioSuccessMsg(
+        `Foto diperjelas menjadi ${result.width} × ${result.height} px (sebelumnya ${result.originalWidth} × ${result.originalHeight} px).`
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Gagal meningkatkan kualitas foto.");
+    } finally {
+      setStudioProcessing(false);
+      if (studioEnhanceRef.current) studioEnhanceRef.current.value = "";
+    }
+  };
+
   // Sumber data UI: server NAS saat mode NAS, IndexedDB saat standalone.
   const activeItems = connectionMode === "nas" ? nasItems : localItems;
 
@@ -1449,10 +1588,14 @@ export default function Home() {
               mergePdfRef={studioMergePdfRef}
               idPhotoRef={studioIdPhotoRef}
               compressRef={studioCompressRef}
+              removeBgRef={studioRemoveBgRef}
+              enhanceRef={studioEnhanceRef}
               onImagesToPDF={handleImagesToPDF}
               onMergePDFs={handleMergePDFs}
               onCreateIDPhoto={handleCreateIDPhoto}
               onCompressImage={handleCompressImage}
+              onRemoveBackground={handleRemoveBackground}
+              onEnhancePhoto={handleEnhancePhoto}
               onOpenStoragePicker={handleOpenStoragePicker}
               idPhotoRatio={idPhotoRatio}
               onIdPhotoRatioChange={setIdPhotoRatio}
@@ -1461,6 +1604,11 @@ export default function Home() {
               compressQuality={compressQuality}
               onCompressQualityChange={setCompressQuality}
               lastCompressResult={lastCompressResult}
+              bgModelReady={bgModelReady}
+              bgConsentGranted={bgConsentGranted}
+              bgProgress={bgProgress}
+              onGrantBgConsent={() => setBgConsentGranted(true)}
+              lastEnhanceResult={lastEnhanceResult}
             />
           )}
 

@@ -11,6 +11,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
     "idb": "^8.0.4",
     "lucide-react": "^1.69.0",
     "next": "16.4.5",
