@@ -56,3 +56,53 @@ UPDATE file_nodes
 SET parent_id = $3, updated_at = NOW()
 WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL
 RETURNING id, parent_id, updated_at;
+
+-- name: ListTrashedNodes :many
+SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
+       n.deleted_at, n.created_at, n.updated_at,
+       o.size_bytes, o.mime_type,
+       p.name AS parent_name
+FROM file_nodes n
+LEFT JOIN file_objects o ON o.id = n.object_id
+LEFT JOIN file_nodes p ON p.id = n.parent_id
+WHERE n.owner_id = $1 AND n.deleted_at IS NOT NULL
+ORDER BY n.deleted_at DESC;
+
+-- GetNodeForOwner membaca node apa pun keadaannya (termasuk yang sudah
+-- di-soft-delete) agar handler bisa membedakan 404 dan 409.
+-- name: GetNodeForOwner :one
+SELECT id, owner_id, parent_id, name, is_directory, object_id,
+       deleted_at, created_at, updated_at
+FROM file_nodes
+WHERE id = $1 AND owner_id = $2
+LIMIT 1;
+
+-- name: RestoreNode :one
+UPDATE file_nodes
+SET deleted_at = NULL, updated_at = NOW()
+WHERE id = $1 AND owner_id = $2 AND deleted_at IS NOT NULL
+RETURNING id, parent_id, name, updated_at;
+
+-- name: PurgeNode :execrows
+DELETE FROM file_nodes
+WHERE id = $1 AND owner_id = $2 AND deleted_at IS NOT NULL;
+
+-- name: ListSubtreeObjectIDs :many
+WITH RECURSIVE subtree AS (
+    SELECT n.id AS id, n.object_id AS object_id
+    FROM file_nodes n
+    WHERE n.id = $1 AND n.owner_id = $2
+    UNION ALL
+    SELECT c.id AS id, c.object_id AS object_id
+    FROM file_nodes c
+    JOIN subtree s ON c.parent_id = s.id
+)
+SELECT DISTINCT object_id
+FROM subtree
+WHERE object_id IS NOT NULL;
+
+-- name: DeleteObjectIfOrphan :one
+DELETE FROM file_objects o
+WHERE o.id = $1
+  AND NOT EXISTS (SELECT 1 FROM file_nodes n WHERE n.object_id = o.id)
+RETURNING o.sha256;

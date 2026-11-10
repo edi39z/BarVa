@@ -220,6 +220,44 @@ export function getDownloadUrl(fileId: string): string {
 	return `${base}/api/v1/files/${fileId}/download`;
 }
 
+// ---------------- Trash (soft-delete recovery) ----------------
+
+export interface TrashedNode {
+	ID: string;
+	OwnerID: string;
+	ParentID: string | null;
+	Name: string;
+	IsDirectory: boolean;
+	ObjectID: string | null;
+	SizeBytes: number | null;
+	MimeType: string | null;
+	DeletedAt: string;
+	CreatedAt: string;
+	UpdatedAt: string;
+	ParentName: string | null;
+}
+
+export async function listNasTrash(): Promise<TrashedNode[]> {
+	const res = await nasFetch("/api/v1/trash");
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: TrashedNode[] | null };
+	return json.data ?? [];
+}
+
+export async function restoreNasFile(id: string): Promise<void> {
+	const res = await nasFetch(`/api/v1/trash/${encodeURIComponent(id)}/restore`, {
+		method: "POST",
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+}
+
+export async function purgeNasFile(id: string): Promise<void> {
+	const res = await nasFetch(`/api/v1/trash/${encodeURIComponent(id)}`, {
+		method: "DELETE",
+	});
+	if (!res.ok) throw new Error(await parseError(res));
+}
+
 // ---------------- Autentikasi NAS ----------------
 
 export interface NasUser {

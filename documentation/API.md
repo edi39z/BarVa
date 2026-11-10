@@ -198,6 +198,70 @@ Mendukung `Range` (`206 Partial Content`) untuk pemutar video.
 
 ---
 
+## Trash
+
+Penghapusan lewat `DELETE /api/v1/files/:id` bersifat *soft delete*: baris
+node diberi `deleted_at` dan hilang dari daftar file, tetapi berkas fisik
+masih ada. Endpoint di bawah ini mengelola isi trash. Semuanya butuh sesi dan
+hanya menyentuh node milik pengguna yang login.
+
+### `GET /api/v1/trash`
+
+Mengembalikan semua node terhapus, terbaru lebih dulu.
+
+```json
+{
+  "data": [
+    {
+      "ID": "uuid",
+      "OwnerID": "uuid",
+      "ParentID": "uuid-folder-asal",
+      "Name": "laporan.pdf",
+      "IsDirectory": false,
+      "ObjectID": "uuid",
+      "DeletedAt": "2026-11-10T10:13:22+07:00",
+      "CreatedAt": "2026-11-10T10:13:22+07:00",
+      "UpdatedAt": "2026-11-10T10:13:22+07:00",
+      "SizeBytes": 11,
+      "MimeType": "application/pdf",
+      "ParentName": "Dokumen"
+    }
+  ]
+}
+```
+
+`ParentName` bernilai `null` bila item berada di akar. Daftar kosong
+dikembalikan sebagai `[]`, bukan `null`.
+
+### `POST /api/v1/trash/:id/restore`
+
+Mengembalikan node ke folder asalnya (`deleted_at = NULL`).
+
+```json
+{ "data": { "ID": "uuid", "ParentID": "uuid", "Name": "laporan.pdf", "UpdatedAt": "..." } }
+```
+
+| Status | Kode | Arti |
+|---|---|---|
+| `404` | `NOT_FOUND` | Node tidak ada atau bukan milik pengguna |
+| `409` | `NOT_TRASHED` | Node masih aktif, tidak perlu dipulihkan |
+| `409` | `PARENT_IN_TRASH` | Folder induknya masih di trash — pulihkan induk dulu |
+| `409` | `CONFLICT` | Sudah ada item bernama sama di folder tujuan |
+
+### `DELETE /api/v1/trash/:id`
+
+Menghapus permanen. Untuk folder, seluruh isinya ikut terhapus (cascade).
+Objek CAS yang tidak lagi dipakai node mana pun ikut dihapus dari disk; objek
+yang masih dipakai node lain dibiarkan karena deduplikasi.
+
+```json
+{ "data": { "message": "Item dihapus permanen." } }
+```
+
+`409 NOT_TRASHED` bila node belum dihapus, `404 NOT_FOUND` bila sudah tidak ada.
+
+---
+
 ## Share link
 
 ### `POST /api/v1/shares`

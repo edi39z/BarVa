@@ -87,6 +87,20 @@ func (q *Queries) CreateFileObject(ctx context.Context, arg CreateFileObjectPara
 	return i, err
 }
 
+const deleteObjectIfOrphan = `-- name: DeleteObjectIfOrphan :one
+DELETE FROM file_objects o
+WHERE o.id = $1
+  AND NOT EXISTS (SELECT 1 FROM file_nodes n WHERE n.object_id = o.id)
+RETURNING o.sha256
+`
+
+func (q *Queries) DeleteObjectIfOrphan(ctx context.Context, id pgtype.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, deleteObjectIfOrphan, id)
+	var sha256 string
+	err := row.Scan(&sha256)
+	return sha256, err
+}
+
 const getFileObjectBySHA256 = `-- name: GetFileObjectBySHA256 :one
 SELECT id, sha256, storage_path, size_bytes, mime_type, created_at
 FROM file_objects
@@ -154,6 +168,38 @@ func (q *Queries) GetNodeByID(ctx context.Context, id pgtype.UUID) (GetNodeByIDR
 	return i, err
 }
 
+const getNodeForOwner = `-- name: GetNodeForOwner :one
+SELECT id, owner_id, parent_id, name, is_directory, object_id,
+       deleted_at, created_at, updated_at
+FROM file_nodes
+WHERE id = $1 AND owner_id = $2
+LIMIT 1
+`
+
+type GetNodeForOwnerParams struct {
+	ID      pgtype.UUID
+	OwnerID pgtype.UUID
+}
+
+// GetNodeForOwner membaca node apa pun keadaannya (termasuk yang sudah
+// di-soft-delete) agar handler bisa membedakan 404 dan 409.
+func (q *Queries) GetNodeForOwner(ctx context.Context, arg GetNodeForOwnerParams) (FileNode, error) {
+	row := q.db.QueryRow(ctx, getNodeForOwner, arg.ID, arg.OwnerID)
+	var i FileNode
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.ParentID,
+		&i.Name,
+		&i.IsDirectory,
+		&i.ObjectID,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listNodesByParent = `-- name: ListNodesByParent :many
 SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        n.deleted_at, n.created_at, n.updated_at,
@@ -217,6 +263,106 @@ func (q *Queries) ListNodesByParent(ctx context.Context, arg ListNodesByParentPa
 	return items, nil
 }
 
+const listSubtreeObjectIDs = `-- name: ListSubtreeObjectIDs :many
+WITH RECURSIVE subtree AS (
+    SELECT n.id AS id, n.object_id AS object_id
+    FROM file_nodes n
+    WHERE n.id = $1 AND n.owner_id = $2
+    UNION ALL
+    SELECT c.id AS id, c.object_id AS object_id
+    FROM file_nodes c
+    JOIN subtree s ON c.parent_id = s.id
+)
+SELECT DISTINCT object_id
+FROM subtree
+WHERE object_id IS NOT NULL
+`
+
+type ListSubtreeObjectIDsParams struct {
+	ID      pgtype.UUID
+	OwnerID pgtype.UUID
+}
+
+func (q *Queries) ListSubtreeObjectIDs(ctx context.Context, arg ListSubtreeObjectIDsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listSubtreeObjectIDs, arg.ID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var object_id pgtype.UUID
+		if err := rows.Scan(&object_id); err != nil {
+			return nil, err
+		}
+		items = append(items, object_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrashedNodes = `-- name: ListTrashedNodes :many
+SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
+       n.deleted_at, n.created_at, n.updated_at,
+       o.size_bytes, o.mime_type,
+       p.name AS parent_name
+FROM file_nodes n
+LEFT JOIN file_objects o ON o.id = n.object_id
+LEFT JOIN file_nodes p ON p.id = n.parent_id
+WHERE n.owner_id = $1 AND n.deleted_at IS NOT NULL
+ORDER BY n.deleted_at DESC
+`
+
+type ListTrashedNodesRow struct {
+	ID          pgtype.UUID
+	OwnerID     pgtype.UUID
+	ParentID    pgtype.UUID
+	Name        string
+	IsDirectory bool
+	ObjectID    pgtype.UUID
+	DeletedAt   pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	SizeBytes   pgtype.Int8
+	MimeType    pgtype.Text
+	ParentName  pgtype.Text
+}
+
+func (q *Queries) ListTrashedNodes(ctx context.Context, ownerID pgtype.UUID) ([]ListTrashedNodesRow, error) {
+	rows, err := q.db.Query(ctx, listTrashedNodes, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrashedNodesRow
+	for rows.Next() {
+		var i ListTrashedNodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.ParentID,
+			&i.Name,
+			&i.IsDirectory,
+			&i.ObjectID,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SizeBytes,
+			&i.MimeType,
+			&i.ParentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveNode = `-- name: MoveNode :one
 UPDATE file_nodes
 SET parent_id = $3, updated_at = NOW()
@@ -243,6 +389,24 @@ func (q *Queries) MoveNode(ctx context.Context, arg MoveNodeParams) (MoveNodeRow
 	return i, err
 }
 
+const purgeNode = `-- name: PurgeNode :execrows
+DELETE FROM file_nodes
+WHERE id = $1 AND owner_id = $2 AND deleted_at IS NOT NULL
+`
+
+type PurgeNodeParams struct {
+	ID      pgtype.UUID
+	OwnerID pgtype.UUID
+}
+
+func (q *Queries) PurgeNode(ctx context.Context, arg PurgeNodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeNode, arg.ID, arg.OwnerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const renameNode = `-- name: RenameNode :one
 UPDATE file_nodes
 SET name = $3, updated_at = NOW()
@@ -266,6 +430,37 @@ func (q *Queries) RenameNode(ctx context.Context, arg RenameNodeParams) (RenameN
 	row := q.db.QueryRow(ctx, renameNode, arg.ID, arg.OwnerID, arg.Name)
 	var i RenameNodeRow
 	err := row.Scan(&i.ID, &i.Name, &i.UpdatedAt)
+	return i, err
+}
+
+const restoreNode = `-- name: RestoreNode :one
+UPDATE file_nodes
+SET deleted_at = NULL, updated_at = NOW()
+WHERE id = $1 AND owner_id = $2 AND deleted_at IS NOT NULL
+RETURNING id, parent_id, name, updated_at
+`
+
+type RestoreNodeParams struct {
+	ID      pgtype.UUID
+	OwnerID pgtype.UUID
+}
+
+type RestoreNodeRow struct {
+	ID        pgtype.UUID
+	ParentID  pgtype.UUID
+	Name      string
+	UpdatedAt pgtype.Timestamptz
+}
+
+func (q *Queries) RestoreNode(ctx context.Context, arg RestoreNodeParams) (RestoreNodeRow, error) {
+	row := q.db.QueryRow(ctx, restoreNode, arg.ID, arg.OwnerID)
+	var i RestoreNodeRow
+	err := row.Scan(
+		&i.ID,
+		&i.ParentID,
+		&i.Name,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 

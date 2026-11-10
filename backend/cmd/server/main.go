@@ -222,6 +222,11 @@ func main() {
 				protected.GET("/files/:id/download", filesHandler.Download)
 				protected.GET("/files/:id/stream", filesHandler.Stream)
 
+				// Trash (soft-delete recovery)
+				protected.GET("/trash", filesHandler.ListTrash)
+				protected.POST("/trash/:id/restore", filesHandler.Restore)
+				protected.DELETE("/trash/:id", filesHandler.Purge)
+
 				// Family Management
 				protected.GET("/family/members", familyHandler.ListMembers)
 				protected.POST("/family/invite", familyHandler.InviteMember)

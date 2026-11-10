@@ -12,6 +12,7 @@ janji tanggal.
 | **Fondasi** | Skema PostgreSQL, Content-Addressable Storage, abstraksi `StorageProvider`, streaming HTTP Range |
 | **Autentikasi** | Register, login, logout, sesi, Argon2id, rate limit login, user pertama menjadi owner |
 | **File manager** | Daftar, navigasi folder, unggah, buat folder, ganti nama, pindah, hapus, unduh, pratinjau gambar/video |
+| **Trash** | Daftar item terhapus, pulihkan ke folder asal, hapus permanen dengan pembersihan objek CAS yang tidak terpakai |
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
 | **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server |
 | **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata |
@@ -39,19 +40,12 @@ aplikasi, antrean unggah saat offline, dan indikator status sinkronisasi.
 
 **Kenapa penting:** klaim "bisa dipakai offline" belum terwujud untuk mode NAS.
 
-### 3. UI Trash
-
-Penghapusan sudah memakai soft delete (`deleted_at`), tetapi belum ada
-antarmuka untuk melihat dan memulihkan.
-
-**Kenapa penting:** tanpa restore, soft delete hanya menunda kehilangan data.
-
-### 4. Unduh folder sebagai zip
+### 3. Unduh folder sebagai zip
 
 Share link untuk folder baru menampilkan informasi. Rencana: endpoint yang
 mengalirkan arsip zip tanpa menulis berkas sementara besar ke disk.
 
-### 5. Memecah `page.tsx`
+### 4. Memecah `page.tsx`
 
 Berkas utama frontend masih monolit. Rencana: pecah menjadi komponen per tab
 (`FileManager`, `Gallery`, `Studio`, `Family`, `Dashboard`) dengan state yang

@@ -73,8 +73,10 @@ Poin penting:
   `NULL` berarti akar. Satu baris = satu nama yang terlihat pengguna.
 - **`file_objects` adalah konten fisik.** Satu objek bisa dirujuk banyak node
   (deduplikasi). `sha256` unik.
-- **`deleted_at` adalah soft delete.** Semua query publik menambahkan
-  `deleted_at IS NULL`.
+- **`deleted_at` adalah soft delete.** Semua query daftar menambahkan
+  `deleted_at IS NULL`; hanya endpoint `/trash` yang membacanya. Hapus
+  permanen (`DELETE /trash/:id`) menghapus baris node, lalu membuang objek
+  CAS yang tidak lagi dirujuk node lain.
 - **Nama unik per folder** dijaga unique index parsial
   `(owner_id, COALESCE(parent_id, ...), name) WHERE deleted_at IS NULL`.
   Karena itu upload, rename, dan move bisa mengembalikan `409 CONFLICT`.

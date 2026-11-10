@@ -97,7 +97,11 @@ import {
   deleteNasFile,
   renameNasFile,
   moveNasFile,
+  listNasTrash,
+  restoreNasFile,
+  purgeNasFile,
   NasFileNode,
+  TrashedNode,
   NasHealthResponse,
   NasUser,
 } from "@/lib/api/nas";
@@ -196,7 +200,7 @@ interface ActiveShare {
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"home" | "files" | "gallery" | "studio" | "gdrive" | "shares">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "files" | "trash" | "gallery" | "studio" | "gdrive" | "shares">("home");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [storageFilter, setStorageFilter] = useState<"local" | "gdrive">("local");
   const [galleryCategory, setGalleryCategory] = useState<"all" | "image" | "video" | "favorite">("all");
@@ -273,6 +277,12 @@ export default function Home() {
   const [nasItems, setNasItems] = useState<DisplayItem[]>([]);
   const [nasFilesLoading, setNasFilesLoading] = useState(false);
   const [nasFilesError, setNasFilesError] = useState("");
+
+  // Trash NAS — item yang sudah di-soft-delete tapi belum dihapus permanen
+  const [trashItems, setTrashItems] = useState<TrashedNode[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashError, setTrashError] = useState("");
+  const [trashBusyId, setTrashBusyId] = useState<string | null>(null);
 
   // Studio State
   const [activeStudioTool, setActiveStudioTool] = useState<"img2pdf" | "mergepdf" | "idphoto" | "compress">("img2pdf");
@@ -385,6 +395,28 @@ export default function Home() {
     }
     loadNasFiles(currentFolderId);
   }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
+
+  // Muat isi trash dari server NAS.
+  const loadTrash = useCallback(async () => {
+    if (connectionMode !== "nas" || !currentUser) {
+      setTrashItems([]);
+      return;
+    }
+    setTrashLoading(true);
+    setTrashError("");
+    try {
+      setTrashItems(await listNasTrash());
+    } catch (err) {
+      setTrashItems([]);
+      setTrashError((err as Error).message);
+    } finally {
+      setTrashLoading(false);
+    }
+  }, [connectionMode, currentUser]);
+
+  useEffect(() => {
+    loadTrash();
+  }, [loadTrash]);
 
   // Segarkan status Drive setiap kali kembali ke dashboard, karena panel
   // Drive punya state sendiri dan bisa berubah tanpa reload halaman.
@@ -949,11 +981,12 @@ export default function Home() {
     e.stopPropagation();
 
     if (connectionMode === "nas") {
-      if (!confirm("Hapus item ini dari server NAS?")) return;
+      if (!confirm("Pindahkan item ini ke Trash? Kamu masih bisa memulihkannya nanti.")) return;
       try {
         await deleteNasFile(id);
         setNasItems((prev) => prev.filter((item) => item.id !== id));
         if (selectedMedia?.id === id) setSelectedMedia(null);
+        loadTrash();
       } catch (err) {
         alert(`Gagal menghapus: ${(err as Error).message}`);
       }
@@ -967,6 +1000,35 @@ export default function Home() {
       if (selectedMedia?.id === id) setSelectedMedia(null);
     } catch (err) {
       console.error("Delete error:", err);
+    }
+  };
+
+  // Trash: pulihkan item yang salah terhapus.
+  const handleRestoreTrash = async (node: TrashedNode) => {
+    setTrashBusyId(node.ID);
+    try {
+      await restoreNasFile(node.ID);
+      await Promise.all([loadTrash(), loadNasFiles(currentFolderId)]);
+    } catch (err) {
+      alert(`Gagal memulihkan: ${(err as Error).message}`);
+    } finally {
+      setTrashBusyId(null);
+    }
+  };
+
+  // Trash: hapus permanen. Tidak ada undo, jadi minta konfirmasi eksplisit.
+  const handlePurgeTrash = async (node: TrashedNode) => {
+    const kind = node.IsDirectory ? "folder ini beserta seluruh isinya" : `"${node.Name}"`;
+    if (!confirm(`Hapus permanen ${kind}?\n\nTindakan ini tidak bisa dibatalkan.`)) return;
+
+    setTrashBusyId(node.ID);
+    try {
+      await purgeNasFile(node.ID);
+      await loadTrash();
+    } catch (err) {
+      alert(`Gagal menghapus permanen: ${(err as Error).message}`);
+    } finally {
+      setTrashBusyId(null);
     }
   };
 
@@ -1278,6 +1340,23 @@ export default function Home() {
                 {activeItems.filter((i) => i.type === "image" || i.type === "video").length}
               </span>
             </button>
+
+            {connectionMode === "nas" && (
+              <button
+                onClick={() => setActiveTab("trash")}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                  activeTab === "trash"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60"
+                }`}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Trash</span>
+                <span className="ml-auto text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">
+                  {trashItems.length}
+                </span>
+              </button>
+            )}
 
             {/* Studio Tools (Client-Side WASM) */}
             <button
@@ -2373,6 +2452,126 @@ export default function Home() {
                   </>
                 );
               })()}
+            </div>
+          )}
+
+          {/* TAB 1b: TRASH */}
+          {activeTab === "trash" && (
+            <div className="space-y-5 max-w-5xl mx-auto">
+              <div className="rounded-xl border border-amber-900/50 bg-amber-950/30 px-4 py-3 flex items-start gap-3">
+                <Trash2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-amber-200">Item di Trash belum benar-benar dihapus</p>
+                  <p className="text-[11px] text-amber-300/80 mt-0.5 leading-relaxed">
+                    Pulihkan untuk mengembalikan item ke folder asalnya. Hapus permanen membebaskan ruang
+                    penyimpanan dan tidak bisa dibatalkan.
+                  </p>
+                </div>
+                <button
+                  onClick={loadTrash}
+                  disabled={trashLoading}
+                  className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3 w-3 ${trashLoading ? "animate-spin" : ""}`} />
+                  <span>Muat ulang</span>
+                </button>
+              </div>
+
+              {trashError && (
+                <div className="rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 bg-rose-950/50 border border-rose-800/60 text-rose-300">
+                  <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                  <span>Gagal memuat trash: {trashError}</span>
+                </div>
+              )}
+
+              {trashItems.length === 0 ? (
+                <div className="text-center py-16 border-2 border-dashed border-zinc-800/80 rounded-2xl bg-zinc-900/20">
+                  <Trash2 className="h-12 w-12 text-zinc-600 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-zinc-300">Trash kosong</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Item yang kamu hapus dari file manager akan muncul di sini dan bisa dipulihkan.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/20">
+                  <table className="w-full text-left text-xs text-zinc-300">
+                    <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
+                      <tr>
+                        <th className="py-2.5 px-4 font-medium">Nama</th>
+                        <th className="py-2.5 px-4 font-medium">Lokasi Asal</th>
+                        <th className="py-2.5 px-4 font-medium">Ukuran</th>
+                        <th className="py-2.5 px-4 font-medium">Dihapus</th>
+                        <th className="py-2.5 px-4 text-right font-medium">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60">
+                      {trashItems.map((node) => {
+                        const mime = (node.MimeType || "").toLowerCase();
+                        const busy = trashBusyId === node.ID;
+                        return (
+                          <tr key={node.ID} className="hover:bg-zinc-900/60 transition-colors">
+                            <td className="py-2.5 px-4 font-medium text-zinc-200">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {node.IsDirectory ? (
+                                  <Folder className="h-4 w-4 text-blue-400 shrink-0" />
+                                ) : mime.startsWith("image/") ? (
+                                  <ImageIcon className="h-4 w-4 text-purple-400 shrink-0" />
+                                ) : mime.startsWith("video/") || mime.startsWith("audio/") ? (
+                                  <Film className="h-4 w-4 text-emerald-400 shrink-0" />
+                                ) : (
+                                  <FileText className="h-4 w-4 text-zinc-400 shrink-0" />
+                                )}
+                                <span className="truncate max-w-[18rem]" title={node.Name}>
+                                  {node.Name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-4 text-zinc-400">
+                              {node.ParentName || "Semua File"}
+                            </td>
+                            <td className="py-2.5 px-4 font-mono text-zinc-400">
+                              {node.IsDirectory ? "Folder" : formatBytes(node.SizeBytes ?? 0)}
+                            </td>
+                            <td className="py-2.5 px-4 text-zinc-400">
+                              {node.DeletedAt
+                                ? new Date(node.DeletedAt).toLocaleString("id-ID", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "—"}
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleRestoreTrash(node)}
+                                  disabled={busy}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer disabled:opacity-40"
+                                  title="Pulihkan ke folder asal"
+                                >
+                                  <CornerLeftUp className="h-3 w-3" />
+                                  <span>Pulihkan</span>
+                                </button>
+                                <button
+                                  onClick={() => handlePurgeTrash(node)}
+                                  disabled={busy}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 transition-colors cursor-pointer disabled:opacity-40"
+                                  title="Hapus permanen"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  <span>Hapus permanen</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

@@ -62,6 +62,8 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - Upload file ke NAS dengan deduplikasi SHA-256, plus opsi ganti file bernama sama
 - File manager NAS: daftar file, navigasi folder, buat folder, hapus, unduh,
   pratinjau gambar/video, ganti nama, dan pindah folder
+- Trash: item terhapus bisa dipulihkan ke folder asal atau dihapus permanen
+  (objek yang tidak terpakai lagi ikut dibersihkan dari disk)
 - Folder, soft delete, download, dan streaming video via HTTP 206
 - Google Drive OAuth (kuota, jelajah folder, upload, download lewat server)
 - Undangan anggota keluarga (token di-hash, status pending/accepted/revoked);
@@ -76,7 +78,6 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - **Service worker / PWA offline** — manifest ada, cache offline belum
 - **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
 - **Unduh folder** — share link untuk folder hanya menampilkan info, belum zip
-- **Trash** — penghapusan bersifat soft delete, belum ada UI untuk memulihkan
 
 ---
 

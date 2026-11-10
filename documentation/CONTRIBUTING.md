@@ -115,9 +115,8 @@ cd backend && sqlc generate
 1. **RBAC per berkas** — `role` sudah ada di tabel `users`, tetapi otorisasi
    berkas masih berbasis `owner_id`.
 2. **Service worker** — manifest PWA sudah ada, cache offline belum.
-3. **UI Trash** — penghapusan sudah soft delete, belum ada cara memulihkan.
-4. **Unduh folder sebagai zip** pada share link.
-5. **Memecah `page.tsx`** menjadi komponen.
+3. **Unduh folder sebagai zip** pada share link.
+4. **Memecah `page.tsx`** menjadi komponen.
 
 ---
 
