@@ -478,8 +478,9 @@ Hanya `owner`/`admin`. `admin` tidak boleh mengubah kuota `owner`.
 | `400` | `VALIDATION_ERROR` | `quota_gb` kosong atau di luar rentang |
 | `400` | `INVALID_ID` | ID anggota bukan UUID |
 | `403` | `FORBIDDEN` | Bukan owner/admin, atau admin mencoba mengubah owner |
-| `404` | `USER_NOT_FOUND` | Akun tidak ada |
+| `404` | `USER_NOT_FOUND` | Akun tidak ada (atau terhapus saat pembaruan berlangsung) |
 | `409` | `QUOTA_BELOW_USAGE` | Kuota baru lebih kecil dari pemakaian saat ini |
+| `500` | `DB_ERROR` | Gagal membaca atau memperbarui data; pesan tidak memuat detail internal |
 
 ### `POST /api/v1/family/invite`
 
