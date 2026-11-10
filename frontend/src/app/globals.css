@@ -71,6 +71,8 @@
   --tile-teal-fg: #0a7183;
   --tile-indigo: #e9ecfb;
   --tile-indigo-fg: #3b47b8;
+  --tile-slate: #eaeef4;
+  --tile-slate-fg: #3c4c63;
 }
 
 .dark {
@@ -127,6 +129,8 @@
   --tile-teal-fg: #6fd8e4;
   --tile-indigo: #1b1f3a;
   --tile-indigo-fg: #a8b3ff;
+  --tile-slate: #1d232e;
+  --tile-slate-fg: #a9b8cc;
 }
 
 @theme inline {

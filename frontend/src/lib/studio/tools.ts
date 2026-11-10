@@ -6,6 +6,7 @@ export type StudioToolId =
   | "img2pdf"
   | "mergepdf"
   | "pdf2word"
+  | "pdfedit"
   | "idphoto"
   | "compress"
   | "removebg"
@@ -18,7 +19,7 @@ export const SINGLE_IMAGE_TOOLS: StudioToolId[] = ["idphoto", "compress", "remov
 export const MULTI_IMAGE_TOOLS: StudioToolId[] = ["img2pdf"];
 
 /** Alat yang menerima tepat satu berkas PDF. */
-export const SINGLE_PDF_TOOLS: StudioToolId[] = ["pdf2word"];
+export const SINGLE_PDF_TOOLS: StudioToolId[] = ["pdf2word", "pdfedit"];
 
 /** Alat yang menerima banyak berkas PDF sekaligus. */
 export const MULTI_PDF_TOOLS: StudioToolId[] = ["mergepdf"];
@@ -29,7 +30,7 @@ export const MULTI_PDF_TOOLS: StudioToolId[] = ["mergepdf"];
  * Untuk alat ini Storage Picker hanya meneruskan berkas yang dipilih; pratinjau,
  * opsi, dan penyimpanan diurus panelnya.
  */
-export const PANEL_TOOLS: StudioToolId[] = ["idphoto", "pdf2word"];
+export const PANEL_TOOLS: StudioToolId[] = ["idphoto", "pdf2word", "pdfedit"];
 
 export function isPdfTool(tool: StudioToolId): boolean {
   return SINGLE_PDF_TOOLS.includes(tool) || MULTI_PDF_TOOLS.includes(tool);

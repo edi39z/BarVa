@@ -54,7 +54,8 @@ Nama utilitas yang dihasilkan: `bg-surface`, `bg-surface-2`, `border-line`,
 
 Warna tile ikon kategori memakai token tersendiri (`--tile-blue`,
 `--tile-purple`, `--tile-green`, `--tile-amber`, `--tile-rose`, `--tile-teal`,
-`--tile-indigo`) agar kartu pintasan tetap berwarna di kedua mode.
+`--tile-indigo`, `--tile-slate`) agar kartu pintasan tetap berwarna di kedua
+mode.
 
 ### Kontras
 

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import fs from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
 // Suite ini sengaja tidak butuh backend. Aplikasi dibuka dalam mode
@@ -128,9 +129,66 @@ test.describe("navigasi tab mode standalone", () => {
     await expect(page.getByRole("status")).toContainText("2 halaman diubah ke Word");
   });
 
+  test("editor PDF menghapus, menyisipkan, dan menyusun ulang halaman", async ({ page }) => {
+    await page.getByRole("button", { name: /Studio Foto & PDF/ }).click();
+    await page.getByRole("button", { name: /Editor PDF/ }).click();
+
+    const fileInputs = page.locator('input[type="file"][accept="application/pdf,.pdf"]');
+
+    await fileInputs.first().setInputFiles({
+      name: "susunan.pdf",
+      mimeType: "application/pdf",
+      buffer: await makePdf([
+        [595, 842],
+        [400, 400],
+        [300, 500],
+      ]),
+    });
+    await expect(page.getByRole("img", { name: "Pratinjau halaman 3" })).toBeVisible();
+
+    // Hapus halaman kedua; urungkan mengembalikannya.
+    await page.getByRole("button", { name: "Hapus halaman 2" }).click();
+    await expect(page.getByRole("img", { name: /Pratinjau halaman/ })).toHaveCount(2);
+
+    await page.getByRole("button", { name: /Urungkan/ }).click();
+    await expect(page.getByRole("img", { name: /Pratinjau halaman/ })).toHaveCount(3);
+
+    // Hapus lagi, lalu sisipkan PDF lain setelah halaman pertama.
+    await page.getByRole("button", { name: "Hapus halaman 2" }).click();
+    await expect(page.getByRole("img", { name: /Pratinjau halaman/ })).toHaveCount(2);
+
+    await page.getByLabel("Posisi sisip").selectOption("1");
+    await fileInputs.nth(1).setInputFiles({
+      name: "sisipan.pdf",
+      mimeType: "application/pdf",
+      buffer: await makePdf([
+        [350, 350],
+        [360, 360],
+      ]),
+    });
+    await expect(page.getByRole("img", { name: /Pratinjau halaman/ })).toHaveCount(4);
+
+    // Putar halaman 2, lalu tukar posisinya dengan halaman 3.
+    await page.getByRole("button", { name: "Putar halaman 2" }).click();
+    await page.getByRole("button", { name: "Geser halaman 3 ke kiri" }).click();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Simpan PDF/ }).click();
+    const download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toBe("susunan_diedit.pdf");
+
+    // Ukuran halaman dipakai sebagai penanda urutan: [595, 360, 350, 300].
+    const saved = await PDFDocument.load(fs.readFileSync((await download.path())!));
+    expect(saved.getPageCount()).toBe(4);
+    expect(saved.getPages().map((item) => Math.round(item.getSize().width))).toEqual([595, 360, 350, 300]);
+    expect(saved.getPages()[2].getRotation().angle).toBe(90);
+  });
+
   test("Sampah disembunyikan di mode standalone", async ({ page }) => {
     await expect(page.getByRole("button", { name: /^Sampah/ })).toHaveCount(0);
   });
+
   test("kembali ke Beranda berhasil", async ({ page }) => {
     await page.getByRole("button", { name: /Galeri Foto/ }).click();
     await expect(page.getByRole("heading", { name: "Galeri Foto & Video" })).toBeVisible();
@@ -188,6 +246,22 @@ async function makeSamplePdf(): Promise<Buffer> {
   page.drawText("Nomor: 123/ABC/2026", { x: 60, y: 730, size: 11, font });
 
   doc.addPage([595, 842]);
+
+  return Buffer.from(await doc.save());
+}
+
+/**
+ * PDF dengan ukuran halaman berbeda-beda, dipakai sebagai penanda urutan saat
+ * memeriksa hasil editor tanpa perlu mengekstrak teks.
+ */
+async function makePdf(sizes: [number, number][]): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  sizes.forEach(([width, height], index) => {
+    const page = doc.addPage([width, height]);
+    page.drawText(`HALAMAN ${index + 1}`, { x: 40, y: height - 60, size: 18, font });
+  });
 
   return Buffer.from(await doc.save());
 }

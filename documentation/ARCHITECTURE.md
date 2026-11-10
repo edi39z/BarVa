@@ -344,7 +344,7 @@ menyusun komponen. Semua tampilan besar sudah dipisah ke `src/components/`.
 | `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, banner antrean offline |
 | `TrashTab` | Tabel item terhapus, pulihkan, hapus permanen |
 | `GalleryTab` | Filter kategori dan grid media |
-| `StudioTab` | Tujuh alat client-side (hapus latar, naikkan kualitas, kompres, pasfoto, foto→PDF, gabung PDF, PDF→Word) |
+| `StudioTab` | Delapan alat client-side (hapus latar, naikkan kualitas, kompres, pasfoto, foto→PDF, gabung PDF, PDF→Word, editor PDF) |
 | `FamilySharingTab` | Anggota, undangan pending, tautan publik, akses jarak jauh |
 | `MediaLightbox` | Pratinjau media dan metadata |
 | `ShareLinkModal`, `MoveItemModal` | Pembuatan link berbagi dan pemindahan item |
@@ -369,13 +369,14 @@ Aturan yang dipegang:
 | `lib/studio/pdf.ts` | `imagesToPDF`, `mergePDFs` (pdf-lib) |
 | `lib/studio/pdfjs.ts` | `openPdf` — pemuatan pdf.js, worker, dan galat kata sandi |
 | `lib/studio/pdfToWord.ts` | `pdfToWord` — ekstraksi teks per halaman lalu penyusunan `.docx` |
+| `lib/studio/pdfEditor.ts` | `readPdfSource`, `buildEditedPdf` — model halaman dan penyusunan ulang PDF |
 | `lib/studio/image.ts` | `compressAndResizeImage` (Canvas 2D) |
 | `lib/studio/idphoto.ts` | Ukuran resmi pasfoto, warna latar, `composeIdPhoto` |
 | `lib/studio/ai.ts` | `removeImageBackground` (ONNX di peramban), `enhancePhoto` (Canvas 2D) |
 | `lib/studio/output.ts` | `StudioOutput`, `downloadBlob`, `persistStudioOutput` — satu jalur simpan + unduh |
 | `lib/studio/errors.ts` | `StudioError` + `describeStudioError` — pemetaan galat ke pesan yang bisa ditindaklanjuti |
 | `lib/studio/tools.ts` | `StudioToolId`, pengelompokan alat (foto/PDF), dan `PANEL_TOOLS` |
-| `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `PdfToWordPanel`, `StudioAlert`, `StudioProgress` |
+| `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `PdfToWordPanel`, `PdfEditorPanel`, `StudioAlert`, `StudioProgress` |
 
 **Hapus Latar Belakang.** Memakai `@imgly/background-removal` dengan model
 `isnet_quint8` (±40 MB) dan `device: "cpu"`. Model diunduh dari CDN IMG.LY pada
@@ -432,3 +433,21 @@ menyentuh `DOMMatrix` saat dimuat, sama seperti modul AI.
 PDF terkunci dikenali dari `PasswordException`: galatnya dipetakan ke
 `StudioError("PDF_PASSWORD")` dan panel menampilkan kolom kata sandi, bukan
 pesan umum.
+
+**Editor PDF.** Menyusun ulang halaman tanpa mengubah berkas asli. State-nya
+bukan halaman PDF, melainkan daftar rujukan `{ sourceId, pageIndex, rotation }`:
+satu dokumen bisa memuat halaman dari beberapa berkas, dan halaman yang sama
+boleh muncul lebih dari sekali. Berkas asli disimpan apa adanya di memori;
+`buildEditedPdf` baru menyalin halaman lewat `copyPages` saat pengguna menyimpan,
+lalu menggabungkan rotasi tambahan dengan rotasi bawaan halaman.
+
+Operasi yang tersedia: hapus halaman, geser urutan (tombol kiri/kanan untuk
+keyboard dan layar sentuh, atau seret kartu di desktop), putar 90°, dan
+sisipkan PDF lain pada posisi pilihan. Setiap perubahan menyimpan versi
+sebelumnya di tumpukan undo (maksimal 30 langkah). Halaman terakhir tidak bisa
+dihapus supaya dokumen tidak pernah kosong.
+
+Pratinjau memakai `PageRenderer` dari `pdfjs.ts`: satu dokumen pdf.js dibuka per
+berkas sumber, lalu halaman dirender berurutan selebar 200 px sebagai data URL
+JPEG. Render berjalan progresif — kartu tampil lebih dulu dengan indikator
+memuat — dan sesi lama dihentikan lewat penanda sesi saat berkas diganti.

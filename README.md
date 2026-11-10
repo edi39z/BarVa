@@ -81,10 +81,11 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
 - Studio foto & dokumen yang berjalan penuh di perangkat: foto→PDF, gabung PDF,
   PDF→Word (teks jadi bisa diedit, halaman hasil pindai masuk sebagai gambar),
-  pasfoto dengan ukuran resmi (2×3, 3×4, 4×6, paspor, 2×2 inci) atau ukuran
-  kustom dan warna latar bebas lewat kode hex, kompres foto, hapus latar
-  belakang (model AI ±40 MB, diunduh sekali setelah pengguna memberi izin), dan
-  peningkatan kualitas foto 2×. Foto tidak pernah diunggah ke server
+  editor PDF (hapus, geser, putar, dan sisipkan halaman dari PDF lain), pasfoto
+  dengan ukuran resmi (2×3, 3×4, 4×6, paspor, 2×2 inci) atau ukuran kustom dan
+  warna latar bebas lewat kode hex, kompres foto, hapus latar belakang (model AI
+  ±40 MB, diunduh sekali setelah pengguna memberi izin), dan peningkatan
+  kualitas foto 2×. Foto tidak pernah diunggah ke server
 - Migrasi database otomatis saat backend start (`schema_migrations`), termasuk
   baseline untuk database lama
 - Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file
