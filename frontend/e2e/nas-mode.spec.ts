@@ -11,7 +11,7 @@ async function login(page: import("@playwright/test").Page) {
   await page.locator('input[type="email"]').fill(EMAIL);
   await page.locator('input[type="password"]').fill(PASSWORD);
   await page.locator('button[type="submit"]').click();
-  await expect(page.getByRole("button", { name: /Semua File/ })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: /Semua Berkas/ })).toBeVisible({ timeout: 20_000 });
 }
 
 // PNG 8x8 valid (RGBA, filter 0) untuk memastikan endpoint thumbnail benar-benar
@@ -29,15 +29,15 @@ test.describe("mode NAS", () => {
 
   test("tab Trash tampil setelah login dan menjelaskan konsekuensi hapus", async ({ page }) => {
     await login(page);
-    await page.getByRole("button", { name: /^Trash/ }).click();
+    await page.getByRole("button", { name: /^Sampah/ }).click();
     await expect(page.getByText("Item di Trash belum benar-benar dihapus")).toBeVisible();
   });
 
   test("tab Family Sharing bisa dibuka", async ({ page }) => {
     await login(page);
-    await page.getByRole("button", { name: /Family Sharing/ }).click();
-    await expect(page.getByRole("button", { name: /Semua File/ })).toBeVisible();
-    await expect(page.locator("body")).not.toContainText("Masuk ke server pribadi Anda");
+    await page.getByRole("button", { name: /Berbagi Keluarga/ }).click();
+    await expect(page.getByRole("button", { name: /Semua Berkas/ })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("Penyimpanan pribadi keluarga Anda");
   });
 
   test("galeri memuat thumbnail dari server, termasuk media di subfolder", async ({
@@ -70,7 +70,7 @@ test.describe("mode NAS", () => {
     const nodeId = body.data.node.ID as string;
 
     try {
-      await page.getByRole("button", { name: /Foto Favorit/ }).click();
+      await page.getByRole("button", { name: /Galeri Foto/ }).click();
       // Cari berkas yang barusan diunggah, bukan sekadar thumbnail pertama:
       // galeri bisa memuat media lain dari folder berbeda.
       const thumb = page.locator(`img[alt="${fileName}"]`);

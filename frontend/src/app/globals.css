@@ -1,26 +1,437 @@
 @import "tailwindcss";
 
+/* Tema dipilih lewat kelas `.dark` di <html>, bukan hanya preferensi OS,
+   supaya pengguna bisa mengganti mode sendiri kapan saja. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Token desain
+   Semua warna, bayangan, dan radius didefinisikan sekali di sini. Komponen
+   hanya memakai nama peran (surface, line, fg, brand), sehingga mode terang
+   dan gelap konsisten tanpa menulis ulang kelas di setiap komponen.
+--------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Latar & permukaan */
+  --canvas: #f2f6fc;
+  --canvas-accent: #e8eefb;
+  --surface: #ffffff;
+  --surface-2: #f7f9fd;
+  --surface-3: #eef3fa;
+
+  /* Garis */
+  --line: #e2e9f3;
+  --line-strong: #ccd7e8;
+
+  /* Teks */
+  --fg: #0f1b31;
+  --fg-muted: #55657f;
+  --fg-subtle: #5f6d84;
+  --fg-on-brand: #ffffff;
+
+  /* Aksen utama */
+  --brand: #1d5fd8;
+  --brand-solid: #2563eb;
+  --brand-solid-hover: #1d4ed8;
+  --brand-soft: #eaf1ff;
+  --brand-border: #c3d6fb;
+
+  /* Status */
+  --success: #067a55;
+  --success-soft: #e6f7f0;
+  --success-border: #b5e6d4;
+  --warn: #9a5b06;
+  --warn-soft: #fdf4e3;
+  --warn-border: #f2dcb0;
+  --danger: #c02626;
+  --danger-soft: #fdecec;
+  --danger-border: #f6c9c9;
+  --info: #0b6fa4;
+  --info-soft: #e8f4fb;
+  --info-border: #bcdff1;
+
+  /* Bayangan berlapis: tipis untuk batas, lebar untuk kedalaman */
+  --shadow-card: 0 1px 2px rgba(15, 27, 49, 0.04), 0 10px 26px -18px rgba(15, 27, 49, 0.35);
+  --shadow-pop: 0 24px 60px -24px rgba(15, 27, 49, 0.4);
+  --shadow-brand: 0 10px 22px -12px rgba(37, 99, 235, 0.65);
+
+  /* Warna tile ikon kategori (dipakai kartu pintasan) */
+  --tile-blue: #e8f0ff;
+  --tile-blue-fg: #1d5fd8;
+  --tile-purple: #f1eaff;
+  --tile-purple-fg: #7a3ed8;
+  --tile-green: #e5f7ee;
+  --tile-green-fg: #0a7a52;
+  --tile-amber: #fdf1de;
+  --tile-amber-fg: #a86408;
+  --tile-rose: #fdeaea;
+  --tile-rose-fg: #c22a3f;
+  --tile-teal: #e3f6f8;
+  --tile-teal-fg: #0a7183;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --canvas: #0a1120;
+  --canvas-accent: #101a2e;
+  --surface: #121c2f;
+  --surface-2: #0e1728;
+  --surface-3: #1a2740;
+
+  --line: #22304a;
+  --line-strong: #31415f;
+
+  --fg: #edf3fb;
+  --fg-muted: #a7b6cd;
+  --fg-subtle: #7f8ea8;
+  --fg-on-brand: #ffffff;
+
+  --brand: #7aabff;
+  --brand-solid: #2563eb;
+  --brand-solid-hover: #3b82f6;
+  --brand-soft: #16243d;
+  --brand-border: #2b3f63;
+
+  --success: #4ed6a5;
+  --success-soft: #102a24;
+  --success-border: #1d4a3c;
+  --warn: #f0bc6b;
+  --warn-soft: #2a2115;
+  --warn-border: #4a3a1e;
+  --danger: #ff9c9c;
+  --danger-soft: #2c1618;
+  --danger-border: #522528;
+  --info: #7cc7ef;
+  --info-soft: #10242f;
+  --info-border: #1e4457;
+
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03), 0 18px 34px -24px rgba(0, 0, 0, 0.9);
+  --shadow-pop: 0 30px 70px -28px rgba(0, 0, 0, 0.85);
+  --shadow-brand: 0 12px 26px -14px rgba(37, 99, 235, 0.8);
+
+  --tile-blue: #17253f;
+  --tile-blue-fg: #8db4ff;
+  --tile-purple: #221a3a;
+  --tile-purple-fg: #c3a6ff;
+  --tile-green: #122c25;
+  --tile-green-fg: #6fe0b4;
+  --tile-amber: #2b2214;
+  --tile-amber-fg: #f0c078;
+  --tile-rose: #2e181c;
+  --tile-rose-fg: #ff9dac;
+  --tile-teal: #102a2e;
+  --tile-teal-fg: #6fd8e4;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--canvas);
+  --color-canvas-accent: var(--canvas-accent);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+
+  --color-brand: var(--brand);
+  --color-brand-solid: var(--brand-solid);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-border: var(--brand-border);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-border: var(--warn-border);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-brand: var(--shadow-brand);
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    /* 15px: nyaman dibaca orang tua tanpa membuat layout terasa besar. */
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.011em;
+    text-wrap: balance;
+  }
+
+  /* Fokus selalu terlihat — syarat utama navigasi keyboard. */
+  :focus-visible {
+    outline: 2px solid var(--brand-solid);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--brand-soft);
+    color: var(--brand);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-subtle);
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ---------------------------------------------------------------------------
+   Kelas komponen bersama
+   Dipakai berulang di seluruh layar agar tampilan dan perilaku konsisten.
+--------------------------------------------------------------------------- */
+@layer components {
+  .card {
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-hover {
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      border-color 160ms ease,
+      background-color 160ms ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: var(--brand-border);
+    box-shadow: var(--shadow-pop);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 0.625rem 1rem;
+    min-height: 2.5rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease,
+      transform 140ms ease;
+  }
+  .btn:active {
+    transform: scale(0.985);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-primary {
+    background-color: var(--brand-solid);
+    color: var(--fg-on-brand);
+    box-shadow: var(--shadow-brand);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--brand-solid-hover);
+  }
+
+  .btn-secondary {
+    background-color: var(--surface);
+    border-color: var(--line-strong);
+    color: var(--fg);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--surface-3);
+  }
+
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--fg-muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--surface-3);
+    color: var(--fg);
+  }
+
+  .btn-danger {
+    background-color: var(--danger-soft);
+    border-color: var(--danger-border);
+    color: var(--danger);
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(0.97);
+  }
+
+  .btn-lg {
+    min-height: 2.875rem;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.875rem;
+  }
+
+  .btn-sm {
+    min-height: 2.125rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    border-radius: 0.625rem;
+  }
+
+  /* Tombol ikon minimal 40px agar mudah ditekan di layar sentuh. */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.625rem;
+    color: var(--fg-muted);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+    cursor: pointer;
+  }
+  .icon-btn:hover {
+    background-color: var(--surface-3);
+    color: var(--fg);
+  }
+
+  .input,
+  .select {
+    width: 100%;
+    background-color: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.8125rem;
+    color: var(--fg);
+    min-height: 2.625rem;
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease;
+  }
+  .input::placeholder {
+    color: var(--fg-subtle);
+  }
+  .input:focus,
+  .select:focus {
+    outline: none;
+    border-color: var(--brand-solid);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+  .select {
+    cursor: pointer;
+  }
+
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+    margin-bottom: 0.375rem;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .chip-brand {
+    background-color: var(--brand-soft);
+    border-color: var(--brand-border);
+    color: var(--brand);
+  }
+  .chip-success {
+    background-color: var(--success-soft);
+    border-color: var(--success-border);
+    color: var(--success);
+  }
+  .chip-warn {
+    background-color: var(--warn-soft);
+    border-color: var(--warn-border);
+    color: var(--warn);
+  }
+  .chip-danger {
+    background-color: var(--danger-soft);
+    border-color: var(--danger-border);
+    color: var(--danger);
+  }
+  .chip-neutral {
+    background-color: var(--surface-3);
+    border-color: var(--line);
+    color: var(--fg-muted);
+  }
+
+  /* Area gulir yang tetap rapi di dalam kartu. */
+  .scroll-area {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  /* Bilah navigasi bawah: hanya untuk layar kecil. */
+  .safe-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
 }

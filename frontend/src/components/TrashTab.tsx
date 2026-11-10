@@ -36,123 +36,104 @@ export default function TrashTab({
   onPurge,
 }: TrashTabProps) {
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
-      <div className="rounded-xl border border-amber-900/50 bg-amber-950/30 px-4 py-3 flex items-start gap-3">
-        <Trash2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-amber-200">Item di Trash belum benar-benar dihapus</p>
-          <p className="text-[11px] text-amber-300/80 mt-0.5 leading-relaxed">
+    <div className="mx-auto max-w-4xl space-y-4 pb-24 lg:pb-6">
+      <div className="flex flex-wrap items-start gap-3 rounded-xl border border-warn-border bg-warn-soft px-3.5 py-3">
+        <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold text-warn">Item di Sampah belum terhapus permanen</p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-warn/90">
             Pulihkan untuk mengembalikan item ke folder asalnya. Hapus permanen membebaskan ruang
-            penyimpanan dan tidak bisa dibatalkan.
+            dan tidak bisa dibatalkan.
           </p>
         </div>
-        <button
-          onClick={onReload}
-          disabled={loading}
-          className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-          <span>Muat ulang</span>
+        <button onClick={onReload} disabled={loading} className="btn btn-sm btn-secondary">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Muat ulang
         </button>
       </div>
 
       {error && (
-        <div className="rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 bg-rose-950/50 border border-rose-800/60 text-rose-300">
-          <WifiOff className="h-3.5 w-3.5 shrink-0" />
-          <span>Gagal memuat trash: {error}</span>
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-xl border border-danger-border bg-danger-soft px-3.5 py-2.5 text-[12.5px] text-danger"
+        >
+          <WifiOff className="h-4 w-4 shrink-0" aria-hidden />
+          <span>Gagal memuat sampah: {error}</span>
         </div>
       )}
 
       {items.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-zinc-800/80 rounded-2xl bg-zinc-900/20">
-          <Trash2 className="h-12 w-12 text-zinc-600 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-zinc-300">Trash kosong</p>
-          <p className="text-xs text-zinc-500 mt-1">
-            Item yang kamu hapus dari file manager akan muncul di sini dan bisa dipulihkan.
+        <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line-strong bg-surface px-4 py-16 text-center">
+          <Trash2 className="h-10 w-10 text-subtle" aria-hidden />
+          <p className="text-[13.5px] font-semibold text-fg">Sampah kosong</p>
+          <p className="max-w-sm text-[12px] leading-relaxed text-subtle">
+            Berkas yang Anda hapus akan muncul di sini dan masih bisa dipulihkan.
           </p>
         </div>
       ) : (
-        <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/20">
-          <table className="w-full text-left text-xs text-zinc-300">
-            <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
-              <tr>
-                <th className="py-2.5 px-4 font-medium">Nama</th>
-                <th className="py-2.5 px-4 font-medium">Lokasi Asal</th>
-                <th className="py-2.5 px-4 font-medium">Ukuran</th>
-                <th className="py-2.5 px-4 font-medium">Dihapus</th>
-                <th className="py-2.5 px-4 text-right font-medium">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/60">
-              {items.map((node) => {
-                const mime = (node.MimeType || "").toLowerCase();
-                const busy = busyId === node.ID;
-                return (
-                  <tr key={node.ID} className="hover:bg-zinc-900/60 transition-colors">
-                    <td className="py-2.5 px-4 font-medium text-zinc-200">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {node.IsDirectory ? (
-                          <Folder className="h-4 w-4 text-blue-400 shrink-0" />
-                        ) : mime.startsWith("image/") ? (
-                          <ImageIcon className="h-4 w-4 text-purple-400 shrink-0" />
-                        ) : mime.startsWith("video/") || mime.startsWith("audio/") ? (
-                          <Film className="h-4 w-4 text-emerald-400 shrink-0" />
-                        ) : (
-                          <FileText className="h-4 w-4 text-zinc-400 shrink-0" />
-                        )}
-                        <span className="truncate max-w-[18rem]" title={node.Name}>
-                          {node.Name}
-                        </span>
-                        {currentUserId && node.OwnerID !== currentUserId && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                            Milik anggota lain
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-4 text-zinc-400">{node.ParentName || "Semua File"}</td>
-                    <td className="py-2.5 px-4 font-mono text-zinc-400">
+        <ul className="space-y-2">
+          {items.map((node) => {
+            const mime = (node.MimeType || "").toLowerCase();
+            const busy = busyId === node.ID;
+            return (
+              <li key={node.ID} className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2">
+                    {node.IsDirectory ? (
+                      <Folder className="h-5 w-5 text-[var(--tile-blue-fg)]" aria-hidden />
+                    ) : mime.startsWith("image/") ? (
+                      <ImageIcon className="h-5 w-5 text-[var(--tile-purple-fg)]" aria-hidden />
+                    ) : mime.startsWith("video/") || mime.startsWith("audio/") ? (
+                      <Film className="h-5 w-5 text-[var(--tile-green-fg)]" aria-hidden />
+                    ) : (
+                      <FileText className="h-5 w-5 text-muted" aria-hidden />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[12.5px] font-semibold text-fg" title={node.Name}>
+                      {node.Name}
+                    </p>
+                    <p className="truncate text-[11.5px] text-subtle">
+                      {node.ParentName || "Semua File"} ·{" "}
                       {node.IsDirectory ? "Folder" : formatBytes(node.SizeBytes ?? 0)}
-                    </td>
-                    <td className="py-2.5 px-4 text-zinc-400">
                       {node.DeletedAt
-                        ? new Date(node.DeletedAt).toLocaleString("id-ID", {
+                        ? ` · dihapus ${new Date(node.DeletedAt).toLocaleDateString("id-ID", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—"}
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => onRestore(node)}
-                          disabled={busy}
-                          className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer disabled:opacity-40"
-                          title="Pulihkan ke folder asal"
-                        >
-                          <CornerLeftUp className="h-3 w-3" />
-                          <span>Pulihkan</span>
-                        </button>
-                        <button
-                          onClick={() => onPurge(node)}
-                          disabled={busy}
-                          className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 transition-colors cursor-pointer disabled:opacity-40"
-                          title="Hapus permanen"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          <span>Hapus permanen</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          })}`
+                        : ""}
+                    </p>
+                    {currentUserId && node.OwnerID !== currentUserId && (
+                      <span className="chip chip-warn mt-1">Milik anggota lain</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => onRestore(node)}
+                    disabled={busy}
+                    className="btn btn-sm border-success-border bg-success-soft text-success"
+                    title="Pulihkan ke folder asal"
+                  >
+                    <CornerLeftUp className="h-3.5 w-3.5" aria-hidden />
+                    Pulihkan
+                  </button>
+                  <button
+                    onClick={() => onPurge(node)}
+                    disabled={busy}
+                    className="btn btn-sm btn-danger"
+                    title="Hapus permanen"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    Hapus permanen
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

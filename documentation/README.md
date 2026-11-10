@@ -6,6 +6,7 @@ berjalan di server sendiri.
 | Dokumen | Isi |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Cara sistem bekerja: dual-mode, komponen, model data, alur request |
+| [UI.md](UI.md) | Sistem desain: token warna, mode terang/gelap, navigasi, aksesibilitas |
 | [SETUP.md](SETUP.md) | Menjalankan dari nol: PostgreSQL, backend, frontend, Docker, Google Drive |
 | [API.md](API.md) | Referensi endpoint: autentikasi, body, respons, kode error |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Alur kontribusi, standar kode, dan hal yang tidak boleh diubah |
