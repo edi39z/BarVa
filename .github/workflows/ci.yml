@@ -5,6 +5,8 @@
 #   dijalankan dengan working-directory tersebut.
 # - Versi Go diambil dari `backend/go.mod` supaya tidak tertinggal saat versi
 #   minimum dinaikkan.
+# - Versi Node diambil dari `frontend/.nvmrc`, sama seperti cara Go memakai
+#   go.mod: satu sumber kebenaran untuk CI dan mesin lokal (`nvm use`).
 # - Frontend dijaga lint (ESLint), type-check, dan build. Temuan lint lama sudah
 #   dibereskan, jadi gate ini bisa dinyalakan tanpa mewarisi utang.
 # - Backend dijaga `go vet` dan `gofmt -l` selain build dan test. Keduanya
@@ -85,7 +87,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -116,7 +118,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 

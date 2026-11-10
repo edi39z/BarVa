@@ -16,6 +16,12 @@ Panduan menjalankan NAS Project dari nol. Dua jalur: **development lokal** dan
 
 Docker opsional, hanya untuk jalur container.
 
+Versi Node yang dipakai CI ada di `frontend/.nvmrc`. Bila memakai `nvm`:
+
+```bash
+cd frontend && nvm use
+```
+
 ---
 
 ## 1. Database

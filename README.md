@@ -145,7 +145,7 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 | Tool | Versi |
 |---|---|
 | Go | 1.27+ |
-| Node.js | 22+ |
+| Node.js | 22+ (lihat `frontend/.nvmrc`) |
 | PostgreSQL | 17 |
 
 ### 1. Database
