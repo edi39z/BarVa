@@ -8,6 +8,7 @@ import {
   FileType2,
   Folder,
   Layers,
+  PanelsTopLeft,
   Scissors,
   ShieldCheck,
   Sparkles,
@@ -21,6 +22,7 @@ import type { StudioToolId } from "@/lib/studio/tools";
 import type { StudioErrorInfo } from "@/lib/studio/errors";
 import type { StudioOutput } from "@/lib/studio/output";
 import IdPhotoPanel from "./studio/IdPhotoPanel";
+import PdfEditorPanel from "./studio/PdfEditorPanel";
 import PdfToWordPanel from "./studio/PdfToWordPanel";
 import StudioAlert from "./studio/StudioAlert";
 
@@ -123,6 +125,14 @@ const TOOLS: {
     icon: FileType2,
     bg: "var(--tile-indigo)",
     fg: "var(--tile-indigo-fg)",
+  },
+  {
+    id: "pdfedit",
+    title: "Editor PDF",
+    subtitle: "Hapus, geser, sisipkan",
+    icon: PanelsTopLeft,
+    bg: "var(--tile-slate)",
+    fg: "var(--tile-slate-fg)",
   },
 ];
 
@@ -435,6 +445,16 @@ export default function StudioTab({
 
         {tool === "pdf2word" && (
           <PdfToWordPanel
+            incomingFile={pickedFile}
+            onIncomingFileHandled={onPickedFileHandled}
+            onCommit={onCommitStudioOutput}
+            onSuccess={onSuccess}
+            onOpenStoragePicker={onOpenStoragePicker}
+          />
+        )}
+
+        {tool === "pdfedit" && (
+          <PdfEditorPanel
             incomingFile={pickedFile}
             onIncomingFileHandled={onPickedFileHandled}
             onCommit={onCommitStudioOutput}

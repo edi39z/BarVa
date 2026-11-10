@@ -88,3 +88,52 @@ function nameOf(error: unknown): string {
 export function isPdfPasswordError(error: unknown): boolean {
   return error instanceof StudioError && error.code === "PDF_PASSWORD";
 }
+
+/**
+ * Perender halaman PDF menjadi gambar kecil.
+ *
+ * Satu instance membuka dokumen sekali lalu melayani banyak halaman — membuka
+ * dokumen per halaman akan membuat worker dan parser bekerja berulang kali.
+ * Selalu panggil `destroy()` setelah selesai.
+ */
+export class PageRenderer {
+  private constructor(private readonly opened: OpenedPdf) {}
+
+  static async create(bytes: Uint8Array): Promise<PageRenderer> {
+    // pdf.js memindahkan kepemilikan buffer ke worker, jadi kirim salinan.
+    return new PageRenderer(await openPdf(new Uint8Array(bytes).buffer as ArrayBuffer));
+  }
+
+  /** Render satu halaman sebagai data URL JPEG selebar `targetWidth` piksel. */
+  async renderToDataUrl(pageIndex: number, targetWidth: number): Promise<string> {
+    const page = await this.opened.pdf.getPage(pageIndex + 1);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(2, targetWidth / base.width);
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new StudioError("EXPORT_FAILED", "Kanvas tidak tersedia di peramban ini.");
+    }
+
+    // Latar putih eksplisit supaya halaman transparan tidak jadi hitam.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvas, viewport }).promise;
+
+    const url = canvas.toDataURL("image/jpeg", 0.72);
+    canvas.width = 0;
+    canvas.height = 0;
+    page.cleanup();
+
+    return url;
+  }
+
+  async destroy(): Promise<void> {
+    await this.opened.destroy().catch(() => {});
+  }
+}
