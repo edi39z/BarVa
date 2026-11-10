@@ -467,54 +467,61 @@ export default function Home() {
 
   // Muat undangan & anggota yang benar-benar tersimpan di server.
   const refreshInvites = async () => {
+    // Undangan memakai admin key; anggota memakai sesi login. Keduanya
+    // dipisah agar kegagalan salah satu tidak mengosongkan yang lain.
+    let inviteMembers: ServerMember[] = [];
     try {
       const data = await listInvites();
       setServerInvites(data.invites);
-      setServerMembers(data.members || []);
-
-      // Anggota yang sudah terdaftar di database membawa kuota dan pemakaian
-      // nyata; daftar undangan hanya dipakai sebagai cadangan.
-      let accounts: NasFamilyMember[] = [];
-      try {
-        accounts = await listFamilyMembers();
-      } catch {
-        accounts = [];
-      }
-
-      const palette = ["bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-pink-600", "bg-teal-600"];
-      if (accounts.length > 0) {
-        setFamilyMembers(
-          accounts.map((m, i) => ({
-            id: m.id,
-            name: m.username,
-            email: m.email,
-            role: m.role,
-            usedBytes: m.quota_used_bytes || 0,
-            quotaBytes: m.quota_bytes || 0,
-            avatarBg: palette[i % palette.length],
-          }))
-        );
-      } else if (data.members?.length) {
-        // Tampilkan anggota yang sudah menerima undangan sebagai kartu keluarga.
-        setFamilyMembers(
-          data.members.map((m, i) => ({
-            id: m.id,
-            name: m.name,
-            email: m.email,
-            role: (m.role === "owner" || m.role === "admin" ? m.role : "member") as
-              | "owner"
-              | "admin"
-              | "member",
-            usedBytes: 0,
-            quotaBytes: m.quota_gb * 1024 * 1024 * 1024,
-            avatarBg: palette[i % palette.length],
-          }))
-        );
-      }
+      inviteMembers = data.members || [];
+      setServerMembers(inviteMembers);
     } catch {
-      // backend belum jalan — biarkan state kosong, jangan tampilkan data palsu
+      // backend belum jalan atau admin key tidak diisi
       setServerInvites([]);
       setServerMembers([]);
+    }
+
+    // Anggota yang sudah terdaftar di database membawa kuota dan pemakaian
+    // nyata; daftar undangan hanya dipakai sebagai cadangan.
+    let accounts: NasFamilyMember[] = [];
+    try {
+      accounts = await listFamilyMembers();
+    } catch {
+      accounts = [];
+    }
+
+    const palette = ["bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-pink-600", "bg-teal-600"];
+    if (accounts.length > 0) {
+      setFamilyMembers(
+        accounts.map((m, i) => ({
+          id: m.id,
+          name: m.username,
+          email: m.email,
+          role: m.role,
+          usedBytes: m.quota_used_bytes || 0,
+          quotaBytes: m.quota_bytes || 0,
+          avatarBg: palette[i % palette.length],
+        }))
+      );
+      return;
+    }
+
+    if (inviteMembers.length > 0) {
+      // Tampilkan anggota yang sudah menerima undangan sebagai kartu keluarga.
+      setFamilyMembers(
+        inviteMembers.map((m, i) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          role: (m.role === "owner" || m.role === "admin" ? m.role : "member") as
+            | "owner"
+            | "admin"
+            | "member",
+          usedBytes: 0,
+          quotaBytes: m.quota_gb * 1024 * 1024 * 1024,
+          avatarBg: palette[i % palette.length],
+        }))
+      );
     }
   };
 

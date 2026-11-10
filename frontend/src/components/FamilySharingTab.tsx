@@ -22,6 +22,11 @@ import { formatBytes } from "@/lib/nasDisplay";
 
 export type FamilySubTab = "members" | "shares" | "remote";
 
+/** Byte → string GB ringkas untuk mengisi input (maksimal 4 desimal). */
+function toGigabytes(bytes: number): string {
+  return String(Number((bytes / 1024 ** 3).toFixed(4)));
+}
+
 interface FamilySharingTabProps {
   subTab: FamilySubTab;
   onSubTabChange: (tab: FamilySubTab) => void;
@@ -63,9 +68,7 @@ export default function FamilySharingTab({
 
   const openQuotaModal = (member: FamilyMember) => {
     setQuotaTarget(member);
-    setQuotaInput(
-      member.quotaBytes > 0 ? String(member.quotaBytes / 1024 / 1024 / 1024) : "0"
-    );
+    setQuotaInput(member.quotaBytes > 0 ? toGigabytes(member.quotaBytes) : "0");
     setQuotaError("");
   };
 
@@ -490,7 +493,7 @@ export default function FamilySharingTab({
               <input
                 type="number"
                 min="0"
-                step="0.5"
+                step="any"
                 value={quotaInput}
                 onChange={(e) => setQuotaInput(e.target.value)}
                 autoFocus
