@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"math"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"nas-backend/internal/auth"
 	"nas-backend/internal/db"
@@ -194,7 +196,11 @@ func (h *FamilyHandler) UpdateMemberQuota(c *gin.Context) {
 
 	target, err := h.queries.GetUserByID(c.Request.Context(), targetID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "USER_NOT_FOUND", "message": "Anggota tidak ditemukan."}})
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "USER_NOT_FOUND", "message": "Anggota tidak ditemukan."}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memuat data anggota."}})
 		return
 	}
 	if !canManageQuota(callerRole, target.Role) {
@@ -208,7 +214,7 @@ func (h *FamilyHandler) UpdateMemberQuota(c *gin.Context) {
 		Sha256:  "",
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal menghitung pemakaian anggota."}})
 		return
 	}
 	if newQuota > 0 && usage.UsedBytes > newQuota {
@@ -225,10 +231,14 @@ func (h *FamilyHandler) UpdateMemberQuota(c *gin.Context) {
 		QuotaBytes: newQuota,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Anggota dihapus di antara pemeriksaan dan pembaruan.
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "USER_NOT_FOUND", "message": "Anggota tidak ditemukan."}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memperbarui kuota."}})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"data": MemberResponse{
 			ID:             updated.ID.String(),
