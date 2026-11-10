@@ -17,9 +17,12 @@ import { formatBytes } from "@/lib/nasDisplay";
 import type { CompressionResult } from "@/lib/studio/image";
 import type { BgProgress, EnhanceResult } from "@/lib/studio/ai";
 import type { StudioToolId } from "@/lib/studio/tools";
+import type { StudioErrorInfo } from "@/lib/studio/errors";
+import type { StudioOutput } from "@/lib/studio/output";
+import IdPhotoPanel from "./studio/IdPhotoPanel";
+import StudioAlert from "./studio/StudioAlert";
 
 export type { StudioToolId };
-export type IdPhotoRatio = "3x4" | "4x6";
 
 interface StudioTabProps {
   tool: StudioToolId;
@@ -28,21 +31,15 @@ interface StudioTabProps {
   successMsg: string;
   img2PdfRef: React.RefObject<HTMLInputElement | null>;
   mergePdfRef: React.RefObject<HTMLInputElement | null>;
-  idPhotoRef: React.RefObject<HTMLInputElement | null>;
   compressRef: React.RefObject<HTMLInputElement | null>;
   removeBgRef: React.RefObject<HTMLInputElement | null>;
   enhanceRef: React.RefObject<HTMLInputElement | null>;
   onImagesToPDF: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onMergePDFs: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onCreateIDPhoto: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onCompressImage: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveBackground: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onEnhancePhoto: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onOpenStoragePicker: (tool: StudioToolId) => void;
-  idPhotoRatio: IdPhotoRatio;
-  onIdPhotoRatioChange: (ratio: IdPhotoRatio) => void;
-  idPhotoBg: string;
-  onIdPhotoBgChange: (color: string) => void;
   compressQuality: number;
   onCompressQualityChange: (quality: number) => void;
   lastCompressResult: CompressionResult | null;
@@ -51,6 +48,14 @@ interface StudioTabProps {
   bgProgress: BgProgress | null;
   onGrantBgConsent: () => void;
   lastEnhanceResult: EnhanceResult | null;
+  error: StudioErrorInfo | null;
+  onDismissError: () => void;
+  onSuccess: (message: string) => void;
+  /** Berkas dari Storage Picker untuk alat berpanel. */
+  pickedFile: File | null;
+  onPickedFileHandled: () => void;
+  onCommitStudioOutput: (output: StudioOutput) => Promise<{ saved: boolean }>;
+  onBgModelReady: () => void;
 }
 
 const TOOLS: {
@@ -87,8 +92,8 @@ const TOOLS: {
   },
   {
     id: "idphoto",
-    title: "Pasfoto 3×4 / 4×6",
-    subtitle: "Latar merah, biru, putih",
+    title: "Pasfoto",
+    subtitle: "Ukuran resmi & warna bebas",
     icon: Scissors,
     bg: "var(--tile-rose)",
     fg: "var(--tile-rose-fg)",
@@ -118,21 +123,15 @@ export default function StudioTab({
   successMsg,
   img2PdfRef,
   mergePdfRef,
-  idPhotoRef,
   compressRef,
   removeBgRef,
   enhanceRef,
   onImagesToPDF,
   onMergePDFs,
-  onCreateIDPhoto,
   onCompressImage,
   onRemoveBackground,
   onEnhancePhoto,
   onOpenStoragePicker,
-  idPhotoRatio,
-  onIdPhotoRatioChange,
-  idPhotoBg,
-  onIdPhotoBgChange,
   compressQuality,
   onCompressQualityChange,
   lastCompressResult,
@@ -141,6 +140,13 @@ export default function StudioTab({
   bgProgress,
   onGrantBgConsent,
   lastEnhanceResult,
+  error,
+  onDismissError,
+  onSuccess,
+  pickedFile,
+  onPickedFileHandled,
+  onCommitStudioOutput,
+  onBgModelReady,
 }: StudioTabProps) {
   const bgCanRun = bgModelReady || bgConsentGranted;
 
@@ -200,6 +206,8 @@ export default function StudioTab({
           <span>{successMsg}</span>
         </div>
       )}
+
+      {error && <StudioAlert error={error} onDismiss={onDismissError} />}
 
       <div className="card p-4 sm:p-6">
         {tool === "removebg" && (
@@ -404,76 +412,15 @@ export default function StudioTab({
         )}
 
         {tool === "idphoto" && (
-          <div className="space-y-4">
-            <input type="file" ref={idPhotoRef} onChange={onCreateIDPhoto} accept="image/*" className="hidden" />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <span className="label">Ukuran pasfoto</span>
-                <div className="flex gap-2">
-                  {(["3x4", "4x6"] as const).map((ratio) => (
-                    <button
-                      key={ratio}
-                      onClick={() => onIdPhotoRatioChange(ratio)}
-                      aria-pressed={idPhotoRatio === ratio}
-                      className={`flex-1 rounded-xl border py-2.5 text-[12px] font-semibold transition-colors ${
-                        idPhotoRatio === ratio
-                          ? "border-brand-border bg-brand-soft text-brand"
-                          : "border-line bg-surface text-muted hover:text-fg"
-                      }`}
-                    >
-                      {ratio === "3x4" ? "3 × 4 cm" : "4 × 6 cm"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="label">Warna latar</span>
-                <div className="flex gap-2">
-                  {[
-                    { color: "#dc2626", name: "Merah", text: "#ffffff" },
-                    { color: "#2563eb", name: "Biru", text: "#ffffff" },
-                    { color: "#ffffff", name: "Putih", text: "#111827" },
-                  ].map((bg) => (
-                    <button
-                      key={bg.color}
-                      onClick={() => onIdPhotoBgChange(bg.color)}
-                      aria-pressed={idPhotoBg === bg.color}
-                      className={`flex-1 rounded-xl border py-2.5 text-[12px] font-semibold transition-all ${
-                        idPhotoBg === bg.color
-                          ? "border-brand-solid ring-2 ring-brand-border"
-                          : "border-line-strong"
-                      }`}
-                      style={{ backgroundColor: bg.color, color: bg.text }}
-                    >
-                      {bg.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border-2 border-dashed border-line-strong bg-surface-2 px-4 py-6 text-center">
-              <Scissors className="mx-auto mb-2 h-8 w-8 text-[var(--tile-rose-fg)]" aria-hidden />
-              <p className="text-[13px] font-semibold text-fg">Pilih foto untuk dijadikan pasfoto</p>
-              <p className="mt-0.5 text-[12px] text-subtle">
-                Foto otomatis dipotong dan disesuaikan ke ukuran resmi 300 DPI.
-              </p>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                <button disabled={processing} onClick={() => idPhotoRef.current?.click()} className="btn btn-primary">
-                  {processing ? "Memproses…" : "Pilih dari perangkat"}
-                </button>
-                <button
-                  disabled={processing}
-                  onClick={() => onOpenStoragePicker("idphoto")}
-                  className="btn btn-secondary"
-                >
-                  <Folder className="h-4 w-4" aria-hidden />
-                  Pilih dari berkas tersimpan
-                </button>
-              </div>
-            </div>
-          </div>
+          <IdPhotoPanel
+            incomingFile={pickedFile}
+            onIncomingFileHandled={onPickedFileHandled}
+            onCommit={onCommitStudioOutput}
+            onSuccess={onSuccess}
+            onOpenStoragePicker={onOpenStoragePicker}
+            bgModelReady={bgModelReady}
+            onBgModelReady={onBgModelReady}
+          />
         )}
 
         {tool === "compress" && (

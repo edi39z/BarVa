@@ -367,9 +367,13 @@ Aturan yang dipegang:
 | Berkas | Isi |
 |---|---|
 | `lib/studio/pdf.ts` | `imagesToPDF`, `mergePDFs` (pdf-lib) |
-| `lib/studio/image.ts` | `compressAndResizeImage`, `createIDPhoto` (Canvas 2D) |
+| `lib/studio/image.ts` | `compressAndResizeImage` (Canvas 2D) |
+| `lib/studio/idphoto.ts` | Ukuran resmi pasfoto, warna latar, `composeIdPhoto` |
 | `lib/studio/ai.ts` | `removeImageBackground` (ONNX di peramban), `enhancePhoto` (Canvas 2D) |
+| `lib/studio/output.ts` | `StudioOutput`, `downloadBlob`, `persistStudioOutput` — satu jalur simpan + unduh |
+| `lib/studio/errors.ts` | `StudioError` + `describeStudioError` — pemetaan galat ke pesan yang bisa ditindaklanjuti |
 | `lib/studio/tools.ts` | `StudioToolId` + daftar alat gambar tunggal/ganda |
+| `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `StudioAlert`, `StudioProgress` |
 
 **Hapus Latar Belakang.** Memakai `@imgly/background-removal` dengan model
 `isnet_quint8` (±40 MB) dan `device: "cpu"`. Model diunduh dari CDN IMG.LY pada
@@ -383,3 +387,25 @@ Modul ini diimpor secara dinamis agar tidak membebani bundel awal.
 bertahap 2× (interpolasi `imageSmoothingQuality: "high"`) → satu lintasan piksel
 untuk unsharp mask + koreksi kontras/saturasi → JPEG kualitas 0.92. Ukuran
 keluaran dibatasi 8 MP / 4000 px agar canvas tidak kehabisan memori di ponsel.
+
+**Pasfoto.** Ukuran latar yang benar-benar terlihat hanya bisa dibuat kalau
+subjek sudah terpisah dari latar aslinya, jadi alurnya memakai
+`removeImageBackground` lebih dulu lalu menempelkan subjek di atas warna
+pilihan. Implementasi lama menggambar foto dengan mode *cover* sehingga warna
+latar tertutup seluruhnya; `composeIdPhoto` memakai
+`min(widthPx / subjectWidth, heightPx / subjectHeight) * zoom` agar seluruh
+subjek muat dan latar tetap terlihat.
+
+Ukuran tersedia sebagai preset (2×3, 3×4, 4×6, paspor 35×50 mm, 2×2 inci) atau
+kustom dengan satuan cm/mm/px dan DPI 300/600. Warna latar dipilih dari enam
+swatch, pemilih warna bebas, atau kode `#RRGGBB` yang divalidasi
+(`normalizeHexColor`). Pratinjau disusun ulang setiap ukuran/warna/skala
+berubah dengan jeda 80 ms, dan model AI tidak dipanggil ulang — hanya komposit
+kanvas.
+
+**Simpan hasil.** Semua alat memakai satu pembungkus `commitStudioOutput` di
+`page.tsx`: unduh berkas lebih dulu, baru simpan ke IndexedDB. Urutan itu
+disengaja — kalau kuota penyimpanan penuh, berkas tetap sampai ke pengguna dan
+muncul peringatan `STORAGE_FULL`. `persistStudioOutput` memakai `id` dari record
+`saveLocalFile`, bukan `crypto.randomUUID()` sendiri; versi lama membuat id di
+daftar berbeda dari id di IndexedDB sehingga hasil Studio tidak bisa dihapus.
