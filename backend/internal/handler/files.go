@@ -24,17 +24,20 @@ import (
 )
 
 type FilesHandler struct {
-	queries *db.Queries
-	storage storage.StorageProvider
-	tempDir string
+	queries  *db.Queries
+	storage  storage.StorageProvider
+	tempDir  string
+	thumbDir string
 }
 
-func NewFilesHandler(queries *db.Queries, store storage.StorageProvider, tempDir string) *FilesHandler {
+func NewFilesHandler(queries *db.Queries, store storage.StorageProvider, tempDir, thumbDir string) *FilesHandler {
 	_ = os.MkdirAll(tempDir, 0755)
+	_ = os.MkdirAll(thumbDir, 0755)
 	return &FilesHandler{
-		queries: queries,
-		storage: store,
-		tempDir: tempDir,
+		queries:  queries,
+		storage:  store,
+		tempDir:  tempDir,
+		thumbDir: thumbDir,
 	}
 }
 

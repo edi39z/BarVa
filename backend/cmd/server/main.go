@@ -97,6 +97,7 @@ func main() {
 	dbUrl := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable")
 	storageDir := getEnv("STORAGE_DIR", "./data/storage")
 	tempDir := getEnv("TEMP_DIR", "./data/tmp")
+	thumbDir := getEnv("THUMBNAIL_DIR", "./data/thumbnails")
 
 	log.Printf("[NAS Backend] Starting daemon on port %s...", port)
 	log.Printf("[NAS Backend] Storage directory: %s", storageDir)
@@ -208,7 +209,7 @@ func main() {
 
 	if dbAvailable && queries != nil {
 		authHandler := handler.NewAuthHandler(queries)
-		filesHandler := handler.NewFilesHandler(queries, store, tempDir)
+		filesHandler := handler.NewFilesHandler(queries, store, tempDir, thumbDir)
 		sharesHandler := handler.NewSharesHandler(queries)
 		familyHandler := handler.NewFamilyHandler(queries)
 
@@ -240,6 +241,7 @@ func main() {
 				protected.POST("/files/:id/move", filesHandler.Move)
 				protected.GET("/files/:id/download", filesHandler.Download)
 				protected.GET("/files/:id/stream", filesHandler.Stream)
+				protected.GET("/files/:id/thumbnail", filesHandler.Thumbnail)
 
 				// Trash (soft-delete recovery)
 				protected.GET("/trash", filesHandler.ListTrash)
