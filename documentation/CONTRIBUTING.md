@@ -91,8 +91,9 @@ ke executable Chrome/Chromium lain.
 
 ### Apa yang dijalankan CI
 
-`.github/workflows/ci.yml` berjalan pada setiap push ke `main` dan setiap Pull
-Request. Tiga job paralel di runner `ubuntu-24.04`:
+`.github/workflows/ci.yml` berjalan pada push ke `main` dan Pull Request, tetapi
+hanya bila yang berubah salah satu dari: `backend/**`, `frontend/**`, atau
+`.github/workflows/**`. Tiga job paralel di runner `ubuntu-24.04`:
 
 | Job | Isi |
 |---|---|
@@ -103,9 +104,14 @@ Request. Tiga job paralel di runner `ubuntu-24.04`:
 Suite e2e lain (`nas-mode`, `offline-upload`, `public-share`) tidak dijalankan
 di CI karena butuh backend hidup dan akun uji.
 
-Lint frontend belum dijadikan gate karena masih ada temuan lama. Setiap job
-diberi `timeout-minutes: 15` supaya proses yang menggantung tidak memakan kuota
-bawaan GitHub (360 menit).
+**PR yang hanya mengubah dokumentasi tidak memicu CI sama sekali**, jadi
+tab Checks-nya akan kosong dan tertulis "no checks reported" — itu wajar, bukan
+tanda CI rusak. Daftar pemicunya sengaja berupa whitelist: kalau suatu saat ada
+direktori kode baru di root, tambahkan ke `paths` di `ci.yml` atau CI-nya tidak
+akan pernah jalan untuk perubahan di sana.
+
+Setiap job diberi `timeout-minutes: 15` supaya proses yang menggantung tidak
+memakan kuota bawaan GitHub (360 menit).
 
 Backend dijaga `go vet` dan `gofmt -l` selain build dan test. Sebelum commit,
 jalankan `gofmt -w .` di folder `backend` bila ada berkas yang belum rapi.
