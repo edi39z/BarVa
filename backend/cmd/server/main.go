@@ -90,7 +90,7 @@ func corsMiddleware() gin.HandlerFunc {
 			c.Writer.Header().Set("Vary", "Origin")
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
 		}
 
 		if c.Request.Method == "OPTIONS" {
@@ -280,6 +280,7 @@ func main() {
 				// Family Management
 				protected.GET("/family/members", familyHandler.ListMembers)
 				protected.POST("/family/invite", familyHandler.InviteMember)
+				protected.PATCH("/family/members/:id/quota", familyHandler.UpdateMemberQuota)
 
 				// Secure Shares Management
 				protected.POST("/shares", sharesHandler.Create)

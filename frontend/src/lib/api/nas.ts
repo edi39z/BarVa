@@ -326,6 +326,44 @@ export async function purgeNasFile(id: string): Promise<void> {
 	if (!res.ok) throw new Error(await parseError(res));
 }
 
+// ---------------- Anggota keluarga & kuota ----------------
+
+export interface NasFamilyMember {
+	id: string;
+	email: string;
+	username: string;
+	role: "owner" | "admin" | "member";
+	/** 0 berarti tanpa batas. */
+	quota_bytes: number;
+	quota_used_bytes: number;
+	created_at: string;
+}
+
+export async function listFamilyMembers(): Promise<NasFamilyMember[]> {
+	const res = await nasFetch("/api/v1/family/members");
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasFamilyMember[] | null };
+	return json.data ?? [];
+}
+
+/** Mengubah kuota satu akun. Nilai 0 berarti tanpa batas. */
+export async function updateMemberQuota(
+	id: string,
+	quotaGB: number
+): Promise<NasFamilyMember> {
+	const res = await nasFetch(
+		`/api/v1/family/members/${encodeURIComponent(id)}/quota`,
+		{
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ quota_gb: quotaGB }),
+		}
+	);
+	if (!res.ok) throw new Error(await parseError(res));
+	const json = (await res.json()) as { data: NasFamilyMember };
+	return json.data;
+}
+
 // ---------------- Autentikasi NAS ----------------
 
 export interface NasUser {

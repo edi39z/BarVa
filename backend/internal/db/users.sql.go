@@ -166,3 +166,40 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 	}
 	return items, nil
 }
+
+const updateUserQuota = `-- name: UpdateUserQuota :one
+UPDATE users
+SET quota_bytes = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING id, email, username, role, quota_bytes, created_at, updated_at
+`
+
+type UpdateUserQuotaParams struct {
+	ID         pgtype.UUID
+	QuotaBytes int64
+}
+
+type UpdateUserQuotaRow struct {
+	ID         pgtype.UUID
+	Email      string
+	Username   string
+	Role       string
+	QuotaBytes int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
+func (q *Queries) UpdateUserQuota(ctx context.Context, arg UpdateUserQuotaParams) (UpdateUserQuotaRow, error) {
+	row := q.db.QueryRow(ctx, updateUserQuota, arg.ID, arg.QuotaBytes)
+	var i UpdateUserQuotaRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.Role,
+		&i.QuotaBytes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

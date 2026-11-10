@@ -51,9 +51,12 @@ import {
   listNasTrash,
   restoreNasFile,
   purgeNasFile,
+  listFamilyMembers,
+  updateMemberQuota,
   TrashedNode,
   NasHealthResponse,
   NasUser,
+  NasFamilyMember,
 } from "@/lib/api/nas";
 import AddMemberModal from "@/components/AddMemberModal";
 import AuthGate from "@/components/AuthGate";
@@ -468,9 +471,31 @@ export default function Home() {
       const data = await listInvites();
       setServerInvites(data.invites);
       setServerMembers(data.members || []);
-      // Tampilkan anggota yang sudah menerima undangan sebagai kartu keluarga.
-      if (data.members?.length) {
-        const palette = ["bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-pink-600", "bg-teal-600"];
+
+      // Anggota yang sudah terdaftar di database membawa kuota dan pemakaian
+      // nyata; daftar undangan hanya dipakai sebagai cadangan.
+      let accounts: NasFamilyMember[] = [];
+      try {
+        accounts = await listFamilyMembers();
+      } catch {
+        accounts = [];
+      }
+
+      const palette = ["bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-pink-600", "bg-teal-600"];
+      if (accounts.length > 0) {
+        setFamilyMembers(
+          accounts.map((m, i) => ({
+            id: m.id,
+            name: m.username,
+            email: m.email,
+            role: m.role,
+            usedBytes: m.quota_used_bytes || 0,
+            quotaBytes: m.quota_bytes || 0,
+            avatarBg: palette[i % palette.length],
+          }))
+        );
+      } else if (data.members?.length) {
+        // Tampilkan anggota yang sudah menerima undangan sebagai kartu keluarga.
         setFamilyMembers(
           data.members.map((m, i) => ({
             id: m.id,
@@ -491,6 +516,12 @@ export default function Home() {
       setServerInvites([]);
       setServerMembers([]);
     }
+  };
+
+  // Ubah kuota satu anggota lalu segarkan kartu agar pemakaian ikut terbarui.
+  const handleUpdateMemberQuota = async (id: string, quotaGB: number) => {
+    await updateMemberQuota(id, quotaGB);
+    await refreshInvites();
   };
 
   useEffect(() => {
@@ -1440,6 +1471,9 @@ export default function Home() {
               onRevokeInvite={handleRevokeInvite}
               onRevokeShare={handleRevokeShare}
               onOpenFiles={() => setActiveTab("files")}
+              canManageQuota={currentUser?.role === "owner" || currentUser?.role === "admin"}
+              viewerRole={currentUser?.role || "member"}
+              onUpdateQuota={handleUpdateMemberQuota}
             />
           )}
         </div>
