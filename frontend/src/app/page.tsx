@@ -110,6 +110,10 @@ import {
   NasUser,
 } from "@/lib/api/nas";
 import AuthGate from "@/components/AuthGate";
+import MediaLightbox from "@/components/MediaLightbox";
+import MoveItemModal from "@/components/MoveItemModal";
+import ShareLinkModal from "@/components/ShareLinkModal";
+import StoragePickerModal from "@/components/StoragePickerModal";
 import {
   ActiveShare,
   DisplayItem,
@@ -726,6 +730,15 @@ export default function Home() {
     setMoveParentId(null);
     setMoveCrumbs([{ id: null, name: "Semua File" }]);
     loadMoveFolders(null, item.id);
+  };
+
+  const handleMoveNavigate = (id: string | null, name: string, crumbIndex?: number) => {
+    if (!moveItem) return;
+    setMoveParentId(id);
+    setMoveCrumbs((prev) =>
+      crumbIndex === undefined ? [...prev, { id, name }] : prev.slice(0, crumbIndex)
+    );
+    loadMoveFolders(id, moveItem.id);
   };
 
   const handleConfirmMove = async () => {
@@ -3399,284 +3412,48 @@ export default function Home() {
 
       {/* 3. LIGHTBOX / MEDIA DETAIL MODAL */}
       {selectedMedia && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row">
-            {/* Media Area */}
-            <div className="flex-1 bg-black flex items-center justify-center p-4 min-h-[340px]">
-              {selectedMedia.type === "video" ? (
-                <div className="w-full h-full flex flex-col items-center justify-center">
-                  <video
-                    controls
-                    autoPlay
-                    playsInline
-                    className="w-full max-h-[360px] rounded-xl bg-zinc-950 shadow-2xl border border-zinc-800"
-                    src={
-                      selectedMedia.blob
-                        ? URL.createObjectURL(selectedMedia.blob)
-                        : getStreamUrl(selectedMedia.id)
-                    }
-                  >
-                    Format video tidak didukung oleh browser Anda.
-                  </video>
-                  <div className="flex items-center gap-2 mt-2.5 text-[11px] text-zinc-400 font-mono">
-                    <Activity className="h-3.5 w-3.5 text-blue-400 animate-pulse" />
-                    <span>HTTP 206 Partial Content Stream • Scrubbing Aktif</span>
-                  </div>
-                </div>
-              ) : selectedMedia.type === "image" ? (
-                <div className="w-full h-full flex items-center justify-center p-2">
-                  <img
-                    src={
-                      selectedMedia.blob
-                        ? URL.createObjectURL(selectedMedia.blob)
-                        : getStreamUrl(selectedMedia.id)
-                    }
-                    alt={selectedMedia.name}
-                    className="max-h-[380px] w-auto max-w-full rounded-xl object-contain shadow-lg"
-                  />
-                </div>
-              ) : (
-                <div className="text-center space-y-2">
-                  <ImageIcon className="h-16 w-16 text-zinc-600 mx-auto" />
-                  <p className="text-xs text-zinc-500 font-mono">Pratinjau Resolusi Penuh</p>
-                </div>
-              )}
-            </div>
+        <MediaLightbox
+          item={selectedMedia}
+          onClose={() => setSelectedMedia(null)}
+          onDownload={handleDownload}
+        />
+      )}
 
-            {/* Metadata & Actions Sidebar */}
-            <div className="w-full md:w-80 p-5 flex flex-col justify-between border-t md:border-t-0 md:border-l border-zinc-800 space-y-4">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-zinc-200 truncate">{selectedMedia.name}</h3>
-                  <button onClick={() => setSelectedMedia(null)} className="text-zinc-500 hover:text-white cursor-pointer">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="mt-4 space-y-2.5 text-xs">
-                  <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-semibold">Ukuran File</span>
-                    <span className="text-zinc-200 font-mono">{selectedMedia.sizeStr}</span>
-                  </div>
-                  {selectedMedia.dimensions && (
-                    <div>
-                      <span className="text-zinc-500 block text-[10px] uppercase font-semibold">Dimensi / Resolusi</span>
-                      <span className="text-zinc-200 font-mono">{selectedMedia.dimensions}</span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-semibold">Waktu</span>
-                    <span className="text-zinc-200">{selectedMedia.updatedAt}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-semibold">Status Integritas</span>
-                    <span className="text-emerald-400 flex items-center gap-1 font-mono text-[11px]">
-                      <CheckCircle2 className="h-3 w-3" /> SHA-256 Validated
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleDownload(selectedMedia)}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Download File Asli</span>
-                </button>
-                <button
-                  onClick={() => setSelectedMedia(null)}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium py-2 rounded-lg transition-colors cursor-pointer"
-                >
-                  Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* 3b. MOVE ITEM MODAL */}
+      {moveItem && (
+        <MoveItemModal
+          item={moveItem}
+          crumbs={moveCrumbs}
+          folders={moveFolders}
+          loading={moveLoading}
+          busy={moveBusy}
+          onNavigate={handleMoveNavigate}
+          onConfirm={handleConfirmMove}
+          onClose={() => setMoveItem(null)}
+        />
       )}
 
       {/* 4. SHARE LINK MODAL */}
-      {moveItem && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
-                <FolderInput className="h-4 w-4 text-amber-400" />
-                <span>Pindahkan Item</span>
-              </div>
-              <button
-                onClick={() => setMoveItem(null)}
-                className="text-zinc-500 hover:text-white cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-400">
-              Pilih folder tujuan untuk{" "}
-              <span className="text-zinc-200 font-medium">{moveItem.name}</span>.
-            </p>
-
-            <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 flex-wrap bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2">
-              {moveCrumbs.map((c, i) => (
-                <React.Fragment key={`${c.id}-${i}`}>
-                  {i > 0 && <ChevronRight className="h-3 w-3 text-zinc-600" />}
-                  <button
-                    onClick={() => {
-                      setMoveParentId(c.id);
-                      setMoveCrumbs((prev) => prev.slice(0, i + 1));
-                      loadMoveFolders(c.id, moveItem.id);
-                    }}
-                    className="hover:text-white cursor-pointer"
-                  >
-                    {c.name}
-                  </button>
-                </React.Fragment>
-              ))}
-            </div>
-
-            <div className="max-h-60 overflow-y-auto space-y-1.5">
-              {moveLoading ? (
-                <div className="py-8 flex items-center justify-center gap-2 text-zinc-400 text-xs">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Memuat folder...</span>
-                </div>
-              ) : moveFolders.length === 0 ? (
-                <p className="py-8 text-center text-xs text-zinc-500">
-                  Tidak ada subfolder di sini.
-                </p>
-              ) : (
-                moveFolders.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => {
-                      setMoveParentId(f.id);
-                      setMoveCrumbs((prev) => [...prev, { id: f.id, name: f.name }]);
-                      loadMoveFolders(f.id, moveItem.id);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-left cursor-pointer"
-                  >
-                    <Folder className="h-4 w-4 text-blue-400 shrink-0" />
-                    <span className="text-xs text-zinc-200 truncate">{f.name}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-zinc-600 ml-auto" />
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => setMoveItem(null)}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium py-2.5 rounded-xl transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleConfirmMove}
-                disabled={moveBusy}
-                className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors cursor-pointer"
-              >
-                {moveBusy ? "Memindahkan..." : "Pindahkan ke Sini"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {shareModalFile && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
-                <Share2 className="h-4 w-4 text-blue-400" />
-                <span>Bagikan Link Aman</span>
-              </div>
-              <button
-                onClick={() => {
-                  setShareModalFile(null);
-                  setShareLinkGenerated(false);
-                }}
-                className="text-zinc-500 hover:text-white cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-400">
-              Buat link unduh publik untuk file <span className="text-zinc-200 font-medium">{shareModalFile.name}</span>.
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-zinc-400 block mb-1 font-medium">Batas Waktu Kedaluwarsa</label>
-                <select
-                  value={shareExpiryOption}
-                  onChange={(e) => setShareExpiryOption(e.target.value as "24h" | "7d" | "30d" | "never")}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="24h">24 Jam (1 Hari)</option>
-                  <option value="7d">7 Hari</option>
-                  <option value="30d">30 Hari</option>
-                  <option value="never">Tanpa Batas Waktu</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 block mb-1 font-medium">Izin Akses</label>
-                <select
-                  value={sharePermission}
-                  onChange={(e) => setSharePermission(e.target.value as "viewer" | "uploader")}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="viewer">Viewer (Hanya Melihat & Unduh)</option>
-                  <option value="uploader">Uploader (Bisa Unggah File Tambahan)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 block mb-1 font-medium">Proteksi Password (Opsional)</label>
-                <input
-                  type="password"
-                  value={sharePasswordInput}
-                  onChange={(e) => setSharePasswordInput(e.target.value)}
-                  placeholder="Masukkan password jika diperlukan..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {shareLinkGenerated ? (
-                <div className="bg-zinc-950 border border-blue-500/40 p-3 rounded-xl space-y-2">
-                  <span className="text-[10px] text-blue-400 font-semibold uppercase">Link Publik Terenkripsi Aktif</span>
-                  <div className="flex items-center justify-between bg-zinc-900 p-2 rounded-lg font-mono text-[11px] text-zinc-300">
-                    <span className="truncate">{currentGeneratedUrl}</span>
-                    <button
-                      onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.clipboard) {
-                          navigator.clipboard.writeText(currentGeneratedUrl);
-                        }
-                        alert("Link berhasil disalin ke clipboard!");
-                      }}
-                      className="text-blue-400 hover:text-blue-300 ml-2 font-sans font-medium cursor-pointer"
-                    >
-                      Salin
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={handleGenerateShare}
-                  disabled={shareGenerating}
-                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-colors mt-2 cursor-pointer shadow-sm shadow-blue-600/30"
-                >
-                  {shareGenerating ? "Membuat link..." : "Generate Link Berbagi"}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <ShareLinkModal
+          item={shareModalFile}
+          expiry={shareExpiryOption}
+          onExpiryChange={setShareExpiryOption}
+          permission={sharePermission}
+          onPermissionChange={setSharePermission}
+          password={sharePasswordInput}
+          onPasswordChange={setSharePasswordInput}
+          generatedUrl={currentGeneratedUrl}
+          generated={shareLinkGenerated}
+          generating={shareGenerating}
+          onGenerate={handleGenerateShare}
+          onClose={() => {
+            setShareModalFile(null);
+            setShareLinkGenerated(false);
+          }}
+        />
       )}
+
 
       {/* 6. ADD FAMILY MEMBER MODAL */}
       {addMemberModalOpen && (
@@ -3986,184 +3763,18 @@ export default function Home() {
 
       {/* 7. STORAGE FILE PICKER MODAL (FOR STUDIO TOOLS) */}
       {storagePickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 shrink-0">
-              <div className="flex items-center gap-2.5 text-zinc-100 font-semibold text-sm">
-                <Folder className="h-4 w-4 text-blue-400" />
-                <span>Pilih Berkas dari Penyimpanan untuk Studio</span>
-              </div>
-              <button
-                onClick={() => setStoragePickerOpen(false)}
-                className="text-zinc-500 hover:text-white cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Storage Tabs */}
-            <div className="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-800 rounded-xl text-xs shrink-0 w-fit">
-              <button
-                onClick={() => setStoragePickerTab("local")}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                  storagePickerTab === "local" ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <HardDrive className="h-3.5 w-3.5 text-blue-400" />
-                <span>Lokal Device (IndexedDB)</span>
-              </button>
-              <button
-                onClick={() => setStoragePickerTab("nas")}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                  storagePickerTab === "nas" ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <Server className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Server NAS ({nasStatus === "online" ? "Online" : "Offline"})</span>
-              </button>
-              <button
-                onClick={() => setStoragePickerTab("gdrive")}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                  storagePickerTab === "gdrive" ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <Cloud className="h-3.5 w-3.5 text-teal-400" />
-                <span>Google Drive Pro</span>
-              </button>
-            </div>
-
-            {/* File List in Modal */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px]">
-              {storagePickerTab === "local" &&
-                (() => {
-                  const eligibleItems = localItems.filter((i) => {
-                    if (
-                      storagePickerTool === "img2pdf" ||
-                      storagePickerTool === "idphoto" ||
-                      storagePickerTool === "compress"
-                    ) {
-                      return i.type === "image";
-                    }
-                    if (storagePickerTool === "mergepdf") {
-                      return i.type === "document" && i.name.toLowerCase().endsWith(".pdf");
-                    }
-                    return true;
-                  });
-
-                  if (eligibleItems.length === 0) {
-                    return (
-                      <div className="text-center py-10 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/30">
-                        <FileText className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                        <p className="text-xs font-semibold text-zinc-300">
-                          Belum ada berkas yang sesuai di penyimpanan lokal
-                        </p>
-                        <p className="text-[11px] text-zinc-500 mt-1">
-                          Unggah {storagePickerTool === "mergepdf" ? "file PDF" : "foto"} terlebih dahulu melalui menu
-                          Semua File.
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-1.5">
-                      {eligibleItems.map((item) => {
-                        const isSelected = selectedStorageIds.includes(item.id);
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => {
-                              if (storagePickerTool === "idphoto" || storagePickerTool === "compress") {
-                                setSelectedStorageIds([item.id]);
-                              } else {
-                                setSelectedStorageIds((prev) =>
-                                  isSelected ? prev.filter((id) => id !== item.id) : [...prev, item.id]
-                                );
-                              }
-                            }}
-                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                              isSelected
-                                ? "border-blue-500 bg-blue-500/10 text-white"
-                                : "border-zinc-800 bg-zinc-950/60 text-zinc-300 hover:border-zinc-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div
-                                className={`h-5 w-5 rounded flex items-center justify-center border text-xs ${
-                                  isSelected
-                                    ? "bg-blue-600 border-blue-500 text-white"
-                                    : "border-zinc-700 bg-zinc-900"
-                                }`}
-                              >
-                                {isSelected && <Check className="h-3.5 w-3.5" />}
-                              </div>
-                              <div className="truncate">
-                                <p className="text-xs font-medium truncate">{item.name}</p>
-                                <p className="text-[10px] text-zinc-500">
-                                  {item.sizeStr} • {item.updatedAt}
-                                </p>
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase">
-                              {item.type}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-
-              {storagePickerTab === "nas" && (
-                <div className="text-center py-10 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/30">
-                  <Server className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-zinc-300">
-                    {nasStatus === "online" ? "Server NAS Terhubung" : "Server NAS Offline"}
-                  </p>
-                  <p className="text-[11px] text-zinc-500 mt-1 max-w-sm mx-auto">
-                    {nasStatus === "online"
-                      ? "File yang diunggah ke NAS otomatis tersimpan dengan hash SHA-256 untuk pemrosesan instan."
-                      : "Hubungkan backend NAS di menu Settings untuk menarik berkas langsung dari server."}
-                  </p>
-                </div>
-              )}
-
-              {storagePickerTab === "gdrive" && (
-                <div className="text-center py-10 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/30">
-                  <Cloud className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-zinc-300">
-                    {isGdriveConnected ? "Google Drive Pro Terhubung" : "Google Drive Belum Dihubungkan"}
-                  </p>
-                  <p className="text-[11px] text-zinc-500 mt-1 max-w-sm mx-auto">
-                    {isGdriveConnected
-                      ? "Gunakan tab Google Drive di sidebar untuk membuka atau mengunduh file Pro Anda ke penyimpanan lokal."
-                      : "Buka tab Google Drive di sidebar dan hubungkan akun Anda untuk memilih berkas dari cloud."}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-zinc-800 shrink-0">
-              <span className="text-xs text-zinc-400">{selectedStorageIds.length} berkas dipilih</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setStoragePickerOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleExecuteStorageSelection}
-                  disabled={selectedStorageIds.length === 0}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer shadow-sm shadow-blue-600/30"
-                >
-                  Gunakan Berkas Terpilih
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <StoragePickerModal
+          tool={storagePickerTool}
+          tab={storagePickerTab}
+          onTabChange={setStoragePickerTab}
+          localItems={localItems}
+          selectedIds={selectedStorageIds}
+          onSelectedIdsChange={setSelectedStorageIds}
+          nasStatus={nasStatus}
+          isGdriveConnected={isGdriveConnected}
+          onClose={() => setStoragePickerOpen(false)}
+          onConfirm={handleExecuteStorageSelection}
+        />
       )}
     </div>
   );
