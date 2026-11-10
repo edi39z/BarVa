@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // Indikator dev bawaan Next.js berupa tombol melayang di salah satu sudut.
+  // Tata letak aplikasi ini memakai tinggi penuh, jadi sudut mana pun menimpa
+  // isi nyata — di kiri bawah ia menutupi kartu "Penyimpanan lokal". Status
+  // kompilasi tetap terlihat di terminal, jadi indikatornya dimatikan.
+  devIndicators: false,
   // Service worker harus selalu diambil ulang agar pembaruan tidak tertahan
   // cache HTTP di browser.
   async headers() {
