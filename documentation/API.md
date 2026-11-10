@@ -195,6 +195,9 @@ tidak tersembunyi saat folder lain sedang dibuka.
 
 `413 FILE_TOO_LARGE` bila melebihi batas per berkas.
 
+`409 CONFLICT` bila nama berkas sudah dipakai di folder itu. Penolakan ini
+tidak meninggalkan objek atau berkas yatim di storage.
+
 `413 QUOTA_EXCEEDED` bila kuota anggota tidak cukup:
 
 ```json

@@ -292,6 +292,27 @@ func (h *FilesHandler) enforceQuota(c *gin.Context, userId pgtype.UUID, sha256He
 	return true
 }
 
+// discardUploadObject membersihkan objek yang gagal dipakai node, beserta
+// berkas CAS-nya. Objek yang masih dirujuk node lain (kasus dedup) tidak
+// disentuh, karena berkasnya memang masih dipakai.
+func (h *FilesHandler) discardUploadObject(ctx context.Context, objectID pgtype.UUID, sha string) {
+	if _, err := h.queries.DeleteObjectIfOrphan(ctx, objectID); err != nil {
+		return
+	}
+	h.discardUploadFile(ctx, sha)
+}
+
+// discardUploadFile menghapus berkas CAS hanya bila tidak ada baris
+// file_objects yang menunjuk sha tersebut.
+func (h *FilesHandler) discardUploadFile(ctx context.Context, sha string) {
+	if _, err := h.queries.GetFileObjectBySHA256(ctx, sha); err == nil {
+		return
+	}
+	if err := h.storage.Delete(ctx, sha); err != nil {
+		log.Printf("[upload] gagal menghapus objek yatim %s: %v", sha, err)
+	}
+}
+
 func (h *FilesHandler) Upload(c *gin.Context) {
 	userId, ok := auth.GetUserID(c)
 	if !ok {
@@ -310,6 +331,14 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "FILE_REQUIRED", "message": "File upload diperlukan."}})
+		return
+	}
+
+	// Validasi folder induk sebelum menyentuh storage: menolak di sini jauh
+	// lebih murah daripada menulis objek lalu meninggalkannya yatim.
+	parentId, parentErr := h.resolveParent(c.Request.Context(), userId, c.PostForm("parent_id"))
+	if parentErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_PARENT", "message": parentErr.Error()}})
 		return
 	}
 
@@ -382,14 +411,8 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 		MimeType:    mimeType,
 	})
 	if err != nil {
+		h.discardUploadFile(c.Request.Context(), hashHex)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal mencatat metadata objek: " + err.Error()}})
-		return
-	}
-
-	// Parse & validasi folder induk
-	parentId, parentErr := h.resolveParent(c.Request.Context(), userId, c.PostForm("parent_id"))
-	if parentErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_PARENT", "message": parentErr.Error()}})
 		return
 	}
 
@@ -421,6 +444,9 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 		ObjectID:    fileObj.ID,
 	})
 	if err != nil {
+		// Node gagal dibuat (nama bentrok): objek yang barusan dicatat akan
+		// yatim kalau dibiarkan, jadi dibersihkan sebelum menjawab 409.
+		h.discardUploadObject(c.Request.Context(), fileObj.ID, hashHex)
 		c.JSON(http.StatusConflict, gin.H{"error": gin.H{"code": "CONFLICT", "message": "File dengan nama tersebut sudah ada di folder ini."}})
 		return
 	}
