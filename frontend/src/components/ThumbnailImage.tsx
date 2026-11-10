@@ -22,32 +22,35 @@ export default function ThumbnailImage({
   className,
   fallback = null,
 }: ThumbnailImageProps) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  // URL yang gagal dimuat, bukan boolean. Dengan begitu status gagal otomatis
+  // kembali normal ketika sumbernya berganti, tanpa perlu efek reset.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!blob) {
-      setUrl(src ?? null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(blob);
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [blob, src]);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    // Object URL hanya bisa dibuat setelah render dan wajib dibersihkan saat
+    // unmount, jadi nilainya memang baru diketahui di dalam efek.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setObjectUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob]);
 
-  useEffect(() => {
-    setFailed(false);
-  }, [url]);
+  const url = blob ? objectUrl : (src ?? null);
+  const failed = url !== null && failedUrl === url;
 
   if (!url || failed) return <>{fallback}</>;
 
   return (
+    // Object URL lokal dan endpoint thumbnail NAS tidak bisa dioptimasi next/image.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt={alt}
       loading="lazy"
       className={className}
-      onError={() => setFailed(true)}
+      onError={() => setFailedUrl(url)}
     />
   );
 }

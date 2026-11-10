@@ -2,11 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Image as ImageIcon,
-  Home as HomeIcon,
-  FolderInput
-} from "lucide-react";
-import {
   saveLocalFile,
   getAllLocalFiles,
   deleteLocalFile,
@@ -92,6 +87,26 @@ import {
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
+const AVATAR_PALETTE = [
+  "bg-emerald-600",
+  "bg-purple-600",
+  "bg-amber-600",
+  "bg-pink-600",
+  "bg-teal-600",
+];
+
+/**
+ * Warna avatar diturunkan dari identitas anggota, bukan diacak, supaya warnanya
+ * tetap sama setiap kali kartu dirender ulang.
+ */
+function avatarColorFor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"home" | "files" | "trash" | "gallery" | "studio" | "gdrive" | "shares">("home");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -149,9 +164,6 @@ export default function Home() {
 
   const [activeShares, setActiveShares] = useState<ActiveShare[]>([]);
 
-  // Phase 5: PWA Installation State
-  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
-
   // Folder Drill-down & Breadcrumbs State
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<{ id: string | null; name: string }[]>([
@@ -162,7 +174,6 @@ export default function Home() {
   const [generatedInviteUrl, setGeneratedInviteUrl] = useState("");
   // Undangan & anggota yang tersimpan di server NAS
   const [serverInvites, setServerInvites] = useState<ServerInvite[]>([]);
-  const [serverMembers, setServerMembers] = useState<ServerMember[]>([]);
 
   // Local storage items from IndexedDB
   const [localItems, setLocalItems] = useState<DisplayItem[]>([]);
@@ -236,6 +247,9 @@ export default function Home() {
   // Load files from IndexedDB and Check NAS Server Health on mount
   useEffect(() => {
     const savedUrl = getStoredServerUrl();
+    // Konfigurasi server hanya ada di localStorage klien, jadi tidak bisa dibaca
+    // lewat initializer useState tanpa memicu hydration mismatch saat prerender.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setServerUrl(savedUrl);
     setInputServerUrl(savedUrl);
     setInputAdminKey(getAdminKey());
@@ -325,21 +339,20 @@ export default function Home() {
     }
   }, []);
 
+  // Di luar mode NAS, `nasItems` yang tersisa tidak pernah dirender karena
+  // `activeItems` memilih `localItems`. Jadi tidak perlu direset lewat setState.
   useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) {
-      setNasItems([]);
-      return;
-    }
+    if (connectionMode !== "nas" || !currentUser) return;
+    // Pemuat menyalakan indikator loading secara sinkron supaya UI langsung
+    // bereaksi; itu bagian dari efek samping fetch, bukan state turunan.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNasFiles(currentFolderId);
   }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
 
   // Galeri memuat media lintas folder setiap kali tabnya dibuka, supaya
   // unggahan/hapus terbaru langsung terlihat tanpa memuat seluruh pohon berkas.
   useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) {
-      setMediaItems([]);
-      return;
-    }
+    if (connectionMode !== "nas" || !currentUser) return;
     if (activeTab !== "gallery") return;
 
     let cancelled = false;
@@ -375,6 +388,9 @@ export default function Home() {
   }, [connectionMode, currentUser]);
 
   useEffect(() => {
+    // Sama seperti pemuat lain: indikator loading dinyalakan sinkron oleh
+    // `loadTrash`, jadi tidak ada state turunan yang bisa dipakai.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTrash();
   }, [loadTrash]);
 
@@ -457,8 +473,7 @@ export default function Home() {
     e.preventDefault();
     if (!newMemberName || !newMemberEmail) return;
 
-    const colors = ["bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-pink-600", "bg-teal-600"];
-    const randomBg = colors[Math.floor(Math.random() * colors.length)];
+    const avatarBg = avatarColorFor(newMemberEmail);
 
     // Undangan disimpan di server (bukan hanya localStorage browser ini),
     // supaya pemilik bisa melihat status dan tautannya tetap berlaku.
@@ -478,7 +493,7 @@ export default function Home() {
         role: newMemberRole,
         usedBytes: 0,
         quotaBytes: newMemberQuotaGB * 1024 * 1024 * 1024,
-        avatarBg: randomBg,
+        avatarBg,
       };
       setFamilyMembers((prev) => [...prev, member]);
 
@@ -505,11 +520,9 @@ export default function Home() {
       const data = await listInvites();
       setServerInvites(data.invites);
       inviteMembers = data.members || [];
-      setServerMembers(inviteMembers);
     } catch {
       // backend belum jalan atau admin key tidak diisi
       setServerInvites([]);
-      setServerMembers([]);
     }
 
     // Anggota yang sudah terdaftar di database membawa kuota dan pemakaian
@@ -521,7 +534,6 @@ export default function Home() {
       accounts = [];
     }
 
-    const palette = ["bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-pink-600", "bg-teal-600"];
     if (accounts.length > 0) {
       setFamilyMembers(
         accounts.map((m, i) => ({
@@ -531,7 +543,7 @@ export default function Home() {
           role: m.role,
           usedBytes: m.quota_used_bytes || 0,
           quotaBytes: m.quota_bytes || 0,
-          avatarBg: palette[i % palette.length],
+          avatarBg: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
         }))
       );
       return;
@@ -550,7 +562,7 @@ export default function Home() {
             | "member",
           usedBytes: 0,
           quotaBytes: m.quota_gb * 1024 * 1024 * 1024,
-          avatarBg: palette[i % palette.length],
+          avatarBg: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
         }))
       );
     }
@@ -563,12 +575,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    let alive = true;
     refreshInvites();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Validasi token sesi NAS yang tersimpan saat aplikasi dibuka.
@@ -645,6 +652,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    // `refreshShares` mengisi state dari API saat mode NAS aktif; pemicunya
+    // perubahan koneksi/pengguna, bukan render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (connectionMode === "nas" && currentUser) refreshShares();
   }, [connectionMode, currentUser, refreshShares]);
 
@@ -1414,11 +1424,13 @@ export default function Home() {
   };
 
   // Sumber data UI: server NAS saat mode NAS, IndexedDB saat standalone.
-  const activeItems = connectionMode === "nas" ? nasItems : localItems;
+  // Tanpa sesi NAS, daftar dari server tidak boleh ditampilkan meski datanya
+  // masih tersisa di state — dulu ini ditangani dengan mereset state di efek.
+  const activeItems = connectionMode === "nas" ? (currentUser ? nasItems : []) : localItems;
 
   // Galeri memakai media lintas folder di mode NAS; di standalone seluruh
   // item lokal memang sudah terkumpul di satu tempat.
-  const galleryItems = connectionMode === "nas" ? mediaItems : localItems;
+  const galleryItems = connectionMode === "nas" ? (currentUser ? mediaItems : []) : localItems;
 
   // Owner/admin bisa melihat berkas anggota lain; UI perlu menandainya agar
   // tidak tertukar dengan berkas sendiri.

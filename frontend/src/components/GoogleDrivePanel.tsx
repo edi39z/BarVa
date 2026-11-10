@@ -117,6 +117,9 @@ export default function GoogleDrivePanel() {
   );
 
   useEffect(() => {
+    // Status Drive diambil sekali saat panel dibuka. Pemicunya mount, bukan
+    // render, jadi setState di dalam pemuat ini memang disengaja.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshStatus().then((s) => {
       if (s?.connected) loadDrive({ folder: "" });
     });

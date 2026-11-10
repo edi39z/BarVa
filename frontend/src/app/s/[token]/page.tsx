@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   FileText,
   Image as ImageIcon,
@@ -58,12 +59,14 @@ function PublicShareContent() {
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  // Token kosong adalah kondisi statis, bukan hasil efek. Diturunkan saat render
+  // supaya efek tidak perlu memanggil setState hanya untuk menandai galat.
+  const isLoading = Boolean(token) && loading;
+  const errorMessage = error || (token ? "" : "Tautan berbagi tidak lengkap.");
+
   useEffect(() => {
-    if (!token) {
-      setError("Tautan berbagi tidak lengkap.");
-      setLoading(false);
-      return;
-    }
+    if (!token) return;
+
     fetch(`${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}`)
       .then(async (res) => {
         const body = await res.json().catch(() => null);
@@ -120,6 +123,9 @@ function PublicShareContent() {
     const query = info?.has_password && password
       ? `?password=${encodeURIComponent(password)}`
       : "";
+    // Tujuan navigasi ada di origin backend (bukan halaman Next.js), jadi
+    // router.push tidak berlaku — ini memicu unduhan dari server NAS.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}/download${query}`;
     setTimeout(() => setDownloading(false), 1200);
   }
@@ -130,6 +136,8 @@ function PublicShareContent() {
     const query = info?.has_password && password
       ? `?password=${encodeURIComponent(password)}`
       : "";
+    // Sama seperti unduhan berkas: endpoint arsip ada di origin backend.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}/archive${query}`;
     setTimeout(() => setDownloading(false), 1500);
   }
@@ -148,26 +156,26 @@ function PublicShareContent() {
           <span className="text-[13.5px] font-bold tracking-tight text-fg">NAS Project</span>
         </div>
 
-        {loading && (
+        {isLoading && (
           <div className="flex flex-col items-center gap-2 py-10 text-muted">
             <Loader2 className="h-6 w-6 animate-spin text-brand" aria-hidden />
             <p className="text-[12px]">Memeriksa tautan…</p>
           </div>
         )}
 
-        {!loading && error && !info && (
+        {!isLoading && errorMessage && !info && (
           <div className="space-y-3">
             <div className="flex items-start gap-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-left text-[12px] text-danger">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>{error}</span>
+              <span>{errorMessage}</span>
             </div>
-            <a href="/" className="btn btn-secondary w-full">
+            <Link href="/" className="btn btn-secondary w-full">
               Buka aplikasi
-            </a>
+            </Link>
           </div>
         )}
 
-        {!loading && info && (
+        {!isLoading && info && (
           <>
             <div className="space-y-1.5">
               <span className="chip chip-brand">Tautan berbagi</span>
@@ -223,9 +231,9 @@ function PublicShareContent() {
                   placeholder="Masukkan kata sandi"
                   className="input"
                 />
-                {error && (
+                {errorMessage && (
                   <p className="flex items-center gap-1 text-[11.5px] text-danger">
-                    <AlertCircle className="h-3.5 w-3.5" aria-hidden /> {error}
+                    <AlertCircle className="h-3.5 w-3.5" aria-hidden /> {errorMessage}
                   </p>
                 )}
                 <button type="submit" disabled={checking} className="btn btn-primary btn-lg w-full">
@@ -262,9 +270,9 @@ function PublicShareContent() {
           <span className="font-mono">
             {token ? `${token.substring(0, 10)}…` : "—"}
           </span>
-          <a href="/" className="font-semibold text-brand hover:underline">
+          <Link href="/" className="font-semibold text-brand hover:underline">
             Buka aplikasi →
-          </a>
+          </Link>
         </div>
       </div>
     </div>

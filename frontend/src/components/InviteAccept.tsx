@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   HardDrive,
   Folder,
@@ -39,12 +40,14 @@ export default function InviteAccept({ token }: { token?: string }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Token kosong adalah kondisi statis, bukan hasil efek. Diturunkan saat render
+  // supaya efek tidak perlu memanggil setState hanya untuk menandai galat.
+  const isLoading = Boolean(token) && loading;
+  const errorMessage =
+    error || (token ? "" : "Tautan undangan tidak lengkap. Minta tautan baru ke pemilik NAS.");
+
   useEffect(() => {
-    if (!token) {
-      setError("Tautan undangan tidak lengkap. Minta tautan baru ke pemilik NAS.");
-      setLoading(false);
-      return;
-    }
+    if (!token) return;
     peekInvite(token)
       .then((d) => setInfo(d))
       .catch((e: Error) => setError(e.message))
@@ -129,26 +132,26 @@ export default function InviteAccept({ token }: { token?: string }) {
           </div>
         </div>
 
-        {loading && (
+        {isLoading && (
           <div className="flex flex-col items-center gap-2 py-10 text-muted">
             <Loader2 className="h-6 w-6 animate-spin text-brand" aria-hidden />
             <p className="text-[12px]">Memeriksa undangan…</p>
           </div>
         )}
 
-        {!loading && error && !info && (
+        {!isLoading && errorMessage && !info && (
           <div className="space-y-3">
             <div className="flex items-start gap-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-left text-[12px] text-danger">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>{error}</span>
+              <span>{errorMessage}</span>
             </div>
-            <a href="/" className="btn btn-secondary w-full">
+            <Link href="/" className="btn btn-secondary w-full">
               Buka aplikasi
-            </a>
+            </Link>
           </div>
         )}
 
-        {!loading && !error && info && (
+        {!isLoading && !errorMessage && info && (
           <>
             <div className="space-y-1.5">
               <span className="chip chip-brand">Undangan anggota keluarga</span>
