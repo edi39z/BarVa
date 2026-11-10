@@ -150,13 +150,29 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 
 ### 1. Database
 
+Pilih salah satu.
+
+**Docker** (tidak perlu memasang PostgreSQL di mesin):
+
+```bash
+docker compose -f deploy/docker/docker-compose.dev.yml up -d
+```
+
+Berkas itu hanya menyalakan PostgreSQL di `127.0.0.1:5432` dengan kredensial
+yang sama seperti default di bawah, jadi tidak ada env yang perlu diisi.
+Backend tetap dijalankan dengan `go run` — image backend tidak dibangun.
+
+**PostgreSQL yang sudah terpasang:**
+
 ```bash
 createdb nas_db
-psql -d nas_db -f migrations/000001_init_schema.up.sql
 ```
 
 Default koneksi: `postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable`.
 Kalau berbeda, set `DATABASE_URL`.
+
+Skema tidak perlu dibuat manual di kedua jalur: backend menerapkan migrasi dari
+folder `migrations/` saat start.
 
 ### 2. Backend
 
@@ -204,6 +220,15 @@ sebagai test user, lalu isi Client ID/Secret lewat panel di aplikasi.
 ---
 
 ## Menjalankan — Docker
+
+Ada dua berkas di `deploy/docker/`:
+
+| Berkas | Isi |
+|---|---|
+| `docker-compose.dev.yml` | PostgreSQL saja, untuk pengembangan lokal (lihat [Database](#1-database)) |
+| `docker-compose.yml` | Seluruh stack (PostgreSQL + backend) dalam mode release |
+
+Bagian ini menjelaskan yang kedua.
 
 ```bash
 cd deploy/docker
