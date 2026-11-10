@@ -110,10 +110,12 @@ import {
   NasUser,
 } from "@/lib/api/nas";
 import AuthGate from "@/components/AuthGate";
+import GalleryTab from "@/components/GalleryTab";
 import MediaLightbox from "@/components/MediaLightbox";
 import MoveItemModal from "@/components/MoveItemModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import StoragePickerModal from "@/components/StoragePickerModal";
+import TrashTab from "@/components/TrashTab";
 import {
   ActiveShare,
   DisplayItem,
@@ -2532,215 +2534,26 @@ export default function Home() {
 
           {/* TAB 1b: TRASH */}
           {activeTab === "trash" && (
-            <div className="space-y-5 max-w-5xl mx-auto">
-              <div className="rounded-xl border border-amber-900/50 bg-amber-950/30 px-4 py-3 flex items-start gap-3">
-                <Trash2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-amber-200">Item di Trash belum benar-benar dihapus</p>
-                  <p className="text-[11px] text-amber-300/80 mt-0.5 leading-relaxed">
-                    Pulihkan untuk mengembalikan item ke folder asalnya. Hapus permanen membebaskan ruang
-                    penyimpanan dan tidak bisa dibatalkan.
-                  </p>
-                </div>
-                <button
-                  onClick={loadTrash}
-                  disabled={trashLoading}
-                  className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-3 w-3 ${trashLoading ? "animate-spin" : ""}`} />
-                  <span>Muat ulang</span>
-                </button>
-              </div>
-
-              {trashError && (
-                <div className="rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 bg-rose-950/50 border border-rose-800/60 text-rose-300">
-                  <WifiOff className="h-3.5 w-3.5 shrink-0" />
-                  <span>Gagal memuat trash: {trashError}</span>
-                </div>
-              )}
-
-              {trashItems.length === 0 ? (
-                <div className="text-center py-16 border-2 border-dashed border-zinc-800/80 rounded-2xl bg-zinc-900/20">
-                  <Trash2 className="h-12 w-12 text-zinc-600 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-zinc-300">Trash kosong</p>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Item yang kamu hapus dari file manager akan muncul di sini dan bisa dipulihkan.
-                  </p>
-                </div>
-              ) : (
-                <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/20">
-                  <table className="w-full text-left text-xs text-zinc-300">
-                    <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
-                      <tr>
-                        <th className="py-2.5 px-4 font-medium">Nama</th>
-                        <th className="py-2.5 px-4 font-medium">Lokasi Asal</th>
-                        <th className="py-2.5 px-4 font-medium">Ukuran</th>
-                        <th className="py-2.5 px-4 font-medium">Dihapus</th>
-                        <th className="py-2.5 px-4 text-right font-medium">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800/60">
-                      {trashItems.map((node) => {
-                        const mime = (node.MimeType || "").toLowerCase();
-                        const busy = trashBusyId === node.ID;
-                        return (
-                          <tr key={node.ID} className="hover:bg-zinc-900/60 transition-colors">
-                            <td className="py-2.5 px-4 font-medium text-zinc-200">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {node.IsDirectory ? (
-                                  <Folder className="h-4 w-4 text-blue-400 shrink-0" />
-                                ) : mime.startsWith("image/") ? (
-                                  <ImageIcon className="h-4 w-4 text-purple-400 shrink-0" />
-                                ) : mime.startsWith("video/") || mime.startsWith("audio/") ? (
-                                  <Film className="h-4 w-4 text-emerald-400 shrink-0" />
-                                ) : (
-                                  <FileText className="h-4 w-4 text-zinc-400 shrink-0" />
-                                )}
-                                <span className="truncate max-w-[18rem]" title={node.Name}>
-                                  {node.Name}
-                                </span>
-                                {currentUser && node.OwnerID !== currentUser.id && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                                    Milik anggota lain
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-4 text-zinc-400">
-                              {node.ParentName || "Semua File"}
-                            </td>
-                            <td className="py-2.5 px-4 font-mono text-zinc-400">
-                              {node.IsDirectory ? "Folder" : formatBytes(node.SizeBytes ?? 0)}
-                            </td>
-                            <td className="py-2.5 px-4 text-zinc-400">
-                              {node.DeletedAt
-                                ? new Date(node.DeletedAt).toLocaleString("id-ID", {
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : "—"}
-                            </td>
-                            <td className="py-2.5 px-4">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => handleRestoreTrash(node)}
-                                  disabled={busy}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer disabled:opacity-40"
-                                  title="Pulihkan ke folder asal"
-                                >
-                                  <CornerLeftUp className="h-3 w-3" />
-                                  <span>Pulihkan</span>
-                                </button>
-                                <button
-                                  onClick={() => handlePurgeTrash(node)}
-                                  disabled={busy}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 transition-colors cursor-pointer disabled:opacity-40"
-                                  title="Hapus permanen"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                  <span>Hapus permanen</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <TrashTab
+              items={trashItems}
+              loading={trashLoading}
+              error={trashError}
+              busyId={trashBusyId}
+              currentUserId={currentUser?.id}
+              onReload={loadTrash}
+              onRestore={handleRestoreTrash}
+              onPurge={handlePurgeTrash}
+            />
           )}
 
           {/* TAB 2: GALLERY VIEW */}
           {activeTab === "gallery" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
-                <div>
-                  <h2 className="text-base font-semibold text-zinc-100">Galeri Media Keluarga</h2>
-                  <p className="text-xs text-zinc-400">
-                    Foto & video Anda • Streaming instan via HTTP 206 Partial Content
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs w-fit">
-                  <button
-                    onClick={() => setGalleryCategory("all")}
-                    className={`px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
-                      galleryCategory === "all" ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    Semua
-                  </button>
-                  <button
-                    onClick={() => setGalleryCategory("image")}
-                    className={`px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
-                      galleryCategory === "image" ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    Foto
-                  </button>
-                  <button
-                    onClick={() => setGalleryCategory("video")}
-                    className={`px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
-                      galleryCategory === "video" ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    Video
-                  </button>
-                  <button
-                    onClick={() => setGalleryCategory("favorite")}
-                    className={`px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1 ${
-                      galleryCategory === "favorite" ? "bg-rose-600 text-white" : "text-zinc-400 hover:text-rose-400"
-                    }`}
-                  >
-                    <Heart className="h-3 w-3" />
-                    <span>Favorit</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {localItems
-                  .filter((item) => {
-                    if (galleryCategory === "all") return item.type === "image" || item.type === "video";
-                    if (galleryCategory === "image") return item.type === "image";
-                    if (galleryCategory === "video") return item.type === "video";
-                    if (galleryCategory === "favorite") return (item.type === "image" || item.type === "video") && item.isFavorite;
-                    return false;
-                  })
-                  .map((photo) => (
-                    <div
-                      key={photo.id}
-                      onClick={() => setSelectedMedia(photo)}
-                      className="group relative aspect-square bg-zinc-900 rounded-xl overflow-hidden cursor-pointer border border-zinc-800/80 hover:border-blue-500/50 transition-all"
-                    >
-                      <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 flex flex-col items-center justify-center p-3 text-center group-hover:scale-105 transition-transform duration-300">
-                        {photo.type === "video" ? (
-                          <div className="h-10 w-10 rounded-full bg-blue-600/80 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                            <Play className="h-5 w-5 ml-0.5" />
-                          </div>
-                        ) : (
-                          <ImageIcon className="h-8 w-8 text-zinc-600 group-hover:text-blue-400 transition-colors" />
-                        )}
-                        <p className="text-[11px] text-zinc-300 font-medium mt-2 line-clamp-1">{photo.name}</p>
-                        <p className="text-[10px] text-zinc-500 font-mono">{photo.sizeStr}</p>
-                      </div>
-
-                      <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
-                        <span className="text-[10px] bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded text-zinc-300 font-mono">
-                          {photo.dimensions || photo.duration || "Media"}
-                        </span>
-                        {photo.isFavorite && (
-                          <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
+            <GalleryTab
+              items={localItems}
+              category={galleryCategory}
+              onCategoryChange={setGalleryCategory}
+              onOpen={setSelectedMedia}
+            />
           )}
 
           {/* TAB 3: CLIENT-SIDE STUDIO TOOLS (WASM & CANVAS) */}
