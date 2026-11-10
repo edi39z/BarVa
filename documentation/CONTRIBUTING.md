@@ -68,9 +68,11 @@ Anda mengujinya.
 cd frontend && npm run test:e2e
 ```
 
-Suite tanpa backend berjalan di mode standalone dan hanya butuh frontend
-hidup di `http://localhost:3000` (`npm run build && npm start`). Bila frontend
-berjalan di port lain, set `NAS_E2E_BASE_URL`.
+Suite tanpa backend berjalan di mode standalone. Playwright menyalakan dan
+mematikan `npm run start` sendiri di `http://localhost:3000`, jadi jalankan
+`npm run build` lebih dulu. Bila sudah ada server yang hidup di port itu
+(mis. `npm run dev`), server tersebut dipakai ulang. Bila frontend berjalan di
+port lain, set `NAS_E2E_BASE_URL`.
 
 Test yang membutuhkan backend dan akun uji di-skip secara default. Untuk
 menjalankannya:
@@ -85,6 +87,24 @@ npm run test:e2e
 Playwright memakai Chromium yang sudah terpasang di mesin. Bila tidak ada,
 jalankan `npx playwright install chromium` atau set `PLAYWRIGHT_CHROMIUM_PATH`
 ke executable Chrome/Chromium lain.
+
+### Apa yang dijalankan CI
+
+`.github/workflows/ci.yml` berjalan pada setiap push ke `main` dan setiap Pull
+Request. Tiga job paralel di runner `ubuntu-24.04`:
+
+| Job | Isi |
+|---|---|
+| `Backend (Go)` | `go build ./...` lalu `go test ./...` |
+| `Frontend (Next.js)` | `tsc --noEmit` lalu `npm run build` |
+| `E2E (Playwright)` | `npm run build` lalu `e2e/smoke.spec.ts` di Chromium |
+
+Suite e2e lain (`nas-mode`, `offline-upload`, `public-share`) tidak dijalankan
+di CI karena butuh backend hidup dan akun uji.
+
+Lint frontend belum dijadikan gate karena masih ada temuan lama. Setiap job
+diberi `timeout-minutes: 15` supaya proses yang menggantung tidak memakan kuota
+bawaan GitHub (360 menit).
 
 ---
 

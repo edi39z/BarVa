@@ -12,6 +12,8 @@ const launchOptions = fs.existsSync(localChromium)
   ? { executablePath: localChromium }
   : {};
 
+const baseURL = process.env.NAS_E2E_BASE_URL || "http://localhost:3000";
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -21,10 +23,19 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
   use: {
-    baseURL: process.env.NAS_E2E_BASE_URL || "http://localhost:3000",
+    baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     launchOptions,
+  },
+  // Playwright yang menyalakan dan mematikan server, jadi tidak perlu langkah
+  // terpisah di CI. `npm run start` butuh hasil `npm run build` lebih dulu.
+  // Di lokal, server yang sudah berjalan (mis. `npm run dev`) dipakai ulang.
+  webServer: {
+    command: "npm run start",
+    url: baseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
   },
   projects: [
     {

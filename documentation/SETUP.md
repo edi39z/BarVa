@@ -200,5 +200,5 @@ Hindari tunnel HTTP untuk transfer berkas besar.
 ```bash
 cd backend  && go build ./... && go test ./...
 cd frontend && npx tsc --noEmit && npm run build
-cd frontend && npm run test:e2e   # butuh `npm start` di port 3000
+cd frontend && npm run test:e2e   # Playwright menyalakan servernya sendiri
 ```
