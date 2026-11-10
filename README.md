@@ -315,7 +315,7 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 2. Kerjakan satu hal per branch. Hindari mencampur refactor besar dengan fitur baru.
 3. Jalankan pemeriksaan sebelum commit:
    ```bash
-   cd backend  && go build ./... && go test ./...
+   cd backend  && go build ./... && go vet ./... && go test ./...
    cd frontend && npx tsc --noEmit && npm run build
    cd frontend && npm run test:e2e   # Playwright menyalakan servernya sendiri
    ```

@@ -7,6 +7,8 @@
 #   minimum dinaikkan.
 # - Lint frontend belum dijadikan gate karena masih ada temuan lama di kode
 #   yang belum tersentuh; yang dijaga di sini adalah type-check dan build.
+# - Backend dijaga `go vet` dan `gofmt -l` selain build dan test. Keduanya
+#   sudah bersih saat gate ini ditambahkan, jadi tidak ada utang yang diwariskan.
 # - Runner dipin ke ubuntu-24.04, bukan ubuntu-latest. Label `-latest` akan
 #   berpindah ke Ubuntu 26 pada Oktober 2026; pinning menjaga hasil build tetap
 #   sama sampai migrasinya diuji sendiri.
@@ -48,6 +50,21 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      # `gofmt -l` hanya mencetak nama berkas, tidak pernah gagal sendiri.
+      # Karena itu hasilnya diperiksa manual supaya bisa dijadikan gate.
+      - name: Format check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Berkas berikut belum diformat. Jalankan 'gofmt -w .' di folder backend:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+          echo "Semua berkas Go sudah diformat."
 
       - name: Build
         run: go build -v ./...

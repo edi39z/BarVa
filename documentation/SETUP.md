@@ -198,7 +198,7 @@ Hindari tunnel HTTP untuk transfer berkas besar.
 ## 7. Pemeriksaan sebelum commit
 
 ```bash
-cd backend  && go build ./... && go test ./...
+cd backend  && go build ./... && go vet ./... && go test ./...
 cd frontend && npx tsc --noEmit && npm run build
 cd frontend && npm run test:e2e   # Playwright menyalakan servernya sendiri
 ```

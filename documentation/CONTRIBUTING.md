@@ -52,7 +52,7 @@ fix(auth): tangani token kedaluwarsa saat fetchMe
 Jalankan sebelum membuka PR:
 
 ```bash
-cd backend  && go build ./... && go test ./...
+cd backend  && go build ./... && go vet ./... && go test ./...
 cd frontend && npx tsc --noEmit && npm run build
 ```
 
@@ -95,7 +95,7 @@ Request. Tiga job paralel di runner `ubuntu-24.04`:
 
 | Job | Isi |
 |---|---|
-| `Backend (Go)` | `go build ./...` lalu `go test ./...` |
+| `Backend (Go)` | `go vet ./...`, cek `gofmt -l`, `go build ./...`, lalu `go test ./...` |
 | `Frontend (Next.js)` | `tsc --noEmit` lalu `npm run build` |
 | `E2E (Playwright)` | `npm run build` lalu `e2e/smoke.spec.ts` di Chromium |
 
@@ -105,6 +105,13 @@ di CI karena butuh backend hidup dan akun uji.
 Lint frontend belum dijadikan gate karena masih ada temuan lama. Setiap job
 diberi `timeout-minutes: 15` supaya proses yang menggantung tidak memakan kuota
 bawaan GitHub (360 menit).
+
+Backend dijaga `go vet` dan `gofmt -l` selain build dan test. Sebelum commit,
+jalankan `gofmt -w .` di folder `backend` bila ada berkas yang belum rapi.
+
+Catatan untuk pengguna Windows: dengan `core.autocrlf=true`, `gofmt -l` bisa
+menandai semua berkas karena baris baru CRLF di working tree. Isi yang tersimpan
+di Git tetap LF, jadi gate ini tidak akan gagal di CI.
 
 ---
 
