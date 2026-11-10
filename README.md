@@ -300,6 +300,16 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 Jika menemukan celah keamanan, jangan buka issue publik — hubungi maintainer
 secara langsung.
 
+### Advisory dependensi yang diterima
+
+`npm audit` di `frontend/` melaporkan 2 temuan **high** dari `zod` < 4.6.6
+(GHSA-mrhx-c7xc-m3w5) di dalam `@imgly/background-removal`. Temuan ini sengaja
+dibiarkan dan tidak ditutup dengan `overrides`: paket itu mengekspor tipe
+`Config` memakai nama tipe zod 3, sehingga memaksa zod 4 membuat `Config`
+menjadi `any` dan mematikan pemeriksaan `model`/`device`/`output`. Alasan
+lengkapnya ada di
+[CONTRIBUTING](documentation/CONTRIBUTING.md#dependensi-dengan-advisory-terbuka).
+
 ---
 
 ## Kontribusi
