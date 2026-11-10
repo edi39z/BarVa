@@ -3,6 +3,7 @@
 import React from "react";
 import { Heart, Image as ImageIcon, Play } from "lucide-react";
 import type { DisplayItem } from "@/lib/nasDisplay";
+import ThumbnailImage from "@/components/ThumbnailImage";
 
 export type GalleryCategory = "all" | "image" | "video" | "favorite";
 
@@ -11,6 +12,8 @@ interface GalleryTabProps {
   category: GalleryCategory;
   onCategoryChange: (category: GalleryCategory) => void;
   onOpen: (item: DisplayItem) => void;
+  /** URL pratinjau server; null bila item tidak punya pratinjau. */
+  thumbnailUrl: (item: DisplayItem) => string | null;
 }
 
 const CATEGORY_FILTERS: Record<GalleryCategory, (item: DisplayItem) => boolean> = {
@@ -20,7 +23,13 @@ const CATEGORY_FILTERS: Record<GalleryCategory, (item: DisplayItem) => boolean> 
   favorite: (item) => (item.type === "image" || item.type === "video") && Boolean(item.isFavorite),
 };
 
-export default function GalleryTab({ items, category, onCategoryChange, onOpen }: GalleryTabProps) {
+export default function GalleryTab({
+  items,
+  category,
+  onCategoryChange,
+  onOpen,
+  thumbnailUrl,
+}: GalleryTabProps) {
   const visible = items.filter(CATEGORY_FILTERS[category]);
 
   return (
@@ -76,16 +85,35 @@ export default function GalleryTab({ items, category, onCategoryChange, onOpen }
             onClick={() => onOpen(photo)}
             className="group relative aspect-square bg-zinc-900 rounded-xl overflow-hidden cursor-pointer border border-zinc-800/80 hover:border-blue-500/50 transition-all"
           >
-            <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 flex flex-col items-center justify-center p-3 text-center group-hover:scale-105 transition-transform duration-300">
+            {/* Lapisan dasar: tampil saat thumbnail belum ada atau gagal dimuat */}
+            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 flex flex-col items-center justify-center p-3 text-center">
               {photo.type === "video" ? (
-                <div className="h-10 w-10 rounded-full bg-blue-600/80 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                  <Play className="h-5 w-5 ml-0.5" />
-                </div>
+                <Play className="h-8 w-8 text-blue-400" />
               ) : (
-                <ImageIcon className="h-8 w-8 text-zinc-600 group-hover:text-blue-400 transition-colors" />
+                <ImageIcon className="h-8 w-8 text-zinc-600" />
               )}
               <p className="text-[11px] text-zinc-300 font-medium mt-2 line-clamp-1">{photo.name}</p>
               <p className="text-[10px] text-zinc-500 font-mono">{photo.sizeStr}</p>
+            </div>
+
+            <ThumbnailImage
+              blob={photo.blob}
+              src={thumbnailUrl(photo)}
+              alt={photo.name}
+              className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+
+            {photo.type === "video" && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="h-10 w-10 rounded-full bg-blue-600/80 text-white flex items-center justify-center shadow-lg">
+                  <Play className="h-5 w-5 ml-0.5" />
+                </div>
+              </div>
+            )}
+
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-2 pb-1.5 pt-6">
+              <p className="text-[11px] text-white font-medium line-clamp-1">{photo.name}</p>
+              <p className="text-[10px] text-zinc-300 font-mono">{photo.sizeStr}</p>
             </div>
 
             <div className="absolute top-2 left-2 right-2 flex items-center justify-between">

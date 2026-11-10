@@ -154,6 +154,16 @@ export function getStreamUrl(fileId: string): string {
 	return `${base}/api/v1/files/${fileId}/stream`;
 }
 
+// URL pratinjau kecil untuk tag <img>. Token lewat query karena elemen gambar
+// tidak bisa mengirim header Authorization.
+export function getThumbnailUrl(fileId: string, size: "small" | "large" = "small"): string {
+	const base = getStoredServerUrl();
+	const token = getStoredToken();
+	const params = new URLSearchParams({ size });
+	if (token) params.set("token", token);
+	return `${base}/api/v1/files/${fileId}/thumbnail?${params.toString()}`;
+}
+
 // ---------------- File manager NAS ----------------
 
 // Backend mengembalikan nama field PascalCase (struct Go tanpa json tag).

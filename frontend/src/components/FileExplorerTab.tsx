@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import type { DisplayItem } from "@/lib/nasDisplay";
 import { formatBytes } from "@/lib/nasDisplay";
+import ThumbnailImage from "@/components/ThumbnailImage";
 
 interface FileExplorerTabProps {
   items: DisplayItem[];
@@ -49,6 +50,8 @@ interface FileExplorerTabProps {
   nasFilesLoading: boolean;
   nasFilesError: string;
   isForeign: (item: DisplayItem) => boolean;
+  /** URL pratinjau server; null bila item tidak punya pratinjau. */
+  thumbnailUrl: (item: DisplayItem) => string | null;
   onFlushQueue: () => void;
   onReload: () => void;
   onGoBack: () => void;
@@ -80,6 +83,7 @@ export default function FileExplorerTab({
   nasFilesLoading,
   nasFilesError,
   isForeign,
+  thumbnailUrl,
   onFlushQueue,
   onReload,
   onGoBack,
@@ -335,11 +339,22 @@ export default function FileExplorerTab({
                         className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700 hover:bg-zinc-900/80 transition-all group"
                       >
                         <div className="flex items-start justify-between">
-                          <div className="h-10 w-10 rounded-lg bg-zinc-800 flex items-center justify-center">
-                            {file.type === "document" && <FileText className="h-5 w-5 text-blue-400" />}
-                            {file.type === "video" && <Film className="h-5 w-5 text-emerald-400" />}
-                            {file.type === "image" && <ImageIcon className="h-5 w-5 text-purple-400" />}
-                            {file.type === "archive" && <FileArchive className="h-5 w-5 text-amber-400" />}
+                          <div className="h-10 w-10 rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden">
+                            {file.type === "image" ? (
+                              <ThumbnailImage
+                                blob={file.blob}
+                                src={thumbnailUrl(file)}
+                                alt={file.name}
+                                className="h-full w-full object-cover"
+                                fallback={<ImageIcon className="h-5 w-5 text-purple-400" />}
+                              />
+                            ) : file.type === "video" ? (
+                              <Film className="h-5 w-5 text-emerald-400" />
+                            ) : file.type === "archive" ? (
+                              <FileArchive className="h-5 w-5 text-amber-400" />
+                            ) : (
+                              <FileText className="h-5 w-5 text-blue-400" />
+                            )}
                           </div>
 
                           <div className="flex items-center gap-1">

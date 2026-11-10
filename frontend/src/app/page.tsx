@@ -38,6 +38,7 @@ import {
   uploadToNas,
   getDownloadUrl,
   getStoredToken,
+  getThumbnailUrl,
   getStoredUser,
   fetchMe,
   logoutNas,
@@ -1208,6 +1209,11 @@ export default function Home() {
   const isForeignItem = (item: DisplayItem) =>
     Boolean(currentUser && item.ownerId && item.ownerId !== currentUser.id);
 
+  // Berkas lokal memakai blob sendiri; hanya berkas NAS yang punya thumbnail
+  // dari server. Video belum punya poster, jadi memakai ikon.
+  const thumbnailForItem = (item: DisplayItem) =>
+    item.blob || item.type !== "image" ? null : getThumbnailUrl(item.id, "small");
+
   const filteredFiles = activeItems.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -1308,6 +1314,7 @@ export default function Home() {
               nasFilesLoading={nasFilesLoading}
               nasFilesError={nasFilesError}
               isForeign={isForeignItem}
+              thumbnailUrl={thumbnailForItem}
               onFlushQueue={handleFlushQueue}
               onReload={() => loadNasFiles(currentFolderId)}
               onGoBack={handleGoBackFolder}
@@ -1345,10 +1352,11 @@ export default function Home() {
           {/* TAB 2: GALLERY VIEW */}
           {activeTab === "gallery" && (
             <GalleryTab
-              items={localItems}
+              items={activeItems}
               category={galleryCategory}
               onCategoryChange={setGalleryCategory}
               onOpen={setSelectedMedia}
+              thumbnailUrl={thumbnailForItem}
             />
           )}
 
