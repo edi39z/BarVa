@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
   title: "NAS Cloud — Personal & Family Storage",
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="id" className="h-full dark">
       <body className="min-h-full bg-zinc-950 text-zinc-100 antialiased selection:bg-blue-600 selection:text-white">
         {children}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

@@ -72,11 +72,12 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   benar-benar mengunduh dari server
 - RBAC berbasis role: `member` hanya menyentuh berkasnya sendiri, `owner`/`admin`
   bisa melihat dan mengelola berkas semua anggota (ditandai di UI)
+- PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
+  profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
 - Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file
 
 ### Belum selesai
 
-- **Service worker / PWA offline** — manifest ada, cache offline belum
 - **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
 - **Unduh folder** — share link untuk folder hanya menampilkan info, belum zip
 
@@ -326,7 +327,8 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 - Tambahkan migrasi baru sebagai `migrations/000002_*.up.sql`. **Jangan** mengubah
   migrasi yang sudah pernah dijalankan.
 - Setiap endpoint baru yang menyentuh data pengguna wajib lewat `AuthMiddleware`
-  dan memfilter `owner_id`. Endpoint admin wajib lewat `AdminKeyMiddleware`.
+  dan memakai helper otorisasi di `backend/internal/handler/access.go`.
+  Endpoint admin wajib lewat `AdminKeyMiddleware`.
 - Jangan menambah dependensi baru tanpa alasan kuat. Stdlib dan fitur platform
   lebih diutamakan.
 - Ikuti gaya kode di sekitarnya: komentar bahasa Indonesia, pesan error
@@ -334,11 +336,9 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. RBAC per file — role `owner/admin/member` belum membatasi akses berkas
-2. Service worker untuk PWA offline
-3. UI Trash — memulihkan berkas yang sudah di-soft-delete
-4. Unduh folder sebagai zip pada share link
-5. Memecah `frontend/src/app/page.tsx` (monolit ±3.700 baris) menjadi komponen
+1. Unduh folder sebagai zip pada share link
+2. Memecah `frontend/src/app/page.tsx` (monolit ±3.900 baris) menjadi komponen
+3. Migrasi otomatis saat server start
 
 ---
 

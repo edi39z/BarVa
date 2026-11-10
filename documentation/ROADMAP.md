@@ -14,6 +14,7 @@ janji tanggal.
 | **File manager** | Daftar, navigasi folder, unggah, buat folder, ganti nama, pindah, hapus, unduh, pratinjau gambar/video |
 | **Trash** | Daftar item terhapus, pulihkan ke folder asal, hapus permanen dengan pembersihan objek CAS yang tidak terpakai |
 | **RBAC** | `member` hanya berkasnya sendiri; `owner`/`admin` menjangkau semua berkas. Pindah lintas pemilik dan pembuatan node di pohon orang lain ditolak |
+| **PWA offline** | Service worker menyimpan shell aplikasi + halaman `/offline`, profil terakhir di-cache, banner status jaringan |
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
 | **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server |
 | **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata |
@@ -25,19 +26,12 @@ janji tanggal.
 
 ## Berikutnya
 
-### 1. Service worker & offline
-
-Manifest PWA sudah ada, tetapi belum ada service worker. Rencana: cache aset
-aplikasi, antrean unggah saat offline, dan indikator status sinkronisasi.
-
-**Kenapa penting:** klaim "bisa dipakai offline" belum terwujud untuk mode NAS.
-
-### 2. Unduh folder sebagai zip
+### 1. Unduh folder sebagai zip
 
 Share link untuk folder baru menampilkan informasi. Rencana: endpoint yang
 mengalirkan arsip zip tanpa menulis berkas sementara besar ke disk.
 
-### 3. Memecah `page.tsx`
+### 2. Memecah `page.tsx`
 
 Berkas utama frontend masih monolit. Rencana: pecah menjadi komponen per tab
 (`FileManager`, `Gallery`, `Studio`, `Family`, `Dashboard`) dengan state yang

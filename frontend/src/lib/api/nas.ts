@@ -11,6 +11,7 @@ export interface NasHealthResponse {
 
 const STORAGE_KEY_SERVER_URL = "nas_server_url";
 const STORAGE_KEY_TOKEN = "nas_auth_token";
+const STORAGE_KEY_USER = "nas_auth_user";
 const DEFAULT_SERVER_URL = "http://localhost:8080";
 
 export function getStoredServerUrl(): string {
@@ -35,6 +36,28 @@ export function setStoredToken(token: string | null): void {
 		localStorage.setItem(STORAGE_KEY_TOKEN, token);
 	} else {
 		localStorage.removeItem(STORAGE_KEY_TOKEN);
+	}
+}
+
+// Profil terakhir disimpan agar aplikasi tetap bisa dibuka saat offline.
+// Isinya hanya data publik (id, email, username, role) — bukan kredensial.
+export function getStoredUser(): NasUser | null {
+	if (typeof window === "undefined") return null;
+	const raw = localStorage.getItem(STORAGE_KEY_USER);
+	if (!raw) return null;
+	try {
+		return JSON.parse(raw) as NasUser;
+	} catch {
+		return null;
+	}
+}
+
+export function setStoredUser(user: NasUser | null): void {
+	if (typeof window === "undefined") return;
+	if (user) {
+		localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+	} else {
+		localStorage.removeItem(STORAGE_KEY_USER);
 	}
 }
 
@@ -159,6 +182,7 @@ async function nasFetch(path: string, init?: RequestInit): Promise<Response> {
 	});
 	if (res.status === 401) {
 		setStoredToken(null);
+		setStoredUser(null);
 		throw new Error("Sesi berakhir. Silakan login ulang.");
 	}
 	return res;
@@ -310,6 +334,7 @@ export async function loginNas(input: {
 		data: { token: string; user: NasUser };
 	};
 	setStoredToken(json.data.token);
+	setStoredUser(json.data.user);
 	return json.data;
 }
 
@@ -322,10 +347,12 @@ export async function fetchMe(): Promise<NasUser | null> {
 	});
 	if (res.status === 401) {
 		setStoredToken(null);
+		setStoredUser(null);
 		return null;
 	}
 	if (!res.ok) throw new Error(await parseError(res));
 	const json = (await res.json()) as { data: NasUser };
+	setStoredUser(json.data);
 	return json.data;
 }
 
@@ -342,4 +369,5 @@ export async function logoutNas(): Promise<void> {
 		}
 	}
 	setStoredToken(null);
+	setStoredUser(null);
 }

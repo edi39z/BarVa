@@ -90,6 +90,7 @@ import {
   getStreamUrl,
   getDownloadUrl,
   getStoredToken,
+  getStoredUser,
   fetchMe,
   logoutNas,
   listNasFiles,
@@ -236,6 +237,7 @@ export default function Home() {
   const [nasHealth, setNasHealth] = useState<NasHealthResponse | null>(null);
   const [nasStatus, setNasStatus] = useState<"online" | "offline" | "checking">("checking");
   const [nasLatency, setNasLatency] = useState<number | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
   const [serverModalOpen, setServerModalOpen] = useState(false);
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [pingTestMessage, setPingTestMessage] = useState<string>("");
@@ -373,6 +375,19 @@ export default function Home() {
     loadIndexedDB();
 
     return () => clearInterval(pingInterval);
+  }, []);
+
+  // Status jaringan browser. Berbeda dari nasStatus: NAS bisa mati walau
+  // internet ada, dan sebaliknya.
+  useEffect(() => {
+    const sync = () => setIsOnline(navigator.onLine);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
   }, []);
 
   // Muat isi folder aktif langsung dari server NAS.
@@ -558,7 +573,9 @@ export default function Home() {
         const user = await fetchMe();
         if (alive) setCurrentUser(user);
       } catch {
-        if (alive) setCurrentUser(null);
+        // Server tidak terjangkau (offline). Pakai profil terakhir agar
+        // aplikasi tetap terbuka; semua request API akan gagal sampai online.
+        if (alive) setCurrentUser(getStoredUser());
       } finally {
         if (alive) setAuthReady(true);
       }
@@ -1595,6 +1612,19 @@ export default function Home() {
             </button>
           </div>
         </header>
+
+        {/* Offline Browser Alert Banner */}
+        {!isOnline && (
+          <div className="bg-rose-950/60 border-b border-rose-800/60 px-6 py-2.5 flex items-center justify-between text-xs animate-in slide-in-from-top duration-200">
+            <div className="flex items-center gap-2.5 text-rose-200">
+              <WifiOff className="h-4 w-4 text-rose-400 shrink-0" />
+              <span>
+                <strong>Kamu sedang offline.</strong> Berkas di server NAS tidak dapat dibuka sampai
+                koneksi kembali; berkas mode standalone (IndexedDB) tetap tersedia.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Offline Fallback Alert Banner */}
         {connectionMode === "nas" && nasStatus === "offline" && (
