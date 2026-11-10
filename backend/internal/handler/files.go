@@ -90,6 +90,32 @@ func (h *FilesHandler) resolveParent(ctx context.Context, userId pgtype.UUID, ra
 	return parentId, nil
 }
 
+// resolveParentForMove memvalidasi folder tujuan berada di pohon milik
+// ownerID (pemilik node yang dipindahkan), bukan milik pemanggil. Dengan
+// begitu admin bisa merapikan berkas anggota lain tanpa memindahkannya ke
+// pohon yang salah.
+func (h *FilesHandler) resolveParentForMove(ctx context.Context, ownerID pgtype.UUID, raw string) (pgtype.UUID, error) {
+	var parentId pgtype.UUID
+	if raw == "" || raw == "root" {
+		return parentId, nil
+	}
+	if err := parentId.Scan(raw); err != nil {
+		return parentId, errors.New("parent_id tidak valid")
+	}
+
+	node, err := h.queries.GetNodeByID(ctx, parentId)
+	if err != nil {
+		return parentId, errors.New("folder induk tidak ditemukan")
+	}
+	if node.OwnerID != ownerID {
+		return parentId, errors.New("folder tujuan bukan milik pemilik item ini")
+	}
+	if !node.IsDirectory {
+		return parentId, errors.New("parent_id bukan folder")
+	}
+	return parentId, nil
+}
+
 func (h *FilesHandler) List(c *gin.Context) {
 	userId, ok := auth.GetUserID(c)
 	if !ok {
@@ -107,8 +133,9 @@ func (h *FilesHandler) List(c *gin.Context) {
 	}
 
 	nodes, err := h.queries.ListNodesByParent(c.Request.Context(), db.ListNodesByParentParams{
-		OwnerID:  userId,
-		ParentID: parentId,
+		AllOwners: canManageAllFiles(c),
+		OwnerID:   userId,
+		ParentID:  parentId,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
@@ -260,8 +287,9 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 	// supaya unik-index parsial (deleted_at IS NULL) tidak menolak upload baru.
 	if strings.EqualFold(c.PostForm("overwrite"), "true") {
 		existing, listErr := h.queries.ListNodesByParent(c.Request.Context(), db.ListNodesByParentParams{
-			OwnerID:  userId,
-			ParentID: parentId,
+			AllOwners: false,
+			OwnerID:   userId,
+			ParentID:  parentId,
 		})
 		if listErr == nil {
 			for _, n := range existing {
@@ -309,9 +337,9 @@ func (h *FilesHandler) Download(c *gin.Context) {
 		return
 	}
 
-	// Validate ownership
+	// Validate ownership (owner/admin boleh mengakses berkas anggota lain)
 	userId, ok := auth.GetUserID(c)
-	if !ok || node.OwnerID != userId {
+	if !ok || !canAccessNode(c, userId, node.OwnerID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "Akses ditolak."}})
 		return
 	}
@@ -347,9 +375,9 @@ func (h *FilesHandler) Stream(c *gin.Context) {
 		return
 	}
 
-	// Check ownership
+	// Check ownership (owner/admin boleh mengakses berkas anggota lain)
 	userId, ok := auth.GetUserID(c)
-	if !ok || node.OwnerID != userId {
+	if !ok || !canAccessNode(c, userId, node.OwnerID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "Akses ditolak."}})
 		return
 	}
@@ -412,9 +440,19 @@ func (h *FilesHandler) Rename(c *gin.Context) {
 		return
 	}
 
-	node, err := h.queries.RenameNode(c.Request.Context(), db.RenameNodeParams{
+	node, err := h.queries.GetNodeByID(c.Request.Context(), nodeId)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "File atau folder tidak ditemukan."}})
+		return
+	}
+	if !canAccessNode(c, userId, node.OwnerID) {
+		forbid(c, "FORBIDDEN", "Akses ditolak.")
+		return
+	}
+
+	renamed, err := h.queries.RenameNode(c.Request.Context(), db.RenameNodeParams{
 		ID:      nodeId,
-		OwnerID: userId,
+		OwnerID: node.OwnerID,
 		Name:    name,
 	})
 	if err != nil {
@@ -430,7 +468,7 @@ func (h *FilesHandler) Rename(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": node})
+	c.JSON(http.StatusOK, gin.H{"data": renamed})
 }
 
 // Move memindahkan file/folder ke folder lain. Folder tidak boleh dipindahkan
@@ -456,19 +494,25 @@ func (h *FilesHandler) Move(c *gin.Context) {
 		return
 	}
 
+	node, err := h.queries.GetNodeByID(c.Request.Context(), nodeId)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "File atau folder tidak ditemukan."}})
+		return
+	}
+	if !canAccessNode(c, userId, node.OwnerID) {
+		forbid(c, "FORBIDDEN", "Akses ditolak.")
+		return
+	}
+
+	// Tujuan harus berada di pohon milik pemilik node. Memindahkan lintas
+	// pemilik akan membuat item tidak terlihat oleh pemiliknya sendiri.
 	rawParent := ""
 	if req.ParentID != nil {
 		rawParent = *req.ParentID
 	}
-	targetParent, err := h.resolveParent(c.Request.Context(), userId, rawParent)
+	targetParent, err := h.resolveParentForMove(c.Request.Context(), node.OwnerID, rawParent)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_PARENT", "message": err.Error()}})
-		return
-	}
-
-	node, err := h.queries.GetNodeByID(c.Request.Context(), nodeId)
-	if err != nil || node.OwnerID != userId {
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "File atau folder tidak ditemukan."}})
 		return
 	}
 
@@ -494,7 +538,7 @@ func (h *FilesHandler) Move(c *gin.Context) {
 
 	moved, err := h.queries.MoveNode(c.Request.Context(), db.MoveNodeParams{
 		ID:       nodeId,
-		OwnerID:  userId,
+		OwnerID:  node.OwnerID,
 		ParentID: targetParent,
 	})
 	if err != nil {
@@ -523,11 +567,20 @@ func (h *FilesHandler) SoftDelete(c *gin.Context) {
 		return
 	}
 
-	err := h.queries.SoftDeleteNode(c.Request.Context(), db.SoftDeleteNodeParams{
-		ID:      nodeId,
-		OwnerID: userId,
-	})
+	node, err := h.queries.GetNodeByID(c.Request.Context(), nodeId)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "File atau folder tidak ditemukan."}})
+		return
+	}
+	if !canAccessNode(c, userId, node.OwnerID) {
+		forbid(c, "FORBIDDEN", "Akses ditolak.")
+		return
+	}
+
+	if err := h.queries.SoftDeleteNode(c.Request.Context(), db.SoftDeleteNodeParams{
+		ID:      nodeId,
+		OwnerID: node.OwnerID,
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal menghapus file."}})
 		return
 	}

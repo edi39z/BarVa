@@ -84,3 +84,14 @@ func GetUserID(c *gin.Context) (pgtype.UUID, bool) {
 	id, ok := val.(pgtype.UUID)
 	return id, ok
 }
+
+// GetUserRole mengembalikan role pengguna dari sesi ("owner", "admin",
+// "member"), atau string kosong bila middleware belum dijalankan.
+func GetUserRole(c *gin.Context) string {
+	val, exists := c.Get(ContextUserRole)
+	if !exists {
+		return ""
+	}
+	role, _ := val.(string)
+	return role
+}

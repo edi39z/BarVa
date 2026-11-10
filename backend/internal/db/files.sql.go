@@ -121,6 +121,34 @@ func (q *Queries) GetFileObjectBySHA256(ctx context.Context, sha256 string) (Fil
 	return i, err
 }
 
+const getNodeAnyState = `-- name: GetNodeAnyState :one
+SELECT id, owner_id, parent_id, name, is_directory, object_id,
+       deleted_at, created_at, updated_at
+FROM file_nodes
+WHERE id = $1
+LIMIT 1
+`
+
+// GetNodeAnyState membaca node tanpa memfilter pemilik maupun deleted_at.
+// Otorisasi dilakukan di handler supaya owner/admin bisa menjangkau
+// berkas anggota lain, dan 404 bisa dibedakan dari 403.
+func (q *Queries) GetNodeAnyState(ctx context.Context, id pgtype.UUID) (FileNode, error) {
+	row := q.db.QueryRow(ctx, getNodeAnyState, id)
+	var i FileNode
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.ParentID,
+		&i.Name,
+		&i.IsDirectory,
+		&i.ObjectID,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getNodeByID = `-- name: GetNodeByID :one
 SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        n.deleted_at, n.created_at, n.updated_at,
@@ -168,53 +196,22 @@ func (q *Queries) GetNodeByID(ctx context.Context, id pgtype.UUID) (GetNodeByIDR
 	return i, err
 }
 
-const getNodeForOwner = `-- name: GetNodeForOwner :one
-SELECT id, owner_id, parent_id, name, is_directory, object_id,
-       deleted_at, created_at, updated_at
-FROM file_nodes
-WHERE id = $1 AND owner_id = $2
-LIMIT 1
-`
-
-type GetNodeForOwnerParams struct {
-	ID      pgtype.UUID
-	OwnerID pgtype.UUID
-}
-
-// GetNodeForOwner membaca node apa pun keadaannya (termasuk yang sudah
-// di-soft-delete) agar handler bisa membedakan 404 dan 409.
-func (q *Queries) GetNodeForOwner(ctx context.Context, arg GetNodeForOwnerParams) (FileNode, error) {
-	row := q.db.QueryRow(ctx, getNodeForOwner, arg.ID, arg.OwnerID)
-	var i FileNode
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.ParentID,
-		&i.Name,
-		&i.IsDirectory,
-		&i.ObjectID,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const listNodesByParent = `-- name: ListNodesByParent :many
 SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        n.deleted_at, n.created_at, n.updated_at,
        o.size_bytes, o.mime_type
 FROM file_nodes n
 LEFT JOIN file_objects o ON o.id = n.object_id
-WHERE n.owner_id = $1 
-  AND ((n.parent_id = $2) OR ($2 IS NULL AND n.parent_id IS NULL))
+WHERE ($1::boolean OR n.owner_id = $2)
+  AND ((n.parent_id = $3) OR ($3 IS NULL AND n.parent_id IS NULL))
   AND n.deleted_at IS NULL
 ORDER BY n.is_directory DESC, n.name ASC
 `
 
 type ListNodesByParentParams struct {
-	OwnerID  pgtype.UUID
-	ParentID pgtype.UUID
+	AllOwners bool
+	OwnerID   pgtype.UUID
+	ParentID  pgtype.UUID
 }
 
 type ListNodesByParentRow struct {
@@ -232,7 +229,7 @@ type ListNodesByParentRow struct {
 }
 
 func (q *Queries) ListNodesByParent(ctx context.Context, arg ListNodesByParentParams) ([]ListNodesByParentRow, error) {
-	rows, err := q.db.Query(ctx, listNodesByParent, arg.OwnerID, arg.ParentID)
+	rows, err := q.db.Query(ctx, listNodesByParent, arg.AllOwners, arg.OwnerID, arg.ParentID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,9 +308,15 @@ SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
 FROM file_nodes n
 LEFT JOIN file_objects o ON o.id = n.object_id
 LEFT JOIN file_nodes p ON p.id = n.parent_id
-WHERE n.owner_id = $1 AND n.deleted_at IS NOT NULL
+WHERE ($1::boolean OR n.owner_id = $2)
+  AND n.deleted_at IS NOT NULL
 ORDER BY n.deleted_at DESC
 `
+
+type ListTrashedNodesParams struct {
+	AllOwners bool
+	OwnerID   pgtype.UUID
+}
 
 type ListTrashedNodesRow struct {
 	ID          pgtype.UUID
@@ -330,8 +333,8 @@ type ListTrashedNodesRow struct {
 	ParentName  pgtype.Text
 }
 
-func (q *Queries) ListTrashedNodes(ctx context.Context, ownerID pgtype.UUID) ([]ListTrashedNodesRow, error) {
-	rows, err := q.db.Query(ctx, listTrashedNodes, ownerID)
+func (q *Queries) ListTrashedNodes(ctx context.Context, arg ListTrashedNodesParams) ([]ListTrashedNodesRow, error) {
+	rows, err := q.db.Query(ctx, listTrashedNodes, arg.AllOwners, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}

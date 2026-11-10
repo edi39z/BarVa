@@ -112,11 +112,9 @@ cd backend && sqlc generate
 
 ## Yang paling dibutuhkan
 
-1. **RBAC per berkas** — `role` sudah ada di tabel `users`, tetapi otorisasi
-   berkas masih berbasis `owner_id`.
-2. **Service worker** — manifest PWA sudah ada, cache offline belum.
-3. **Unduh folder sebagai zip** pada share link.
-4. **Memecah `page.tsx`** menjadi komponen.
+1. **Service worker** — manifest PWA sudah ada, cache offline belum.
+2. **Unduh folder sebagai zip** pada share link.
+3. **Memecah `page.tsx`** menjadi komponen.
 
 ---
 

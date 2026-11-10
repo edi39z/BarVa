@@ -26,8 +26,8 @@ SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
        o.size_bytes, o.mime_type
 FROM file_nodes n
 LEFT JOIN file_objects o ON o.id = n.object_id
-WHERE n.owner_id = $1 
-  AND ((n.parent_id = $2) OR ($2 IS NULL AND n.parent_id IS NULL))
+WHERE (sqlc.arg(all_owners)::boolean OR n.owner_id = sqlc.arg(owner_id))
+  AND ((n.parent_id = sqlc.arg(parent_id)) OR (sqlc.arg(parent_id) IS NULL AND n.parent_id IS NULL))
   AND n.deleted_at IS NULL
 ORDER BY n.is_directory DESC, n.name ASC;
 
@@ -65,16 +65,18 @@ SELECT n.id, n.owner_id, n.parent_id, n.name, n.is_directory, n.object_id,
 FROM file_nodes n
 LEFT JOIN file_objects o ON o.id = n.object_id
 LEFT JOIN file_nodes p ON p.id = n.parent_id
-WHERE n.owner_id = $1 AND n.deleted_at IS NOT NULL
+WHERE (sqlc.arg(all_owners)::boolean OR n.owner_id = sqlc.arg(owner_id))
+  AND n.deleted_at IS NOT NULL
 ORDER BY n.deleted_at DESC;
 
--- GetNodeForOwner membaca node apa pun keadaannya (termasuk yang sudah
--- di-soft-delete) agar handler bisa membedakan 404 dan 409.
--- name: GetNodeForOwner :one
+-- GetNodeAnyState membaca node tanpa memfilter pemilik maupun deleted_at.
+-- Otorisasi dilakukan di handler supaya owner/admin bisa menjangkau
+-- berkas anggota lain, dan 404 bisa dibedakan dari 403.
+-- name: GetNodeAnyState :one
 SELECT id, owner_id, parent_id, name, is_directory, object_id,
        deleted_at, created_at, updated_at
 FROM file_nodes
-WHERE id = $1 AND owner_id = $2
+WHERE id = $1
 LIMIT 1;
 
 -- name: RestoreNode :one

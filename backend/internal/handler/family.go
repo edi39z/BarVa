@@ -24,7 +24,7 @@ type InviteMemberRequest struct {
 }
 
 func (h *FamilyHandler) ListMembers(c *gin.Context) {
-	_, ok := auth.GetUserID(c)
+	userId, ok := auth.GetUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
@@ -34,6 +34,19 @@ func (h *FamilyHandler) ListMembers(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
 		return
+	}
+
+	// Member hanya boleh melihat datanya sendiri. Daftar lengkap (termasuk
+	// email anggota lain) hanya untuk owner/admin.
+	if !isPrivilegedRole(auth.GetUserRole(c)) {
+		own := make([]db.ListUsersRow, 0, 1)
+		for _, u := range users {
+			if u.ID == userId {
+				own = append(own, u)
+				break
+			}
+		}
+		users = own
 	}
 
 	// Sanitize output (never expose password hashes)

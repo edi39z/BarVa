@@ -96,8 +96,18 @@ Dibatasi 5 kegagalan per 15 menit per kombinasi IP+email → `429 RATE_LIMITED`.
 
 ## File manager
 
-Semua endpoint membutuhkan sesi. Setiap baris hanya berisi berkas milik
-pengguna yang sedang login.
+Semua endpoint membutuhkan sesi.
+
+Otorisasi memakai **pemilik node + role**:
+
+- `member` hanya bisa melihat dan mengelola berkas miliknya sendiri.
+- `owner` dan `admin` bisa melihat, mengunduh, mengganti nama, menghapus, dan
+  memulihkan berkas semua anggota.
+- Membuat folder/unggah selalu di folder milik pemanggil, dan memindahkan item
+  hanya di pohon milik pemilik item. Operasi lintas pemilik ditolak
+  `400 INVALID_PARENT`.
+- Node yang bukan milik pemanggil dan tidak boleh diakses mengembalikan
+  `403 FORBIDDEN`. Node yang tidak ada mengembalikan `404 NOT_FOUND`.
 
 ### `GET /api/v1/files`
 
@@ -202,8 +212,8 @@ Mendukung `Range` (`206 Partial Content`) untuk pemutar video.
 
 Penghapusan lewat `DELETE /api/v1/files/:id` bersifat *soft delete*: baris
 node diberi `deleted_at` dan hilang dari daftar file, tetapi berkas fisik
-masih ada. Endpoint di bawah ini mengelola isi trash. Semuanya butuh sesi dan
-hanya menyentuh node milik pengguna yang login.
+masih ada. Endpoint di bawah ini mengelola isi trash. Semuanya butuh sesi;
+`member` hanya melihat item miliknya, `owner`/`admin` melihat semua anggota.
 
 ### `GET /api/v1/trash`
 
@@ -349,7 +359,8 @@ curl -H "Range: bytes=0-0" -H "X-Share-Password: rahasia" \
 
 ### `GET /api/v1/family/members`
 
-Daftar akun yang terdaftar di server.
+Daftar akun yang terdaftar di server. `member` hanya menerima datanya sendiri;
+daftar lengkap (termasuk email anggota lain) hanya untuk `owner`/`admin`.
 
 ### `POST /api/v1/family/invite`
 

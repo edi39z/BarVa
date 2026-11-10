@@ -70,11 +70,12 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   penerima undangan membuat akun nyata lalu langsung bisa login
 - Share link publik: password opsional, masa berlaku, halaman `/s/:token` yang
   benar-benar mengunduh dari server
+- RBAC berbasis role: `member` hanya menyentuh berkasnya sendiri, `owner`/`admin`
+  bisa melihat dan mengelola berkas semua anggota (ditandai di UI)
 - Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file
 
 ### Belum selesai
 
-- **RBAC per file** — otorisasi masih berbasis `owner_id`, role belum membatasi akses
 - **Service worker / PWA offline** — manifest ada, cache offline belum
 - **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
 - **Unduh folder** — share link untuk folder hanya menampilkan info, belum zip

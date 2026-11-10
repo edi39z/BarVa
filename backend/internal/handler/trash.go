@@ -19,7 +19,10 @@ func (h *FilesHandler) ListTrash(c *gin.Context) {
 		return
 	}
 
-	rows, err := h.queries.ListTrashedNodes(c.Request.Context(), userId)
+	rows, err := h.queries.ListTrashedNodes(c.Request.Context(), db.ListTrashedNodesParams{
+		AllOwners: canManageAllFiles(c),
+		OwnerID:   userId,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memuat trash."}})
 		return
@@ -47,10 +50,7 @@ func (h *FilesHandler) Restore(c *gin.Context) {
 		return
 	}
 
-	node, err := h.queries.GetNodeForOwner(c.Request.Context(), db.GetNodeForOwnerParams{
-		ID:      nodeId,
-		OwnerID: userId,
-	})
+	node, err := h.queries.GetNodeAnyState(c.Request.Context(), nodeId)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Item tidak ditemukan."}})
@@ -59,16 +59,17 @@ func (h *FilesHandler) Restore(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memuat item."}})
 		return
 	}
+	if !canAccessNode(c, userId, node.OwnerID) {
+		forbid(c, "FORBIDDEN", "Akses ditolak.")
+		return
+	}
 	if !node.DeletedAt.Valid {
 		c.JSON(http.StatusConflict, gin.H{"error": gin.H{"code": "NOT_TRASHED", "message": "Item ini tidak berada di trash."}})
 		return
 	}
 
 	if node.ParentID.Valid {
-		parent, parentErr := h.queries.GetNodeForOwner(c.Request.Context(), db.GetNodeForOwnerParams{
-			ID:      node.ParentID,
-			OwnerID: userId,
-		})
+		parent, parentErr := h.queries.GetNodeAnyState(c.Request.Context(), node.ParentID)
 		if parentErr != nil && !errors.Is(parentErr, pgx.ErrNoRows) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memeriksa folder induk."}})
 			return
@@ -81,7 +82,7 @@ func (h *FilesHandler) Restore(c *gin.Context) {
 
 	restored, err := h.queries.RestoreNode(c.Request.Context(), db.RestoreNodeParams{
 		ID:      nodeId,
-		OwnerID: userId,
+		OwnerID: node.OwnerID,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -111,16 +112,17 @@ func (h *FilesHandler) Purge(c *gin.Context) {
 		return
 	}
 
-	node, err := h.queries.GetNodeForOwner(c.Request.Context(), db.GetNodeForOwnerParams{
-		ID:      nodeId,
-		OwnerID: userId,
-	})
+	node, err := h.queries.GetNodeAnyState(c.Request.Context(), nodeId)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Item tidak ditemukan."}})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memuat item."}})
+		return
+	}
+	if !canAccessNode(c, userId, node.OwnerID) {
+		forbid(c, "FORBIDDEN", "Akses ditolak.")
 		return
 	}
 	if !node.DeletedAt.Valid {
@@ -131,7 +133,7 @@ func (h *FilesHandler) Purge(c *gin.Context) {
 	// Kumpulkan objek subtree sebelum baris node dihapus.
 	objectIDs, err := h.queries.ListSubtreeObjectIDs(c.Request.Context(), db.ListSubtreeObjectIDsParams{
 		ID:      nodeId,
-		OwnerID: userId,
+		OwnerID: node.OwnerID,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal memindai isi folder."}})
@@ -140,7 +142,7 @@ func (h *FilesHandler) Purge(c *gin.Context) {
 
 	deleted, err := h.queries.PurgeNode(c.Request.Context(), db.PurgeNodeParams{
 		ID:      nodeId,
-		OwnerID: userId,
+		OwnerID: node.OwnerID,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal menghapus permanen."}})

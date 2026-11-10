@@ -38,8 +38,9 @@ Prinsip yang dipegang:
    dan NAS memakai komponen UI yang sama; yang berbeda hanya penyedia datanya.
 3. **Backend tidak menyimpan token Google di browser.** Access token dan refresh
    token hanya hidup di server.
-4. **Semua operasi berkas difilter `owner_id`.** Tidak ada endpoint yang
-   mengembalikan berkas milik pengguna lain.
+4. **Otorisasi berkas berbasis pemilik + role.** `member` hanya menyentuh
+   berkasnya sendiri; `owner` dan `admin` boleh membaca dan mengelola berkas
+   semua anggota. Aturannya ada di `internal/handler/access.go`.
 
 ---
 
@@ -196,12 +197,31 @@ token Google.
 
 ---
 
-## 5. Batasan otorisasi
+## 5. Otorisasi berkas
 
-Saat ini otorisasi berkas berbasis **kepemilikan** (`file_nodes.owner_id`),
-bukan peran. Kolom `role` (`owner`/`admin`/`member`) sudah ada tetapi belum
-dipakai untuk membatasi akses berkas. Ini tercatat di [ROADMAP.md](ROADMAP.md)
-sebagai pekerjaan berikutnya.
+Setiap node punya `owner_id`. Akses ditentukan oleh pemilik node dan role
+pemanggil, bukan oleh folder tempat node berada.
+
+| Operasi | `member` | `owner` / `admin` |
+|---|---|---|
+| Daftar file & trash | hanya miliknya | semua anggota |
+| Unduh, stream, ganti nama, hapus, restore, purge | hanya miliknya | semua anggota |
+| Buat folder & unggah | hanya di folder miliknya | hanya di folder miliknya |
+| Pindah item | hanya di pohon miliknya | hanya di pohon pemilik item |
+| Buat share link | hanya untuk berkasnya | hanya untuk berkasnya |
+| `GET /family/members` | hanya dirinya | semua anggota |
+
+Aturan yang perlu diingat:
+
+- **Node baru selalu milik pembuatnya.** Admin yang mengunggah ke folder
+  anggota lain akan menghasilkan pohon campur pemilik yang tidak terlihat oleh
+  pemilik folder, jadi operasi itu ditolak.
+- **Pindah lintas pemilik ditolak** (`400 INVALID_PARENT`) dengan alasan yang
+  sama: item akan hilang dari pandangan pemiliknya.
+- **Share link tetap milik pemilik berkas.** Admin bisa mengelola berkas
+  anggota, tetapi tidak bisa membuat link berbagi atas namanya.
+- Pemeriksaan dilakukan setelah node dimuat, sehingga 404 (tidak ada) bisa
+  dibedakan dari 403 (ada, tapi bukan hak pemanggil).
 
 ---
 

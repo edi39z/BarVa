@@ -115,6 +115,7 @@ interface DisplayItem {
   sizeBytes: number;
   updatedAt: string;
   parentId?: string | null;
+  ownerId?: string | null;
   sha256?: string;
   isFavorite?: boolean;
   duration?: string;
@@ -172,6 +173,7 @@ function nasNodeToDisplay(node: NasFileNode): DisplayItem {
         })
       : "—",
     parentId: node.ParentID,
+    ownerId: node.OwnerID,
   };
 }
 
@@ -1225,6 +1227,11 @@ export default function Home() {
   // Sumber data UI: server NAS saat mode NAS, IndexedDB saat standalone.
   const activeItems = connectionMode === "nas" ? nasItems : localItems;
 
+  // Owner/admin bisa melihat berkas anggota lain; UI perlu menandainya agar
+  // tidak tertukar dengan berkas sendiri.
+  const isForeignItem = (item: DisplayItem) =>
+    Boolean(currentUser && item.ownerId && item.ownerId !== currentUser.id);
+
   const filteredFiles = activeItems.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -2233,7 +2240,11 @@ export default function Home() {
                                       {folder.name}
                                     </p>
                                     <p className="text-[11px] text-zinc-500">
-                                      {connectionMode === "nas" ? "Klik untuk buka" : `${childCount} item • Klik untuk buka`}
+                                      {isForeignItem(folder)
+                                        ? "Milik anggota lain • Klik untuk buka"
+                                        : connectionMode === "nas"
+                                        ? "Klik untuk buka"
+                                        : `${childCount} item • Klik untuk buka`}
                                     </p>
                                   </div>
                                 </div>
@@ -2317,18 +2328,20 @@ export default function Home() {
                                   >
                                     <Heart className={`h-3.5 w-3.5 ${file.isFavorite ? "fill-rose-500" : ""}`} />
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      setShareModalFile(file);
-                                      setShareLinkGenerated(false);
-                                      setCurrentGeneratedUrl("");
-                                      setSharePasswordInput("");
-                                    }}
-                                    className="text-zinc-500 hover:text-blue-400 p-1 cursor-pointer"
-                                    title="Bagikan Link"
-                                  >
-                                    <Share2 className="h-3.5 w-3.5" />
-                                  </button>
+                                  {!isForeignItem(file) && (
+                                    <button
+                                      onClick={() => {
+                                        setShareModalFile(file);
+                                        setShareLinkGenerated(false);
+                                        setCurrentGeneratedUrl("");
+                                        setSharePasswordInput("");
+                                      }}
+                                      className="text-zinc-500 hover:text-blue-400 p-1 cursor-pointer"
+                                      title="Bagikan Link"
+                                    >
+                                      <Share2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -2363,6 +2376,12 @@ export default function Home() {
                                 <p className="text-xs font-medium text-zinc-200 line-clamp-1 group-hover:text-blue-400 transition-colors">
                                   {file.name}
                                 </p>
+                                {isForeignItem(file) && (
+                                  <span className="inline-flex items-center gap-1 mt-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                    <Users className="h-2.5 w-2.5" />
+                                    Milik anggota lain
+                                  </span>
+                                )}
                                 <div className="flex items-center justify-between text-[11px] text-zinc-500 mt-1">
                                   <span>{file.sizeStr}</span>
                                   <span>{file.updatedAt}</span>
@@ -2414,6 +2433,11 @@ export default function Home() {
                                     {file.type === "image" && <ImageIcon className="h-4 w-4 text-purple-400" />}
                                     {file.type === "archive" && <FileArchive className="h-4 w-4 text-amber-400" />}
                                     <span className="truncate max-w-xs">{file.name}</span>
+                                    {isForeignItem(file) && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                        Milik anggota lain
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="py-2.5 px-4 font-mono text-zinc-400">{file.sizeStr}</td>
                                   <td className="py-2.5 px-4 text-zinc-400">{file.updatedAt}</td>
@@ -2524,6 +2548,11 @@ export default function Home() {
                                 <span className="truncate max-w-[18rem]" title={node.Name}>
                                   {node.Name}
                                 </span>
+                                {currentUser && node.OwnerID !== currentUser.id && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                    Milik anggota lain
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-2.5 px-4 text-zinc-400">
