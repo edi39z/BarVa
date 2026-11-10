@@ -204,7 +204,9 @@ func main() {
 
 			// Public External Share Endpoints
 			v1.GET("/public/share/:token", sharesHandler.PublicGet)
+			v1.POST("/public/share/:token/verify", sharesHandler.PublicVerifyPassword)
 			v1.GET("/public/share/:token/download", sharesHandler.PublicDownload)
+			v1.GET("/public/share/:token/archive", sharesHandler.PublicDownloadArchive)
 
 			// Protected Routes
 			protected := v1.Group("")

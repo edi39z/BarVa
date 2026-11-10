@@ -112,8 +112,7 @@ cd backend && sqlc generate
 
 ## Yang paling dibutuhkan
 
-1. **Unduh folder sebagai zip** pada share link.
-2. **Memecah `page.tsx`** menjadi komponen.
+1. **Memecah `page.tsx`** menjadi komponen.
 
 ---
 

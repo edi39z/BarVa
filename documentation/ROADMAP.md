@@ -16,7 +16,7 @@ janji tanggal.
 | **RBAC** | `member` hanya berkasnya sendiri; `owner`/`admin` menjangkau semua berkas. Pindah lintas pemilik dan pembuatan node di pohon orang lain ditolak |
 | **PWA offline** | Service worker menyimpan shell aplikasi + halaman `/offline`, profil terakhir di-cache, banner status jaringan |
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
-| **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server |
+| **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server; folder bisa diunduh sebagai zip streaming |
 | **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata |
 | **Google Drive** | OAuth 2.0, refresh token di server, kuota, jelajah folder, unggah, unduh lewat server |
 | **Hardening** | CORS whitelist, admin key, batas ukuran unggah, MIME dari isi berkas, validasi folder induk |
@@ -26,12 +26,7 @@ janji tanggal.
 
 ## Berikutnya
 
-### 1. Unduh folder sebagai zip
-
-Share link untuk folder baru menampilkan informasi. Rencana: endpoint yang
-mengalirkan arsip zip tanpa menulis berkas sementara besar ke disk.
-
-### 2. Memecah `page.tsx`
+### 1. Memecah `page.tsx`
 
 Berkas utama frontend masih monolit. Rencana: pecah menjadi komponen per tab
 (`FileManager`, `Gallery`, `Studio`, `Family`, `Dashboard`) dengan state yang

@@ -69,7 +69,8 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - Undangan anggota keluarga (token di-hash, status pending/accepted/revoked);
   penerima undangan membuat akun nyata lalu langsung bisa login
 - Share link publik: password opsional, masa berlaku, halaman `/s/:token` yang
-  benar-benar mengunduh dari server
+  benar-benar mengunduh dari server; share folder bisa diunduh sebagai satu
+  arsip zip yang dialirkan langsung tanpa file sementara
 - RBAC berbasis role: `member` hanya menyentuh berkasnya sendiri, `owner`/`admin`
   bisa melihat dan mengelola berkas semua anggota (ditandai di UI)
 - PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
@@ -79,7 +80,6 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 ### Belum selesai
 
 - **Migrasi otomatis** — migrasi masih dijalankan manual dengan `psql`
-- **Unduh folder** — share link untuk folder hanya menampilkan info, belum zip
 
 ---
 
@@ -336,9 +336,9 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Unduh folder sebagai zip pada share link
-2. Memecah `frontend/src/app/page.tsx` (monolit ±3.900 baris) menjadi komponen
-3. Migrasi otomatis saat server start
+1. Memecah `frontend/src/app/page.tsx` (monolit ±3.900 baris) menjadi komponen
+2. Migrasi otomatis saat server start
+3. Antrean unggah saat offline
 
 ---
 

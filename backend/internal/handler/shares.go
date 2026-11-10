@@ -201,34 +201,17 @@ func (h *SharesHandler) PublicGet(c *gin.Context) {
 }
 
 func (h *SharesHandler) PublicDownload(c *gin.Context) {
-	rawToken := c.Param("token")
-	hSum := sha256.Sum256([]byte(rawToken))
-	tokenHash := hex.EncodeToString(hSum[:])
-
-	var tokenHashPg pgtype.Text
-	_ = tokenHashPg.Scan(tokenHash)
-
-	share, err := h.queries.GetShareByTokenHash(c.Request.Context(), tokenHashPg)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "SHARE_NOT_FOUND", "message": "Link berbagi tidak ditemukan atau telah kedaluwarsa."}})
+	share, ok := h.shareByToken(c)
+	if !ok {
+		return
+	}
+	if !h.authorizeShare(c, share) {
 		return
 	}
 
-	// Verify password if protected
-	if share.PasswordHash.Valid && share.PasswordHash.String != "" {
-		pass := c.GetHeader("X-Share-Password")
-		if pass == "" {
-			pass = c.Query("password")
-		}
-		if pass == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "PASSWORD_REQUIRED", "message": "Password diperlukan untuk mengunduh file ini."}})
-			return
-		}
-		valid, err := auth.ComparePassword(pass, share.PasswordHash.String)
-		if err != nil || !valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_PASSWORD", "message": "Password salah."}})
-			return
-		}
+	if share.IsDirectory {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "IS_DIRECTORY", "message": "Tautan ini menunjuk ke folder. Gunakan unduhan arsip."}})
+		return
 	}
 
 	storagePath := share.StoragePath.String

@@ -340,10 +340,23 @@ Mencabut tautan. Tautan langsung tidak berlaku.
 }
 ```
 
+### `POST /api/v1/public/share/:token/verify`
+
+Memvalidasi password tanpa menyentuh berkas. Dipakai halaman publik untuk
+membuka share folder (yang tidak punya berkas tunggal untuk uji `Range`).
+
+```json
+{ "password": "rahasia" }
+```
+
+`200 {"data":{"valid":true}}` bila benar (atau share memang tanpa password),
+`401 INVALID_PASSWORD` bila salah.
+
 ### `GET /api/v1/public/share/:token/download`
 
-Bila `has_password`, kirim `X-Share-Password: <password>` atau
-`?password=<password>`. Tanpa itu → `401 PASSWORD_REQUIRED`.
+Mengunduh satu berkas. Bila `has_password`, kirim `X-Share-Password: <password>`
+atau `?password=<password>`. Tanpa itu → `401 PASSWORD_REQUIRED`. Share yang
+menunjuk folder mengembalikan `400 IS_DIRECTORY` — gunakan endpoint arsip.
 
 Tips memverifikasi password tanpa mengunduh seluruh berkas:
 
@@ -352,6 +365,22 @@ curl -H "Range: bytes=0-0" -H "X-Share-Password: rahasia" \
   http://localhost:8080/api/v1/public/share/<token>/download
 # 206 = password benar, 401 = salah
 ```
+
+### `GET /api/v1/public/share/:token/archive`
+
+Mengalirkan seluruh isi folder share sebagai satu arsip zip.
+
+- `Content-Type: application/zip`
+- `Content-Disposition: attachment; filename="<nama-folder>.zip"`
+- Tanpa `Content-Length` (streaming/chunked), jadi progres unduhan bergantung
+  pada browser.
+- Struktur di dalam zip mengikuti hierarki folder; folder kosong tetap dibuat
+  sebagai entri `namafolder/`.
+- Berkas yang hilang dari disk dilewati, bukan menggagalkan seluruh arsip.
+- Share yang menunjuk berkas tunggal mengembalikan `400 NOT_DIRECTORY`.
+
+Password (bila ada) dikirim lewat `?password=` atau `X-Share-Password`, sama
+seperti endpoint download.
 
 ---
 

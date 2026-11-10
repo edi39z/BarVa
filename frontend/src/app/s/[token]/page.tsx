@@ -78,7 +78,8 @@ function PublicShareContent() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  // Verifikasi password dengan permintaan 1 byte, bukan mengunduh seluruh file.
+  // Verifikasi password lewat endpoint khusus, tanpa menyentuh berkas.
+  // Berlaku untuk share berkas maupun folder.
   async function handleUnlock(e: React.FormEvent) {
     e.preventDefault();
     if (!password) {
@@ -89,15 +90,19 @@ function PublicShareContent() {
     setError("");
     try {
       const res = await fetch(
-        `${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}/download`,
-        { headers: { "X-Share-Password": password, Range: "bytes=0-0" } }
+        `${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}/verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        }
       );
       if (res.status === 401) {
         throw new Error("Kata sandi salah.");
       }
-      if (!res.ok && res.status !== 206) {
+      if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error?.message || `Gagal membuka berkas (${res.status}).`);
+        throw new Error(body?.error?.message || `Gagal membuka tautan (${res.status}).`);
       }
       setUnlocked(true);
     } catch (err) {
@@ -115,6 +120,16 @@ function PublicShareContent() {
       : "";
     window.location.href = `${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}/download${query}`;
     setTimeout(() => setDownloading(false), 1200);
+  }
+
+  function handleDownloadArchive() {
+    if (!token) return;
+    setDownloading(true);
+    const query = info?.has_password && password
+      ? `?password=${encodeURIComponent(password)}`
+      : "";
+    window.location.href = `${backendBase()}/api/v1/public/share/${encodeURIComponent(token)}/archive${query}`;
+    setTimeout(() => setDownloading(false), 1500);
   }
 
   return (
@@ -190,16 +205,15 @@ function PublicShareContent() {
             </div>
           </div>
 
-          {info.is_directory ? (
-            <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-left">
-              Tautan ini menunjuk ke sebuah folder. Unduhan folder belum didukung —
-              minta pemilik membagikan berkas di dalamnya.
-            </p>
-          ) : !unlocked ? (
+          {!unlocked ? (
             <form onSubmit={handleUnlock} className="space-y-3 pt-1 text-left">
               <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
                 <Lock className="h-3.5 w-3.5 text-amber-400" />
-                <span>Berkas ini diproteksi kata sandi:</span>
+                <span>
+                  {info.is_directory
+                    ? "Folder ini diproteksi kata sandi:"
+                    : "Berkas ini diproteksi kata sandi:"}
+                </span>
               </label>
               <input
                 type="password"
@@ -220,9 +234,24 @@ function PublicShareContent() {
                 className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium text-xs py-2.5 rounded-xl transition-all cursor-pointer"
               >
                 {checking && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                <span>{checking ? "Memeriksa..." : "Buka Berkas"}</span>
+                <span>{checking ? "Memeriksa..." : "Buka Tautan"}</span>
               </button>
             </form>
+          ) : info.is_directory ? (
+            <div className="space-y-3 pt-1">
+              <button
+                onClick={handleDownloadArchive}
+                disabled={downloading}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-3 rounded-xl transition-all shadow-lg shadow-blue-600/25 active:scale-[0.99] cursor-pointer disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                <span>{downloading ? "Menyiapkan Arsip..." : "Unduh Folder (ZIP)"}</span>
+              </button>
+              <p className="text-[10px] text-zinc-500 leading-relaxed">
+                Seluruh isi folder dikemas dalam satu arsip zip dan dialirkan langsung dari server
+                pemilik. Untuk folder besar, unduhan bisa memakan waktu.
+              </p>
+            </div>
           ) : (
             <div className="space-y-3 pt-1">
               <button

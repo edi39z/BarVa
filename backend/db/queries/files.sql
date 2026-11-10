@@ -108,3 +108,26 @@ DELETE FROM file_objects o
 WHERE o.id = $1
   AND NOT EXISTS (SELECT 1 FROM file_nodes n WHERE n.object_id = o.id)
 RETURNING o.sha256;
+
+-- ListShareSubtreeNodes mengambil seluruh isi folder (termasuk folder itu
+-- sendiri) untuk dijadikan arsip zip pada share link publik. Hanya node aktif
+-- yang ikut, dan pemilik tidak difilter karena akses sudah divalidasi lewat
+-- token share.
+-- name: ListShareSubtreeNodes :many
+WITH RECURSIVE subtree AS (
+    SELECT n.id AS id, n.parent_id AS parent_id, n.name AS name,
+           n.is_directory AS is_directory, n.object_id AS object_id
+    FROM file_nodes n
+    WHERE n.id = $1 AND n.deleted_at IS NULL
+    UNION ALL
+    SELECT c.id AS id, c.parent_id AS parent_id, c.name AS name,
+           c.is_directory AS is_directory, c.object_id AS object_id
+    FROM file_nodes c
+    JOIN subtree s ON c.parent_id = s.id
+    WHERE c.deleted_at IS NULL
+)
+SELECT s.id, s.parent_id, s.name, s.is_directory,
+       o.storage_path, o.size_bytes, o.mime_type
+FROM subtree s
+LEFT JOIN file_objects o ON o.id = s.object_id
+ORDER BY s.is_directory DESC, s.name ASC;
