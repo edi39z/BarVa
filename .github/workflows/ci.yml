@@ -5,8 +5,8 @@
 #   dijalankan dengan working-directory tersebut.
 # - Versi Go diambil dari `backend/go.mod` supaya tidak tertinggal saat versi
 #   minimum dinaikkan.
-# - Lint frontend belum dijadikan gate karena masih ada temuan lama di kode
-#   yang belum tersentuh; yang dijaga di sini adalah type-check dan build.
+# - Frontend dijaga lint (ESLint), type-check, dan build. Temuan lint lama sudah
+#   dibereskan, jadi gate ini bisa dinyalakan tanpa mewarisi utang.
 # - Backend dijaga `go vet` dan `gofmt -l` selain build dan test. Keduanya
 #   sudah bersih saat gate ini ditambahkan, jadi tidak ada utang yang diwariskan.
 # - Runner dipin ke ubuntu-24.04, bukan ubuntu-latest. Label `-latest` akan
@@ -91,6 +91,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Type check
         run: npx tsc --noEmit

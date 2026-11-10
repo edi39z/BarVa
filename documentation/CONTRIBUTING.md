@@ -53,11 +53,12 @@ Jalankan sebelum membuka PR:
 
 ```bash
 cd backend  && go build ./... && go vet ./... && go test ./...
-cd frontend && npx tsc --noEmit && npm run build
+cd frontend && npm run lint && npx tsc --noEmit && npm run build
 ```
 
 `next build` saja tidak cukup untuk menangkap semua masalah tipe — jalankan
-`tsc --noEmit` juga.
+`tsc --noEmit` juga. `npm run lint` menjaga aturan React 19 (`react-hooks`)
+yang tidak diperiksa oleh build.
 
 Sertakan di deskripsi PR: **apa** yang berubah, **kenapa**, dan **bagaimana**
 Anda mengujinya.
@@ -96,7 +97,7 @@ Request. Tiga job paralel di runner `ubuntu-24.04`:
 | Job | Isi |
 |---|---|
 | `Backend (Go)` | `go vet ./...`, cek `gofmt -l`, `go build ./...`, lalu `go test ./...` |
-| `Frontend (Next.js)` | `tsc --noEmit` lalu `npm run build` |
+| `Frontend (Next.js)` | `npm run lint`, `tsc --noEmit`, lalu `npm run build` |
 | `E2E (Playwright)` | `npm run build` lalu `e2e/smoke.spec.ts` di Chromium |
 
 Suite e2e lain (`nas-mode`, `offline-upload`, `public-share`) tidak dijalankan

@@ -58,6 +58,9 @@ export default function MediaLightbox({ item, onClose, onDownload }: MediaLightb
             </p>
           </div>
         ) : item.type === "image" ? (
+          // Sumbernya object URL lokal atau endpoint media NAS, jadi tidak bisa
+          // dioptimasi next/image. Ukurannya dibatasi CSS agar tidak meluber.
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={mediaSrc}
             alt={item.name}

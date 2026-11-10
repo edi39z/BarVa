@@ -316,7 +316,7 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 3. Jalankan pemeriksaan sebelum commit:
    ```bash
    cd backend  && go build ./... && go vet ./... && go test ./...
-   cd frontend && npx tsc --noEmit && npm run build
+   cd frontend && npm run lint && npx tsc --noEmit && npm run build
    cd frontend && npm run test:e2e   # Playwright menyalakan servernya sendiri
    ```
 4. Commit dengan pesan yang jelas:
