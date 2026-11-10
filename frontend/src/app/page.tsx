@@ -244,7 +244,8 @@ export default function Home() {
   const studioRemoveBgRef = useRef<HTMLInputElement>(null);
   const studioEnhanceRef = useRef<HTMLInputElement>(null);
 
-  // Load files from IndexedDB and Check NAS Server Health on mount
+  // Baca konfigurasi lokal dan isi IndexedDB. Keduanya tidak menyentuh jaringan,
+  // jadi tetap jalan di mode apa pun.
   useEffect(() => {
     const savedUrl = getStoredServerUrl();
     // Konfigurasi server hanya ada di localStorage klien, jadi tidak bisa dibaca
@@ -253,32 +254,6 @@ export default function Home() {
     setServerUrl(savedUrl);
     setInputServerUrl(savedUrl);
     setInputAdminKey(getAdminKey());
-
-    async function checkHealth() {
-      try {
-        const h = await pingNasServer(savedUrl);
-        setNasHealth(h);
-        setNasStatus("online");
-        setNasLatency(h.latencyMs ?? null);
-      } catch {
-        setNasStatus("offline");
-        setNasLatency(null);
-      }
-    }
-
-    checkHealth();
-    const pingInterval = setInterval(checkHealth, 10000);
-
-    // Status Google Drive diambil dari server, bukan dari state lokal.
-    async function checkGdrive() {
-      try {
-        const s = await gdriveStatus();
-        setIsGdriveConnected(s.connected);
-      } catch {
-        setIsGdriveConnected(false);
-      }
-    }
-    checkGdrive();
 
     async function loadIndexedDB() {
       try {
@@ -307,9 +282,42 @@ export default function Home() {
       }
     }
     loadIndexedDB();
-
-    return () => clearInterval(pingInterval);
   }, []);
+
+  // Kesehatan server dan status Google Drive hanya ada artinya di mode NAS.
+  // Dulu polling ini jalan tanpa syarat, sehingga di mode mandiri interval
+  // 10 detik terus menembak localhost:8080 dan membanjiri konsol dengan
+  // ERR_CONNECTION_REFUSED untuk server yang memang tidak dipakai.
+  useEffect(() => {
+    if (connectionMode !== "nas") return;
+
+    async function checkHealth() {
+      try {
+        const h = await pingNasServer(serverUrl);
+        setNasHealth(h);
+        setNasStatus("online");
+        setNasLatency(h.latencyMs ?? null);
+      } catch {
+        setNasStatus("offline");
+        setNasLatency(null);
+      }
+    }
+
+    // Status Google Drive diambil dari server, bukan dari state lokal.
+    async function checkGdrive() {
+      try {
+        const s = await gdriveStatus();
+        setIsGdriveConnected(s.connected);
+      } catch {
+        setIsGdriveConnected(false);
+      }
+    }
+
+    checkHealth();
+    checkGdrive();
+    const pingInterval = setInterval(checkHealth, 10000);
+    return () => clearInterval(pingInterval);
+  }, [connectionMode, serverUrl]);
 
   // Status jaringan browser. Berbeda dari nasStatus: NAS bisa mati walau
   // internet ada, dan sebaliknya.
@@ -574,9 +582,12 @@ export default function Home() {
     await refreshInvites();
   };
 
+  // Undangan dan anggota tersimpan di server, jadi tidak ada yang bisa dimuat
+  // di mode mandiri — dulu tetap dipanggil dan menghasilkan dua request gagal.
   useEffect(() => {
+    if (connectionMode !== "nas") return;
     refreshInvites();
-  }, []);
+  }, [connectionMode]);
 
   // Validasi token sesi NAS yang tersimpan saat aplikasi dibuka.
   useEffect(() => {
