@@ -20,6 +20,32 @@ import (
 	"nas-backend/internal/db"
 )
 
+// sharePasswordLimiter mencegah brute force password share. Kuncinya
+// IP+token: satu penyerang tidak bisa mengunci pemegang tautan lain, dan
+// menebak password satu tautan tidak membuka tautan lain.
+const (
+	maxSharePasswordFailures = 5
+	sharePasswordWindow      = 15 * time.Minute
+)
+
+var sharePasswordLimiter = newFailureLimiter(maxSharePasswordFailures, sharePasswordWindow)
+
+func sharePasswordKey(c *gin.Context) string {
+	return c.ClientIP() + "|" + c.Param("token")
+}
+
+// shareRateLimited mengirim 429 bila kunci sudah melewati batas. Mengembalikan
+// true berarti respons sudah ditulis dan handler harus berhenti.
+func shareRateLimited(c *gin.Context) bool {
+	if !sharePasswordLimiter.blocked(sharePasswordKey(c)) {
+		return false
+	}
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"error": gin.H{"code": "RATE_LIMITED", "message": "Terlalu banyak percobaan password. Coba lagi dalam 15 menit."},
+	})
+	return true
+}
+
 // shareByToken memuat share dari token mentah. Respons 404 sudah dikirim bila
 // token tidak valid atau kedaluwarsa.
 func (h *SharesHandler) shareByToken(c *gin.Context) (db.GetShareByTokenHashRow, bool) {
@@ -42,6 +68,9 @@ func (h *SharesHandler) authorizeShare(c *gin.Context, share db.GetShareByTokenH
 	if !share.PasswordHash.Valid || share.PasswordHash.String == "" {
 		return true
 	}
+	if shareRateLimited(c) {
+		return false
+	}
 
 	pass := c.GetHeader("X-Share-Password")
 	if pass == "" {
@@ -54,9 +83,11 @@ func (h *SharesHandler) authorizeShare(c *gin.Context, share db.GetShareByTokenH
 
 	valid, err := auth.ComparePassword(pass, share.PasswordHash.String)
 	if err != nil || !valid {
+		sharePasswordLimiter.fail(sharePasswordKey(c))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_PASSWORD", "message": "Password salah."}})
 		return false
 	}
+	sharePasswordLimiter.reset(sharePasswordKey(c))
 	return true
 }
 
@@ -69,15 +100,18 @@ func (h *SharesHandler) PublicVerifyPassword(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Password string `json:"password"`
-	}
-	_ = c.ShouldBindJSON(&req)
-
 	if !share.PasswordHash.Valid || share.PasswordHash.String == "" {
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"valid": true}})
 		return
 	}
+	if shareRateLimited(c) {
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	_ = c.ShouldBindJSON(&req)
 
 	pass := req.Password
 	if pass == "" {
@@ -85,10 +119,12 @@ func (h *SharesHandler) PublicVerifyPassword(c *gin.Context) {
 	}
 	valid, err := auth.ComparePassword(pass, share.PasswordHash.String)
 	if err != nil || !valid {
+		sharePasswordLimiter.fail(sharePasswordKey(c))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_PASSWORD", "message": "Password salah."}})
 		return
 	}
 
+	sharePasswordLimiter.reset(sharePasswordKey(c))
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"valid": true}})
 }
 

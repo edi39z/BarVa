@@ -366,6 +366,10 @@ membuka share folder (yang tidak punya berkas tunggal untuk uji `Range`).
 `200 {"data":{"valid":true}}` bila benar (atau share memang tanpa password),
 `401 INVALID_PASSWORD` bila salah.
 
+Password share dibatasi 5 kegagalan per 15 menit per kombinasi IP+token →
+`429 RATE_LIMITED`. Batas yang sama berlaku untuk `download` dan `archive`,
+karena keduanya juga menerima password.
+
 ### `GET /api/v1/public/share/:token/download`
 
 Mengunduh satu berkas. Bila `has_password`, kirim `X-Share-Password: <password>`

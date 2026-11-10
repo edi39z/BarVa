@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -40,49 +39,10 @@ const (
 	loginWindow      = 15 * time.Minute
 )
 
-type loginAttempt struct {
-	failures int
-	first    time.Time
-}
-
-var (
-	loginMu       sync.Mutex
-	loginAttempts = map[string]*loginAttempt{}
-)
+var loginLimiter = newFailureLimiter(maxLoginFailures, loginWindow)
 
 func loginKey(c *gin.Context, email string) string {
 	return c.ClientIP() + "|" + strings.ToLower(strings.TrimSpace(email))
-}
-
-func tooManyLoginAttempts(key string) bool {
-	loginMu.Lock()
-	defer loginMu.Unlock()
-	a, ok := loginAttempts[key]
-	if !ok {
-		return false
-	}
-	if time.Since(a.first) > loginWindow {
-		delete(loginAttempts, key)
-		return false
-	}
-	return a.failures >= maxLoginFailures
-}
-
-func recordLoginFailure(key string) {
-	loginMu.Lock()
-	defer loginMu.Unlock()
-	a, ok := loginAttempts[key]
-	if !ok || time.Since(a.first) > loginWindow {
-		loginAttempts[key] = &loginAttempt{failures: 1, first: time.Now()}
-		return
-	}
-	a.failures++
-}
-
-func clearLoginFailures(key string) {
-	loginMu.Lock()
-	delete(loginAttempts, key)
-	loginMu.Unlock()
 }
 
 func isSecureRequest(c *gin.Context) bool {
@@ -146,7 +106,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	key := loginKey(c, req.Email)
-	if tooManyLoginAttempts(key) {
+	if loginLimiter.blocked(key) {
 		c.JSON(http.StatusTooManyRequests, gin.H{
 			"error": gin.H{"code": "RATE_LIMITED", "message": "Terlalu banyak percobaan login. Coba lagi dalam 15 menit."},
 		})
@@ -155,7 +115,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.queries.GetUserByEmail(c.Request.Context(), req.Email)
 	if err != nil {
-		recordLoginFailure(key)
+		loginLimiter.fail(key)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": gin.H{"code": "INVALID_CREDENTIALS", "message": "Email atau kata sandi salah."},
 		})
@@ -164,14 +124,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	valid, err := auth.ComparePassword(req.Password, user.PasswordHash)
 	if err != nil || !valid {
-		recordLoginFailure(key)
+		loginLimiter.fail(key)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": gin.H{"code": "INVALID_CREDENTIALS", "message": "Email atau kata sandi salah."},
 		})
 		return
 	}
 
-	clearLoginFailures(key)
+	loginLimiter.reset(key)
 
 	// Generate 32 bytes random session token
 	tokenBytes := make([]byte, 32)

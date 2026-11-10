@@ -7,39 +7,39 @@ import (
 
 func TestLoginRateLimiter(t *testing.T) {
 	key := "test|user@example.com"
-	clearLoginFailures(key)
-	t.Cleanup(func() { clearLoginFailures(key) })
+	loginLimiter.reset(key)
+	t.Cleanup(func() { loginLimiter.reset(key) })
 
-	if tooManyLoginAttempts(key) {
+	if loginLimiter.blocked(key) {
 		t.Fatal("seharusnya belum dibatasi")
 	}
 
 	for i := 0; i < maxLoginFailures; i++ {
-		recordLoginFailure(key)
+		loginLimiter.fail(key)
 	}
-	if !tooManyLoginAttempts(key) {
+	if !loginLimiter.blocked(key) {
 		t.Fatal("seharusnya dibatasi setelah mencapai batas")
 	}
 
-	clearLoginFailures(key)
-	if tooManyLoginAttempts(key) {
+	loginLimiter.reset(key)
+	if loginLimiter.blocked(key) {
 		t.Fatal("seharusnya reset setelah login berhasil")
 	}
 }
 
 func TestLoginRateLimiterWindowExpires(t *testing.T) {
 	key := "test|expire@example.com"
-	clearLoginFailures(key)
-	t.Cleanup(func() { clearLoginFailures(key) })
+	loginLimiter.reset(key)
+	t.Cleanup(func() { loginLimiter.reset(key) })
 
-	loginMu.Lock()
-	loginAttempts[key] = &loginAttempt{
+	loginLimiter.mu.Lock()
+	loginLimiter.attempts[key] = &failureEntry{
 		failures: maxLoginFailures,
 		first:    time.Now().Add(-loginWindow - time.Minute),
 	}
-	loginMu.Unlock()
+	loginLimiter.mu.Unlock()
 
-	if tooManyLoginAttempts(key) {
+	if loginLimiter.blocked(key) {
 		t.Fatal("window kedaluwarsa seharusnya mereset hitungan")
 	}
 }
