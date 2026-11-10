@@ -31,6 +31,8 @@ test.describe("gerbang autentikasi", () => {
     await page.getByRole("button", { name: "Lanjut tanpa server (Mode Standalone)" }).click();
 
     await expect(page.getByRole("button", { name: /Home Dashboard/ })).toBeVisible();
+    await expect(page.getByText("Selamat Datang di NAS Project!")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Jelajahi Berkas" })).toBeVisible();
     await expect(page.locator('input[type="email"]')).toHaveCount(0);
   });
 });
