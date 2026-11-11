@@ -116,9 +116,21 @@ memakan kuota bawaan GitHub (360 menit).
 Backend dijaga `go vet` dan `gofmt -l` selain build dan test. Sebelum commit,
 jalankan `gofmt -w .` di folder `backend` bila ada berkas yang belum rapi.
 
-Catatan untuk pengguna Windows: dengan `core.autocrlf=true`, `gofmt -l` bisa
-menandai semua berkas karena baris baru CRLF di working tree. Isi yang tersimpan
-di Git tetap LF, jadi gate ini tidak akan gagal di CI.
+Catatan untuk pengguna Windows: `.gitattributes` memaksa semua berkas teks
+memakai LF, baik di Git maupun di working tree, jadi `gofmt -l` tidak lagi
+menandai berkas yang sebenarnya rapi. Berkas yang sudah terlanjur di-checkout
+dengan CRLF sebelum `.gitattributes` ada perlu ditulis ulang sekali — hapus
+dulu berkasnya, karena checkout biasa tidak menulis ulang berkas yang
+dianggap tidak berubah:
+
+```bash
+rm backend/cmd/server/main.go
+git checkout -- backend/cmd/server/main.go
+```
+
+Ulangi untuk setiap berkas yang masih ditandai `gofmt -l` (atau untuk seluruh
+repo saat working tree bersih: `git ls-files -z | xargs -0 rm` lalu
+`git checkout -- .`).
 
 ---
 

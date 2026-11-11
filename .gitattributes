@@ -1,0 +1,9 @@
+# Normalisasi line ending.
+#
+# Isi berkas di Git selalu LF, dan checkout di semua OS juga LF. Tanpa ini,
+# `core.autocrlf=true` di Windows membuat working tree berisi CRLF sehingga
+# `gofmt -l` menandai berkas yang sebenarnya sudah rapi.
+#
+# Git tetap mendeteksi berkas biner sendiri lewat `text=auto`; berkas biner
+# tidak diubah.
+* text=auto eol=lf
