@@ -349,6 +349,14 @@ Detail penting:
 
 `src/app/page.tsx` adalah container: ia memegang state, efek, dan handler, lalu
 menyusun komponen. Semua tampilan besar sudah dipisah ke `src/components/`.
+Kelompok state yang berdiri sendiri dipindah ke `src/hooks/` supaya container
+tinggal menyusun:
+
+| Hook | Tanggung jawab |
+|---|---|
+| `useTrash` | Daftar item terhapus, pemulihan (memanggil ulang daftar folder), hapus permanen |
+| `useFileSelection` | Seleksi banyak item, rentang Shift+klik |
+| `useLongPress` | Tekan lama untuk menyalakan mode pilih |
 
 | Komponen | Tanggung jawab |
 |---|---|

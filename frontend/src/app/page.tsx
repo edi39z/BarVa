@@ -61,12 +61,8 @@ import {
   deleteNasFile,
   renameNasFile,
   moveNasFile,
-  listNasTrash,
-  restoreNasFile,
-  purgeNasFile,
   listFamilyMembers,
   updateMemberQuota,
-  TrashedNode,
   NasHealthResponse,
   NasUser,
   NasFamilyMember,
@@ -103,6 +99,7 @@ import {
   itemToFile,
 } from "@/lib/files/materialize";
 import { useFileSelection } from "@/hooks/useFileSelection";
+import { useTrash } from "@/hooks/useTrash";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
 import { ActiveShare, FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
@@ -209,12 +206,6 @@ export default function Home() {
   // Media NAS lintas folder untuk galeri. Dipisah dari nasItems karena
   // nasItems hanya berisi isi folder yang sedang dibuka.
   const [mediaItems, setMediaItems] = useState<DisplayItem[]>([]);
-
-  // Trash NAS — item yang sudah di-soft-delete tapi belum dihapus permanen
-  const [trashItems, setTrashItems] = useState<TrashedNode[]>([]);
-  const [trashLoading, setTrashLoading] = useState(false);
-  const [trashError, setTrashError] = useState("");
-  const [trashBusyId, setTrashBusyId] = useState<string | null>(null);
 
   // Antrean upload offline
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -414,30 +405,12 @@ export default function Home() {
     };
   }, [connectionMode, currentUser, activeTab]);
 
-  // Muat isi trash dari server NAS.
-  const loadTrash = useCallback(async () => {
-    if (connectionMode !== "nas" || !currentUser) {
-      setTrashItems([]);
-      return;
-    }
-    setTrashLoading(true);
-    setTrashError("");
-    try {
-      setTrashItems(await listNasTrash());
-    } catch (err) {
-      setTrashItems([]);
-      setTrashError((err as Error).message);
-    } finally {
-      setTrashLoading(false);
-    }
-  }, [connectionMode, currentUser]);
-
-  useEffect(() => {
-    // Sama seperti pemuat lain: indikator loading dinyalakan sinkron oleh
-    // `loadTrash`, jadi tidak ada state turunan yang bisa dipakai.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadTrash();
-  }, [loadTrash]);
+  // Trash NAS: daftar, pemulihan, dan hapus permanen dikelola hook sendiri.
+  const trash = useTrash({
+    connectionMode,
+    currentUser,
+    onRestored: () => loadNasFiles(currentFolderId),
+  });
 
   /** Segarkan daftar folder, galeri, dan trash setelah aksi yang mengubah data. */
   const refreshLibrary = useCallback(async () => {
@@ -450,8 +423,8 @@ export default function Home() {
         // Biarkan daftar lama; galeri memuat ulang saat tabnya dibuka lagi.
       }
     }
-    await loadTrash();
-  }, [connectionMode, currentUser, currentFolderId, activeTab, loadNasFiles, loadTrash]);
+    await trash.reload();
+  }, [connectionMode, currentUser, currentFolderId, activeTab, loadNasFiles, trash]);
 
   /**
    * Unggah hasil olahan tanpa menimpa berkas lain. Bila nama sudah dipakai,
@@ -1254,7 +1227,7 @@ export default function Home() {
         setNasItems((prev) => prev.filter((item) => item.id !== id));
         setMediaItems((prev) => prev.filter((item) => item.id !== id));
         if (selectedMedia?.id === id) setSelectedMedia(null);
-        loadTrash();
+        trash.reload();
       } catch (err) {
         alert(`Gagal menghapus: ${(err as Error).message}`);
       }
@@ -1269,35 +1242,6 @@ export default function Home() {
       if (selectedMedia?.id === id) setSelectedMedia(null);
     } catch (err) {
       console.error("Delete error:", err);
-    }
-  };
-
-  // Trash: pulihkan item yang salah terhapus.
-  const handleRestoreTrash = async (node: TrashedNode) => {
-    setTrashBusyId(node.ID);
-    try {
-      await restoreNasFile(node.ID);
-      await Promise.all([loadTrash(), loadNasFiles(currentFolderId)]);
-    } catch (err) {
-      alert(`Gagal memulihkan: ${(err as Error).message}`);
-    } finally {
-      setTrashBusyId(null);
-    }
-  };
-
-  // Trash: hapus permanen. Tidak ada undo, jadi minta konfirmasi eksplisit.
-  const handlePurgeTrash = async (node: TrashedNode) => {
-    const kind = node.IsDirectory ? "folder ini beserta seluruh isinya" : `"${node.Name}"`;
-    if (!confirm(`Hapus permanen ${kind}?\n\nTindakan ini tidak bisa dibatalkan.`)) return;
-
-    setTrashBusyId(node.ID);
-    try {
-      await purgeNasFile(node.ID);
-      await loadTrash();
-    } catch (err) {
-      alert(`Gagal menghapus permanen: ${(err as Error).message}`);
-    } finally {
-      setTrashBusyId(null);
     }
   };
 
@@ -1824,7 +1768,7 @@ export default function Home() {
         onTabChange={setActiveTab}
         activeItems={activeItems}
         localItems={localItems}
-        trashCount={trashItems.length}
+        trashCount={trash.items.length}
         connectionMode={connectionMode}
         nasStatus={nasStatus}
         nasLatency={nasLatency}
@@ -1935,14 +1879,14 @@ export default function Home() {
           {/* TAB 1b: TRASH */}
           {activeTab === "trash" && (
             <TrashTab
-              items={trashItems}
-              loading={trashLoading}
-              error={trashError}
-              busyId={trashBusyId}
+              items={trash.items}
+              loading={trash.loading}
+              error={trash.error}
+              busyId={trash.busyId}
               currentUserId={currentUser?.id}
-              onReload={loadTrash}
-              onRestore={handleRestoreTrash}
-              onPurge={handlePurgeTrash}
+              onReload={trash.reload}
+              onRestore={trash.restore}
+              onPurge={trash.purge}
             />
           )}
 
