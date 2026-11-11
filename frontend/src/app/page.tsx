@@ -39,8 +39,8 @@ import {
   actionsForSelection,
   groupItems,
   type FileAction,
-  type GroupMode,
 } from "@/lib/files/actions";
+import { useBulkActions } from "@/hooks/useBulkActions";
 import { useFamily } from "@/hooks/useFamily";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useNasFiles } from "@/hooks/useNasFiles";
@@ -127,13 +127,6 @@ export default function Home() {
 
   // Menu aksi per berkas + seleksi banyak + smart foldering
   const selection = useFileSelection();
-  const [actionMenuItem, setActionMenuItem] = useState<DisplayItem | null>(null);
-  const [actionMenuAnchor, setActionMenuAnchor] = useState<{ x: number; y: number } | null>(null);
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; label: string } | null>(null);
-  const [smartFolderOpen, setSmartFolderOpen] = useState(false);
-  const [smartFolderMode, setSmartFolderMode] = useState<GroupMode>("type");
-  const [libraryNotice, setLibraryNotice] = useState("");
 
   // Isi IndexedDB tidak menyentuh jaringan, jadi tetap dimuat di mode apa pun.
   useEffect(() => {
@@ -436,7 +429,6 @@ export default function Home() {
   // ---------------- Menu aksi berkas & seleksi banyak ----------------
 
   const selectionSource = activeTab === "gallery" ? galleryItems : activeItems;
-  const selectedItems = selectionSource.filter((item) => selection.isSelected(item.id));
   const visibleSelectionIds =
     activeTab === "gallery"
       ? galleryItems.map((item) => item.id)
@@ -444,15 +436,36 @@ export default function Home() {
           .filter((item) => (item.parentId || null) === currentFolderId)
           .map((item) => item.id);
 
-  const openFileActionMenu = (item: DisplayItem, anchor: { x: number; y: number }) => {
-    setActionMenuItem(item);
-    setActionMenuAnchor(anchor);
-  };
-
-  const closeFileActionMenu = () => {
-    setActionMenuItem(null);
-    setActionMenuAnchor(null);
-  };
+  // Menu aksi berkas dan operasi massal dikelola hook sendiri.
+  const {
+    actionMenuItem,
+    actionMenuAnchor,
+    openFileActionMenu,
+    closeFileActionMenu,
+    bulkBusy,
+    bulkProgress,
+    smartFolderOpen,
+    setSmartFolderOpen,
+    smartFolderMode,
+    setSmartFolderMode,
+    libraryNotice,
+    setLibraryNotice,
+    selectedItems,
+    confirmAutoGroup: handleConfirmAutoGroup,
+    bulkAction: handleBulkAction,
+  } = useBulkActions({
+    connectionMode,
+    currentFolderId,
+    activeItems,
+    selectionSource,
+    selectedIds: selection.selectedIds,
+    setLocalItems,
+    clearSelection: selection.clear,
+    refreshLibrary,
+    downloadItem: handleDownload,
+    requestMove: openMoveModal,
+    processItemsWithTool: studio.processItemsWithTool,
+  });
 
   const handleFileAction = async (action: FileAction) => {
     const item = actionMenuItem;
@@ -490,199 +503,6 @@ export default function Home() {
         parentId: item.parentId ?? currentFolderId,
       });
       if (ok) setLibraryNotice(`Selesai memproses “${item.name}”. Hasil tersimpan di folder asal.`);
-    }
-  };
-
-  const handleBulkDelete = async (items: DisplayItem[]) => {
-    if (!confirm(`Hapus ${items.length} item? Item akan masuk ke Trash.`)) return;
-
-    setBulkBusy(true);
-    let failed = 0;
-    try {
-      for (const item of items) {
-        try {
-          if (connectionMode === "nas") {
-            await deleteNasFile(item.id);
-          } else {
-            await deleteLocalFile(item.id);
-            setLocalItems((prev) => prev.filter((entry) => entry.id !== item.id));
-          }
-        } catch {
-          failed += 1;
-        }
-      }
-      selection.clear();
-      await refreshLibrary();
-      setLibraryNotice(
-        failed > 0
-          ? `${items.length - failed} item dihapus, ${failed} gagal.`
-          : `${items.length} item dihapus.`
-      );
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
-  const handleCreateFolderFromSelection = async (items: DisplayItem[]) => {
-    const name = prompt("Nama folder baru:");
-    const folderName = name?.trim();
-    if (!folderName) return;
-
-    setBulkBusy(true);
-    try {
-      if (connectionMode === "nas") {
-        const folder = await createNasFolder(folderName, currentFolderId);
-        for (const item of items) {
-          await moveNasFile(item.id, folder.ID);
-        }
-        await refreshLibrary();
-      } else {
-        const folderId = crypto.randomUUID();
-        const folder: DisplayItem = {
-          id: folderId,
-          name: folderName,
-          type: "folder",
-          sizeStr: "0 item",
-          sizeBytes: 0,
-          updatedAt: "Baru saja",
-          updatedAtISO: new Date().toISOString(),
-          parentId: currentFolderId,
-        };
-        setLocalItems((prev) => [
-          folder,
-          ...prev.map((item) =>
-            items.some((selected) => selected.id === item.id) ? { ...item, parentId: folderId } : item
-          ),
-        ]);
-      }
-      selection.clear();
-      setLibraryNotice(`Folder “${folderName}” dibuat dan ${items.length} item dipindahkan.`);
-    } catch (err) {
-      alert(`Gagal membuat folder: ${(err as Error).message}`);
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
-  const handleConfirmAutoGroup = async () => {
-    const items = selectedItems;
-    if (items.length === 0) return;
-
-    const groups = groupItems(items, smartFolderMode);
-    setBulkBusy(true);
-
-    try {
-      if (connectionMode === "nas") {
-        for (const group of groups) {
-          const existing = activeItems.find(
-            (item) =>
-              item.type === "folder" &&
-              (item.parentId || null) === currentFolderId &&
-              item.name === group.name
-          );
-          const folderId = existing ? existing.id : (await createNasFolder(group.name, currentFolderId)).ID;
-          for (const item of group.items) {
-            await moveNasFile(item.id, folderId);
-          }
-        }
-        await refreshLibrary();
-      } else {
-        const created = groups.map<DisplayItem>((group) => ({
-          id: crypto.randomUUID(),
-          name: group.name,
-          type: "folder",
-          sizeStr: "0 item",
-          sizeBytes: 0,
-          updatedAt: "Baru saja",
-          updatedAtISO: new Date().toISOString(),
-          parentId: currentFolderId,
-        }));
-        const folderIdByGroup = new Map(groups.map((group, index) => [group.key, created[index].id]));
-
-        setLocalItems((prev) => {
-          const moved = prev.map((item) => {
-            const group = groups.find((candidate) =>
-              candidate.items.some((selected) => selected.id === item.id)
-            );
-            return group ? { ...item, parentId: folderIdByGroup.get(group.key) } : item;
-          });
-          return [...created, ...moved];
-        });
-      }
-
-      setSmartFolderOpen(false);
-      selection.clear();
-      setLibraryNotice(`${items.length} item dikelompokkan ke ${groups.length} folder.`);
-    } catch (err) {
-      alert(`Gagal mengelompokkan: ${(err as Error).message}`);
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
-  const handleBulkAction = async (action: FileAction) => {
-    const items = selectedItems;
-    if (items.length === 0) return;
-
-    if (action.id === "delete") {
-      await handleBulkDelete(items);
-      return;
-    }
-    if (action.id === "move") {
-      openMoveModal(items);
-      return;
-    }
-    if (action.id === "download") {
-      items.forEach((item) => handleDownload(item));
-      selection.clear();
-      return;
-    }
-    if (action.id === "newfolder") {
-      await handleCreateFolderFromSelection(items);
-      return;
-    }
-    if (action.id === "group-type") {
-      setSmartFolderMode("type");
-      setSmartFolderOpen(true);
-      return;
-    }
-    if (action.id === "group-month") {
-      setSmartFolderMode("month");
-      setSmartFolderOpen(true);
-      return;
-    }
-
-    if (!action.tool) return;
-
-    setBulkBusy(true);
-    setLibraryNotice("");
-    try {
-      if (action.tool === "img2pdf" || action.tool === "mergepdf") {
-        setBulkProgress({ current: 1, total: 1, label: action.label });
-        await studio.processItemsWithTool(action.tool, items, {
-          download: false,
-          parentId: currentFolderId,
-        });
-      } else {
-        let failed = 0;
-        for (let index = 0; index < items.length; index += 1) {
-          setBulkProgress({ current: index + 1, total: items.length, label: action.label });
-          const ok = await studio.processItemsWithTool(action.tool, [items[index]], {
-            download: false,
-            parentId: items[index].parentId ?? currentFolderId,
-          });
-          if (!ok) failed += 1;
-        }
-        if (failed > 0) {
-          setLibraryNotice(`${items.length - failed} berhasil, ${failed} gagal.`);
-        } else {
-          setLibraryNotice(`${items.length} berkas selesai diproses.`);
-        }
-      }
-      selection.clear();
-    } finally {
-      setBulkBusy(false);
-      setBulkProgress(null);
     }
   };
 

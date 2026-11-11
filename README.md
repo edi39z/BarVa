@@ -403,12 +403,11 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Memindahkan sisa state `frontend/src/app/page.tsx` (±1.110 baris) ke hook:
-   aksi massal. Tujuh kelompok besar (`useNasSession`, `useNasFiles`, `useTrash`,
-   `useShares`, `useStudio`, `useUploads`, `useFamily`) sudah diekstrak.
-2. Halaman pengaturan akun yang menampilkan rincian pemakaian kuota per folder
+1. Halaman pengaturan akun yang menampilkan rincian pemakaian kuota per folder
    dan per jenis berkas.
-3. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
+2. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
+3. Merapikan `eslint-disable` yang tersisa dan menjalankan Prettier massal
+   setelah struktur frontend stabil.
 
 ---
 
