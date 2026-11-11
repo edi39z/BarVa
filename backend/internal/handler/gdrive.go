@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -545,12 +544,4 @@ func (h *GDriveHandler) Disconnect(c *gin.Context) {
 	cfg.ConnectedAt = ""
 	h.store.Save(&cfg)
 	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-// DebugPath membantu operator melihat di mana kredensial disimpan.
-func (h *GDriveHandler) ConfigPath() string {
-	if p, err := os.Getwd(); err == nil {
-		return p
-	}
-	return ""
 }

@@ -107,7 +107,7 @@ Tiga lapis otentikasi:
 
 ### Penyimpanan
 
-- `internal/storage` — `StorageProvider` (`Put/Get/Delete/Exists/Stat/GetPhysicalPath`),
+- `internal/storage` — `StorageProvider` (`Put/Delete/GetPhysicalPath`),
   implementasi `LocalStorage` di disk.
 - `internal/db` — **hasil generate sqlc**, jangan diedit. Sumbernya
   `db/queries/*.sql`, skema dari `migrations/`.
