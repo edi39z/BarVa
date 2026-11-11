@@ -50,7 +50,7 @@ GET /health
 ```
 
 ```json
-{ "status": "online", "database": true, "version": "1.0-mvp", "time": "2026-11-10T00:00:00+07:00" }
+{ "status": "online", "database": true, "version": "0.1.0", "time": "2026-11-10T00:00:00+07:00" }
 ```
 
 `database: false` berarti backend berjalan dalam mode storage-only.

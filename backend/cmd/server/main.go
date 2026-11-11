@@ -23,6 +23,10 @@ import (
 	"nas-backend/internal/storage"
 )
 
+// appVersion dilaporkan oleh /health. Samakan dengan "version" di
+// frontend/package.json setiap kali versi dinaikkan.
+const appVersion = "0.1.0"
+
 func getEnv(key, fallback string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -174,7 +178,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"status":   "online",
 			"database": dbAvailable,
-			"version":  "1.0-mvp",
+			"version":  appVersion,
 			"time":     time.Now().Format(time.RFC3339),
 		})
 	})
