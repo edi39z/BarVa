@@ -384,13 +384,27 @@ Aturan yang dipegang:
 | `lib/studio/tools.ts` | `StudioToolId`, pengelompokan alat (foto/PDF), dan `PANEL_TOOLS` |
 | `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `PdfToWordPanel`, `PdfEditorPanel`, `StudioAlert`, `StudioProgress` |
 
-**Hapus Latar Belakang.** Memakai `@imgly/background-removal` dengan model
-`isnet_quint8` (±40 MB) dan `device: "cpu"`. Model diunduh dari CDN IMG.LY pada
-pemakaian pertama lalu disimpan di cache peramban; foto sendiri tidak pernah
-keluar dari perangkat. Karena unduhannya besar, UI menampilkan kartu izin lebih
-dulu dan baru mengaktifkan pemilih berkas setelah pengguna menyetujuinya.
-Penanda `localStorage` `nas-bg-model-ready` mencegah pertanyaan berulang.
-Modul ini diimpor secara dinamis agar tidak membebani bundel awal.
+**Hapus Latar Belakang.** Satu alur untuk foto maupun logo, memakai
+`@imgly/background-removal` dengan model `isnet_fp16` (±80 MB) dan
+`device: "gpu"` — WebGPU dipakai bila tersedia, dengan fallback otomatis ke
+WASM. Model diunduh dari CDN IMG.LY pada pemakaian pertama lalu disimpan di
+cache peramban; gambar sendiri tidak pernah keluar dari perangkat.
+
+Setelah model menghasilkan mask, `refineAlpha` merapikannya:
+
+- sisa warna latar dibersihkan hanya di area dekat tepi (radius 3 px) memakai
+  warna yang diambil dari cincin piksel terluar gambar asli, sehingga warna
+  objek di bagian dalam tidak ikut terhapus;
+- bayangan abu-abu netral di tepi objek dapat dibuang lewat opsi terpisah;
+- alpha direntangkan supaya tepi lebih tegas, dihaluskan 1 px, lalu bintik
+  kecil yang terpisah dihapus.
+
+Kekuatan pembersihan diatur slider 0–50 (0 = nonaktif) dan ditampilkan sebagai
+label awam: Nonaktif, Ringan, Sedang, Kuat, Maksimal. Karena unduhan model
+besar, UI menampilkan kartu izin lebih dulu dan baru mengaktifkan pemilih berkas
+setelah pengguna menyetujuinya. Penanda `localStorage` `nas-bg-model-ready`
+mencegah pertanyaan berulang. Modul ini diimpor secara dinamis agar tidak
+membebani bundel awal.
 
 **Naikkan Kualitas Foto.** Tanpa model: `createImageBitmap` → perbesaran
 bertahap 2× (interpolasi `imageSmoothingQuality: "high"`) → satu lintasan piksel

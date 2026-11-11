@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { formatBytes } from "@/lib/nasDisplay";
 import type { CompressionResult } from "@/lib/studio/image";
-import type { BgProgress, EnhanceResult } from "@/lib/studio/ai";
+import { BG_MODEL_APPROX_MB, type BgProgress, type EnhanceResult } from "@/lib/studio/ai";
 import type { StudioToolId } from "@/lib/studio/tools";
 import type { StudioErrorInfo } from "@/lib/studio/errors";
 import type { StudioOutput } from "@/lib/studio/output";
@@ -50,6 +50,10 @@ interface StudioTabProps {
   bgModelReady: boolean;
   bgConsentGranted: boolean;
   bgProgress: BgProgress | null;
+  bgTolerance: number;
+  onBgToleranceChange: (value: number) => void;
+  bgDropShadow: boolean;
+  onBgDropShadowChange: (value: boolean) => void;
   onGrantBgConsent: () => void;
   lastEnhanceResult: EnhanceResult | null;
   error: StudioErrorInfo | null;
@@ -136,6 +140,15 @@ const TOOLS: {
   },
 ];
 
+/** Label awam untuk kekuatan pembersihan, supaya angka 0–50 mudah dipahami. */
+function cleanupStrengthLabel(value: number) {
+  if (value === 0) return "Nonaktif";
+  if (value <= 10) return "Ringan";
+  if (value <= 25) return "Sedang";
+  if (value <= 40) return "Kuat";
+  return "Maksimal";
+}
+
 export default function StudioTab({
   tool,
   onToolChange,
@@ -158,6 +171,10 @@ export default function StudioTab({
   bgModelReady,
   bgConsentGranted,
   bgProgress,
+  bgTolerance,
+  onBgToleranceChange,
+  bgDropShadow,
+  onBgDropShadowChange,
   onGrantBgConsent,
   lastEnhanceResult,
   error,
@@ -240,6 +257,40 @@ export default function StudioTab({
               className="hidden"
             />
 
+            <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3.5">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-[12px]">
+                  <label htmlFor="bg-cleanup" className="font-semibold text-muted">
+                    Bersihkan sisa latar
+                  </label>
+                  <span className="font-semibold text-brand">{cleanupStrengthLabel(bgTolerance)}</span>
+                </div>
+                <input
+                  id="bg-cleanup"
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="1"
+                  value={bgTolerance}
+                  onChange={(e) => onBgToleranceChange(parseInt(e.target.value, 10))}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-surface-3 accent-[var(--brand-solid)]"
+                />
+                <p className="mt-1.5 text-[11px] leading-relaxed text-subtle">
+                  Semakin ke kanan, semakin banyak sisa warna latar yang dibuang. Naikkan kalau masih ada sisa;
+                  turunkan kalau bagian gambar ikut terhapus.
+                </p>
+              </div>
+              <label className="flex items-start gap-2 text-[12px] text-muted">
+                <input
+                  type="checkbox"
+                  checked={bgDropShadow}
+                  onChange={(e) => onBgDropShadowChange(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>Buang bayangan abu-abu di tepi gambar</span>
+              </label>
+            </div>
+
             {!bgCanRun && (
               <div className="rounded-xl border border-line bg-surface-2 p-4">
                 <div className="flex items-start gap-3">
@@ -253,7 +304,7 @@ export default function StudioTab({
                   <div className="min-w-0">
                     <p className="text-[13px] font-semibold text-fg">Perlu unduh model AI sekali saja</p>
                     <p className="mt-1 text-[12px] leading-relaxed text-subtle">
-                      Sekitar <strong className="font-semibold text-fg">40 MB</strong>. Setelah tersimpan, alat ini
+                      Sekitar <strong className="font-semibold text-fg">{BG_MODEL_APPROX_MB} MB</strong>. Setelah tersimpan, alat ini
                       bisa dipakai tanpa internet. Foto Anda tidak pernah dikirim ke server mana pun.
                     </p>
                   </div>
@@ -271,7 +322,7 @@ export default function StudioTab({
               <div>
                 <div className="mb-1.5 flex items-center justify-between text-[12px]">
                   <span className="font-semibold text-muted">
-                    {bgProgress.phase === "download" ? "Mengunduh model AI…" : "Memproses foto…"}
+                    {bgProgress.phase === "download" ? "Mengunduh model AI…" : "Memproses gambar…"}
                   </span>
                   <span className="font-semibold tabular-nums text-brand">{bgProgress.percent}%</span>
                 </div>
@@ -293,9 +344,9 @@ export default function StudioTab({
 
             <div className="rounded-xl border-2 border-dashed border-line-strong bg-surface-2 px-4 py-8 text-center">
               <Wand2 className="mx-auto mb-2 h-9 w-9 text-[var(--tile-teal-fg)]" aria-hidden />
-              <p className="text-[13px] font-semibold text-fg">Pilih foto yang ingin dihapus latarnya</p>
+              <p className="text-[13px] font-semibold text-fg">Pilih gambar yang ingin dihapus latarnya</p>
               <p className="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-subtle">
-                Paling cocok untuk foto orang, produk, atau hewan. Hasil disimpan sebagai PNG transparan.
+                Berlaku untuk foto maupun logo. Hasil disimpan sebagai PNG transparan.
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button

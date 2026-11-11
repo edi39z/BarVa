@@ -230,6 +230,8 @@ export default function Home() {
   const [bgModelJustDownloaded, setBgModelJustDownloaded] = useState(false);
   const [bgConsentGranted, setBgConsentGranted] = useState(false);
   const [bgProgress, setBgProgress] = useState<BgProgress | null>(null);
+  const [bgTolerance, setBgTolerance] = useState(15);
+  const [bgDropShadow, setBgDropShadow] = useState(true);
   const [lastEnhanceResult, setLastEnhanceResult] = useState<EnhanceResult | null>(null);
 
   // Model hapus latar belakang cukup diunduh sekali per perangkat.
@@ -1068,7 +1070,10 @@ export default function Home() {
         );
         setStudioSuccessMsg(`Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`);
       } else if (storagePickerTool === "removebg") {
-        const result = await removeImageBackground(files[0], setBgProgress);
+        const result = await removeImageBackground(files[0], setBgProgress, {
+          tolerance: bgTolerance,
+          dropShadow: bgDropShadow,
+        });
         const filename = `TanpaLatar_${files[0].name.replace(/\.[^/.]+$/, "")}.png`;
         await commitStudioOutput(
           makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
@@ -1282,7 +1287,10 @@ export default function Home() {
 
     try {
       const file = files[0];
-      const result = await removeImageBackground(file, setBgProgress);
+      const result = await removeImageBackground(file, setBgProgress, {
+        tolerance: bgTolerance,
+        dropShadow: bgDropShadow,
+      });
       const filename = `TanpaLatar_${file.name.replace(/\.[^/.]+$/, "")}.png`;
 
       await commitStudioOutput(
@@ -1522,6 +1530,10 @@ export default function Home() {
               bgModelReady={bgModelReady}
               bgConsentGranted={bgConsentGranted}
               bgProgress={bgProgress}
+              bgTolerance={bgTolerance}
+              onBgToleranceChange={setBgTolerance}
+              bgDropShadow={bgDropShadow}
+              onBgDropShadowChange={setBgDropShadow}
               onGrantBgConsent={() => setBgConsentGranted(true)}
               lastEnhanceResult={lastEnhanceResult}
               error={studioError}
