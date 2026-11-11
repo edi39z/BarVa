@@ -25,7 +25,7 @@ janji tanggal.
 | **Google Drive** | OAuth 2.0, refresh token di server, kuota, jelajah folder, unggah, unduh lewat server |
 | **Hardening** | CORS whitelist, admin key wajib di mode release, batas ukuran unggah, MIME dari isi berkas, validasi folder induk, rate limit login & password share |
 | **Deploy** | Dockerfile multi-stage, docker-compose, unit systemd, konfigurasi Nginx |
-| **Struktur frontend** | Seluruh tab, sidebar, header, dan modal ada di `src/components/*`; kelompok state besar di `src/hooks/*` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`, `useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useContentSearch`, `useFileSelection`) sehingga `page.tsx` tinggal komposisi (±930 baris) |
+| **Struktur frontend** | Seluruh tab, sidebar, header, dan modal ada di `src/components/*`; kelompok state besar di `src/hooks/*` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`, `useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useContentSearch`, `useFileSelection`) sehingga `page.tsx` tinggal komposisi (±1.000 baris) |
 
 ---
 

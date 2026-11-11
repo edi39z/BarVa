@@ -71,7 +71,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   penerima undangan membuat akun nyata dengan role & kuota dari undangan
 - Kuota anggota ditegakkan saat upload (`413 QUOTA_EXCEEDED`), dihitung dari
   objek unik sehingga dedup tidak dihitung dua kali; pemakaian tampil di sidebar,
-  dan owner/admin dapat mengubah kuota tiap anggota dari Family Hub
+  dan owner/admin dapat mengubah kuota tiap anggota dari Family Hub. Modal
+  pengaturan akun menampilkan rincian pemakaian per jenis berkas dan per folder
+  (`GET /auth/me/usage`)
 - Share link publik: password opsional, masa berlaku, halaman `/s/:token` yang
   benar-benar mengunduh dari server; share folder bisa diunduh sebagai satu
   arsip zip yang dialirkan langsung tanpa file sementara
@@ -119,6 +121,8 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - PostgreSQL 17, pgx/v5, sqlc v1.31.1 (typed SQL, tanpa ORM)
 - Argon2id untuk password hashing
 - `http.ServeContent` untuk streaming Range
+- Ekstraksi teks PDF/DOCX untuk pencarian isi (`ledongthuc/pdf`, `archive/zip`)
+  dengan indeks GIN `pg_trgm`
 
 **Infrastruktur**
 - Docker Compose, systemd, atau Nginx reverse proxy
@@ -295,6 +299,7 @@ bekerja untuk localhost.
 | `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat; **wajib** bila `GIN_MODE=release` |
 | `ALLOWED_ORIGINS` | *(kosong)* | Origin CORS tambahan, dipisah koma |
 | `MAX_UPLOAD_BYTES` | `10737418240` (10 GiB) | Batas ukuran satu upload |
+| `MIGRATIONS_DIR` | *(kosong: `./migrations`, lalu `../migrations`)* | Folder migrasi SQL yang diterapkan saat start |
 
 > Khusus Docker Compose, `POSTGRES_PASSWORD` juga wajib diisi di
 > `deploy/docker/.env` (lihat `deploy/docker/.env.example`). Nilai itu dipakai

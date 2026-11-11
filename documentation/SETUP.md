@@ -42,8 +42,13 @@ Tidak perlu menjalankan SQL manual di kedua jalur: backend menerapkan migrasi
 dari folder `migrations/` saat start, lalu mencatat versi yang sudah dijalankan
 di tabel `schema_migrations`.
 
-Skema membuat lima tabel: `users`, `sessions`, `file_objects`, `file_nodes`,
-`shares`, plus index yang dibutuhkan (termasuk unique index nama per folder).
+Skema membuat enam tabel: `users`, `sessions`, `file_objects`, `file_nodes`,
+`shares`, `file_texts`, plus index yang dibutuhkan (termasuk unique index nama
+per folder dan GIN trigram untuk pencarian isi).
+
+Migrasi `000003` menjalankan `CREATE EXTENSION IF NOT EXISTS pg_trgm`. User DSN
+harus boleh membuat extension (default `postgres` memenuhi); bila memakai user
+terbatas, pasang extension itu sekali sebagai superuser sebelum backend start.
 
 Koneksi default yang dipakai backend:
 
@@ -53,10 +58,11 @@ postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable
 
 Kalau berbeda, set `DATABASE_URL`.
 
-> Untuk perubahan skema, buat `migrations/000003_*.up.sql` lalu restart
-> backend. Jangan mengubah migrasi yang sudah pernah dijalankan — runner hanya
-> menambah, tidak pernah mengulang. Database lama yang skemanya dibuat manual
-> akan di-baseline otomatis (migrasi pertama ditandai sudah diterapkan).
+> Untuk perubahan skema, buat `migrations/0000NN_*.up.sql` bernomor berikutnya
+> lalu restart backend. Jangan mengubah migrasi yang sudah pernah dijalankan —
+> runner hanya menambah, tidak pernah mengulang. Database lama yang skemanya
+> dibuat manual akan di-baseline otomatis (migrasi pertama ditandai sudah
+> diterapkan).
 
 ---
 

@@ -116,26 +116,34 @@ Tiga lapis otentikasi:
 
 Model data: `users` → `sessions`, `file_nodes` (pohon virtual, `parent_id`,
 `deleted_at` untuk soft delete) → `file_objects` (konten fisik, `sha256` unik),
-`shares` (hanya hash token). Satu objek CAS bisa dirujuk banyak node
-(deduplikasi). Upload dialirkan ke `data/tmp` sambil menghitung SHA-256, MIME
-dideteksi dari isi file, path disk tidak pernah dibentuk dari nama kiriman.
+`shares` (hanya hash token), dan `file_texts` (teks hasil ekstraksi per objek
+untuk pencarian isi). Satu objek CAS bisa dirujuk banyak node (deduplikasi).
+Upload dialirkan ke `data/tmp` sambil menghitung SHA-256, MIME dideteksi dari
+isi file, path disk tidak pernah dibentuk dari nama kiriman.
+
+Pencarian isi: `internal/textextract` mengekstrak PDF/DOCX/teks biasa,
+`internal/indexer` mengantrekan pekerjaan setelah unggahan (2 worker) dan
+memindai objek lama tiap 15 menit, `GET /search` memakai CTE rekursif `alive`
+agar isi folder yang di-soft-delete tidak muncul. Mode standalone memakai
+indeks teks IndexedDB sendiri (`src/lib/storage/textIndex.ts`).
 
 ### Frontend
 
-`src/app/page.tsx` (±930 baris) adalah aplikasi utama dan masih container
+`src/app/page.tsx` (±1.000 baris) adalah aplikasi utama dan masih container
 besar — pecah per komponen atau hook bila menyentuhnya, satu ekstraksi per
 perubahan, lalu `npx tsc --noEmit`. Tab besar sudah diekstrak ke
 `src/components/` (`FileExplorerTab`, `GalleryTab`, `TrashTab`,
 `FamilySharingTab`, `StudioTab`, dst.), dan kelompok state besar ada di
 `src/hooks/` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`,
-`useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useFileSelection`).
+`useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useContentSearch`,
+`useFileSelection`).
 
 Pemilihan sumber data terpusat di `src/lib/api/`:
 - `nas.ts` — klien backend Go (token, server URL, media URL).
 - `cloud.ts` — Google Drive, undangan, share link lewat backend (token Google
   tidak pernah ke browser).
-- `src/lib/storage/indexeddb.ts` — mode standalone (`idb`, skema versi 2 dengan
-  object store `upload_queue`).
+- `src/lib/storage/indexeddb.ts` — mode standalone (`idb`, skema versi 3 dengan
+  object store `upload_queue` dan `file_texts`).
 
 Tipe tampilan dan turunannya punya modul sendiri — jangan menyalin logikanya di
 komponen:

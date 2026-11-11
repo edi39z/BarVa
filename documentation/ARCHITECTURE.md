@@ -380,13 +380,13 @@ dihapus pada tahap `activate`.
 
 Upload yang gagal karena tidak ada koneksi tidak dibuang. Berkas disimpan utuh
 sebagai `Blob` di IndexedDB (`nas_local_storage`, object store `upload_queue`,
-skema versi 2) lalu dikirim ulang otomatis ketika koneksi kembali.
+skema versi 3) lalu dikirim ulang otomatis ketika koneksi kembali.
 
 | Tahap | Fungsi | Perilaku |
 |---|---|---|
-| Masuk antrean | `enqueueUpload()` (`lib/storage/indexeddb.ts`) | Dipanggil dari `handleRealFileUpload` bila `navigator.onLine === false` atau error jaringan |
+| Masuk antrean | `enqueueUpload()` (`lib/storage/indexeddb.ts`) | Dipanggil dari `useUploads` bila `navigator.onLine === false` atau error jaringan |
 | Kirim ulang | `flushUploadQueue()` (`lib/uploadQueue.ts`) | Iterasi antrean; sukses → hapus item; gagal → simpan `lastError` dan hentikan loop bila offline/401 |
-| Pemicu | `useEffect` di `page.tsx` | Saat mount, saat event `online`, dan tombol "Unggah sekarang" pada banner |
+| Pemicu | `useEffect` di `hooks/useUploads.ts` | Saat mount, saat event `online`, dan tombol "Unggah sekarang" pada banner |
 
 Detail penting:
 
@@ -427,7 +427,7 @@ tinggal menyusun:
 | `Sidebar` | Indikator mode/server, navigasi tab, penghitung item, ringkasan penyimpanan, kartu pengguna, logout |
 | `WorkspaceHeader` | Pencarian, aksi unggah/folder baru, banner offline dan progres unggah |
 | `HomeDashboard` | Hero, pintasan kategori, memori, aksi cepat, berkas terbaru, ringkasan penyimpanan, feed status |
-| `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, menu klik kanan/long-press, mode pilih, banner antrean offline |
+| `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, menu klik kanan/long-press, mode pilih, toggle pencarian Nama/Isi, banner antrean offline |
 | `TrashTab` | Tabel item terhapus, pulihkan, hapus permanen |
 | `GalleryTab` | Filter kategori, grid media, menu aksi, dan mode pilih |
 | `FileActionMenu` | Popover aksi di desktop dan bottom sheet di layar sentuh |
@@ -488,7 +488,8 @@ Berkas dan media di galeri memakai satu menu aksi yang sama:
 |---|---|
 | `lib/studio/pdf.ts` | `imagesToPDF`, `mergePDFs` (pdf-lib) |
 | `lib/studio/pdfjs.ts` | `openPdf` — pemuatan pdf.js, worker, dan galat kata sandi |
-| `lib/studio/pdfToWord.ts` | `pdfToWord` — ekstraksi teks per halaman lalu penyusunan `.docx` |
+| `lib/studio/pdfText.ts` | `extractPdfText`, `extractLines` — ekstraksi teks PDF, dipakai PDF→Word dan pencarian isi |
+| `lib/studio/pdfToWord.ts` | `pdfToWord` — penyusunan `.docx` dari baris teks per halaman |
 | `lib/studio/pdfEditor.ts` | `readPdfSource`, `buildEditedPdf` — model halaman dan penyusunan ulang PDF |
 | `lib/studio/image.ts` | `compressAndResizeImage` (Canvas 2D) |
 | `lib/studio/idphoto.ts` | Ukuran resmi pasfoto, warna latar, `composeIdPhoto` |

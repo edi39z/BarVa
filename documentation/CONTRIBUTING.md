@@ -150,7 +150,8 @@ cd backend && sqlc generate
 
 ### Migrasi
 
-- Tambahkan file baru `migrations/000003_*.up.sql` (dan `.down.sql`).
+- Tambahkan file baru `migrations/0000NN_*.up.sql` (dan `.down.sql`) dengan nomor
+  berikutnya.
 - **Jangan** mengubah migrasi yang sudah pernah dijalankan di server mana pun.
 
 ### Keamanan endpoint
@@ -214,16 +215,20 @@ tidak lagi diperlukan dan tipe `Config` kembali berfungsi.
 
 ### Frontend
 
-`frontend/src/app/page.tsx` masih berupa satu berkas besar. Saat menyentuhnya:
+`frontend/src/app/page.tsx` masih container besar (±1.000 baris) meski seluruh tab
+sudah ada di `src/components/` dan kelompok state utama di `src/hooks/`. Saat
+menyentuhnya:
 
-- Ekstrak satu komponen per perubahan, jangan refactor menyeluruh sekaligus.
+- Ekstrak satu komponen atau hook per perubahan, jangan refactor menyeluruh
+  sekaligus.
 - Jalankan `npx tsc --noEmit` setelah setiap ekstraksi.
 
 ---
 
 ## Yang paling dibutuhkan
 
-1. **Memecah `page.tsx`** menjadi komponen.
+1. **Penyimpanan sekunder (S3-compatible)** di samping disk lokal.
+2. Merapikan `eslint-disable` yang tersisa dan menjalankan Prettier massal.
 
 ---
 
