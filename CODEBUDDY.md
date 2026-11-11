@@ -84,11 +84,13 @@ cd backend && sqlc generate   # setelah mengubah db/queries/*.sql
 
 ### Alur request backend
 
-`cmd/server/main.go` merakit semuanya: storage CAS → pool pgx → migrasi otomatis
-→ router Gin. Bila PostgreSQL tidak bisa di-ping, server tetap hidup dalam
-**mode storage-only**: hanya route Google Drive dan undangan (`data/*.json`)
-yang aktif; route yang butuh DB tidak didaftarkan sama sekali. Server tidak
-menyambung ulang otomatis.
+`cmd/server/main.go` hanya boot: konfigurasi → storage CAS → pool pgx →
+migrasi otomatis → `newRouter` → server + graceful shutdown. Seluruh tabel
+route ada di `cmd/server/routes.go` dalam satu grup `/api/v1`; sub-grup hanya
+membedakan otentikasi (publik, admin, protected). Bila PostgreSQL tidak bisa
+di-ping, server tetap hidup dalam **mode storage-only**: hanya route Google
+Drive dan undangan (`data/*.json`) yang didaftarkan; route yang butuh DB
+dilewati sama sekali. Server tidak menyambung ulang otomatis.
 
 Tiga lapis otentikasi:
 - `auth.AuthMiddleware` — Bearer token, cookie `nas_session`, atau `?token=`
