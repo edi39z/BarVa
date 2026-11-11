@@ -198,7 +198,7 @@ Berjalan di `http://localhost:8080`. Cek:
 
 ```bash
 curl http://localhost:8080/health
-# {"database":true,"status":"online","version":"1.0-mvp",...}
+# {"database":true,"status":"online","version":"0.1.0",...}
 ```
 
 Jika `"database":false`, backend tetap hidup dalam **mode storage-only** — hanya
