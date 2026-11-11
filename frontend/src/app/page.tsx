@@ -227,10 +227,9 @@ export default function Home() {
   // Berkas dari Storage Picker yang menunggu diolah panel alatnya sendiri.
   const [studioPickedFile, setStudioPickedFile] = useState<File | null>(null);
 
-  // Unified Storage Picker for Studio Tools (Local / NAS / Drive)
+  // Storage Picker untuk Studio Tools (hanya berkas lokal di perangkat ini)
   const [storagePickerOpen, setStoragePickerOpen] = useState(false);
   const [storagePickerTool, setStoragePickerTool] = useState<StudioToolId>("img2pdf");
-  const [storagePickerTab, setStoragePickerTab] = useState<"local" | "nas" | "gdrive">("local");
   const [selectedStorageIds, setSelectedStorageIds] = useState<string[]>([]);
 
   // Image compress settings
@@ -2208,13 +2207,9 @@ export default function Home() {
       {storagePickerOpen && (
         <StoragePickerModal
           tool={storagePickerTool}
-          tab={storagePickerTab}
-          onTabChange={setStoragePickerTab}
           localItems={localItems}
           selectedIds={selectedStorageIds}
           onSelectedIdsChange={setSelectedStorageIds}
-          nasStatus={nasStatus}
-          isGdriveConnected={isGdriveConnected}
           onClose={() => setStoragePickerOpen(false)}
           onConfirm={handleExecuteStorageSelection}
         />
