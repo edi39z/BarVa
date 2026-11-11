@@ -29,9 +29,8 @@ type CreateShareRequest struct {
 }
 
 func (h *SharesHandler) Create(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -121,9 +120,8 @@ func (h *SharesHandler) Create(c *gin.Context) {
 }
 
 func (h *SharesHandler) List(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -140,9 +138,8 @@ func (h *SharesHandler) List(c *gin.Context) {
 }
 
 func (h *SharesHandler) Delete(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
