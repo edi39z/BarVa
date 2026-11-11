@@ -251,6 +251,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq nginx-light >/dev/null
+          # Upstream di nas.conf memakai nama service Docker. Runner tidak punya
+          # DNS Docker, jadi arahkan ke loopback supaya `nginx -t` bisa resolve.
+          echo "127.0.0.1 nas-backend nas-frontend" | sudo tee -a /etc/hosts >/dev/null
           work=$(mktemp -d)
           {
             echo "events {}"
