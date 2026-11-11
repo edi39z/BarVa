@@ -11,13 +11,6 @@ import {
 } from "@/lib/storage/indexeddb";
 import { flushUploadQueue } from "@/lib/uploadQueue";
 import {
-  createInvite,
-  listInvites,
-  revokeInvite,
-  Invite as ServerInvite,
-  Member as ServerMember,
-} from "@/lib/api/cloud";
-import {
   uploadToNas,
   getDownloadUrl,
   getThumbnailUrl,
@@ -27,9 +20,6 @@ import {
   deleteNasFile,
   renameNasFile,
   moveNasFile,
-  listFamilyMembers,
-  updateMemberQuota,
-  NasFamilyMember,
 } from "@/lib/api/nas";
 import AddMemberModal from "@/components/AddMemberModal";
 import AuthGate from "@/components/AuthGate";
@@ -57,6 +47,7 @@ import {
   type FileAction,
   type GroupMode,
 } from "@/lib/files/actions";
+import { useFamily } from "@/hooks/useFamily";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useNasFiles } from "@/hooks/useNasFiles";
 import { useNasSession } from "@/hooks/useNasSession";
@@ -65,29 +56,9 @@ import { useStudio } from "@/hooks/useStudio";
 import { useTrash } from "@/hooks/useTrash";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
-import { FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
+import { formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
-
-const AVATAR_PALETTE = [
-  "bg-emerald-600",
-  "bg-purple-600",
-  "bg-amber-600",
-  "bg-pink-600",
-  "bg-teal-600",
-];
-
-/**
- * Warna avatar diturunkan dari identitas anggota, bukan diacak, supaya warnanya
- * tetap sama setiap kali kartu dirender ulang.
- */
-function avatarColorFor(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"home" | "files" | "trash" | "gallery" | "studio" | "gdrive" | "shares">("home");
@@ -136,20 +107,29 @@ export default function Home() {
     logout,
   } = useNasSession({ activeTab });
 
-  // Phase 4: Family Sharing & Remote Access State
-  const [familySubTab, setFamilySubTab] = useState<"members" | "shares" | "remote">("members");
-  const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
-  const [newMemberName, setNewMemberName] = useState("");
-  const [newMemberEmail, setNewMemberEmail] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState<"member" | "admin">("member");
-  const [newMemberQuotaGB, setNewMemberQuotaGB] = useState<number>(100);
-
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
-
-  // Generated Invitation Link for Family
-  const [generatedInviteUrl, setGeneratedInviteUrl] = useState("");
-  // Undangan & anggota yang tersimpan di server NAS
-  const [serverInvites, setServerInvites] = useState<ServerInvite[]>([]);
+  // Anggota keluarga, undangan, dan formulir tambah anggota dikelola hook.
+  const {
+    subTab: familySubTab,
+    setSubTab: setFamilySubTab,
+    modalOpen: addMemberModalOpen,
+    setModalOpen: setAddMemberModalOpen,
+    name: newMemberName,
+    setName: setNewMemberName,
+    email: newMemberEmail,
+    setEmail: setNewMemberEmail,
+    role: newMemberRole,
+    setRole: setNewMemberRole,
+    quotaGB: newMemberQuotaGB,
+    setQuotaGB: setNewMemberQuotaGB,
+    members: familyMembers,
+    invites: serverInvites,
+    generatedInviteUrl,
+    setGeneratedInviteUrl,
+    addMember: handleAddFamilyMember,
+    reload: refreshInvites,
+    updateQuota: handleUpdateMemberQuota,
+    revokeInvite: handleRevokeInvite,
+  } = useFamily({ connectionMode, currentUser });
 
   // Local storage items from IndexedDB
   const [localItems, setLocalItems] = useState<DisplayItem[]>([]);
@@ -282,127 +262,6 @@ export default function Home() {
       window.removeEventListener("online", run);
     };
   }, [connectionMode, currentUser, files]);
-
-  // Phase 4: Family Member & Sharing Handlers
-  const handleAddFamilyMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMemberName || !newMemberEmail) return;
-
-    const avatarBg = avatarColorFor(newMemberEmail);
-
-    // Undangan disimpan di server (bukan hanya localStorage browser ini),
-    // supaya pemilik bisa melihat status dan tautannya tetap berlaku.
-    try {
-      const res = await createInvite({
-        name: newMemberName,
-        email: newMemberEmail,
-        role: newMemberRole,
-        quota_gb: newMemberQuotaGB,
-        expires_in_hours: 24 * 7,
-      });
-
-      const member: FamilyMember = {
-        id: res.invite.id,
-        name: newMemberName,
-        email: newMemberEmail,
-        role: newMemberRole,
-        usedBytes: 0,
-        quotaBytes: newMemberQuotaGB * 1024 * 1024 * 1024,
-        avatarBg,
-      };
-      setFamilyMembers((prev) => [...prev, member]);
-
-      // Tautan dibuka dari HP anggota keluarga, jadi pakai origin halaman ini
-      // (sudah host LAN/Tailscale yang sedang dipakai pengunjung).
-      setGeneratedInviteUrl(`${window.location.origin}/invite/${res.token}`);
-      await refreshInvites();
-    } catch (err) {
-      alert(
-        `Gagal membuat undangan: ${(err as Error).message}\n\nPastikan backend NAS berjalan di port 8080.`
-      );
-    }
-  };
-
-  // Muat undangan & anggota yang benar-benar tersimpan di server.
-  const refreshInvites = async () => {
-    // Undangan memakai admin key; anggota memakai sesi login. Keduanya
-    // dipisah agar kegagalan salah satu tidak mengosongkan yang lain.
-    let inviteMembers: ServerMember[] = [];
-    try {
-      const data = await listInvites();
-      setServerInvites(data.invites);
-      inviteMembers = data.members || [];
-    } catch {
-      // backend belum jalan atau admin key tidak diisi
-      setServerInvites([]);
-    }
-
-    // Anggota yang sudah terdaftar di database membawa kuota dan pemakaian
-    // nyata; daftar undangan hanya dipakai sebagai cadangan.
-    let accounts: NasFamilyMember[] = [];
-    try {
-      accounts = await listFamilyMembers();
-    } catch {
-      accounts = [];
-    }
-
-    if (accounts.length > 0) {
-      setFamilyMembers(
-        accounts.map((m, i) => ({
-          id: m.id,
-          name: m.username,
-          email: m.email,
-          role: m.role,
-          usedBytes: m.quota_used_bytes || 0,
-          quotaBytes: m.quota_bytes || 0,
-          avatarBg: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
-        }))
-      );
-      return;
-    }
-
-    if (inviteMembers.length > 0) {
-      // Tampilkan anggota yang sudah menerima undangan sebagai kartu keluarga.
-      setFamilyMembers(
-        inviteMembers.map((m, i) => ({
-          id: m.id,
-          name: m.name,
-          email: m.email,
-          role: (m.role === "owner" || m.role === "admin" ? m.role : "member") as
-            | "owner"
-            | "admin"
-            | "member",
-          usedBytes: 0,
-          quotaBytes: m.quota_gb * 1024 * 1024 * 1024,
-          avatarBg: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
-        }))
-      );
-    }
-  };
-
-  // Ubah kuota satu anggota lalu segarkan kartu agar pemakaian ikut terbarui.
-  const handleUpdateMemberQuota = async (id: string, quotaGB: number) => {
-    await updateMemberQuota(id, quotaGB);
-    await refreshInvites();
-  };
-
-  // Undangan dan anggota tersimpan di server, jadi tidak ada yang bisa dimuat
-  // di mode mandiri — dulu tetap dipanggil dan menghasilkan dua request gagal.
-  // Tanpa sesi pun server akan menolak, jadi ditunggu sampai pengguna masuk.
-  useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) return;
-    refreshInvites();
-  }, [connectionMode, currentUser]);
-
-  const handleRevokeInvite = async (id: string) => {
-    if (!confirm("Cabut undangan ini? Tautan akan langsung tidak berlaku.")) return;
-    try {
-      await revokeInvite(id);
-      await refreshInvites();
-    } catch (err) {
-      alert(`Gagal mencabut undangan: ${(err as Error).message}`);
-    }
-  };
 
   // Phase 5: PWA Install & 3-2-1 Offsite Backup Handlers
   const handleInstallPwa = () => {

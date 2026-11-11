@@ -122,13 +122,13 @@ dideteksi dari isi file, path disk tidak pernah dibentuk dari nama kiriman.
 
 ### Frontend
 
-`src/app/page.tsx` (±1.420 baris) adalah aplikasi utama dan masih container
+`src/app/page.tsx` (±1.280 baris) adalah aplikasi utama dan masih container
 besar — pecah per komponen atau hook bila menyentuhnya, satu ekstraksi per
 perubahan, lalu `npx tsc --noEmit`. Tab besar sudah diekstrak ke
 `src/components/` (`FileExplorerTab`, `GalleryTab`, `TrashTab`,
 `FamilySharingTab`, `StudioTab`, dst.), dan kelompok state besar ada di
 `src/hooks/` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`,
-`useStudio`, `useFileSelection`).
+`useStudio`, `useFamily`, `useFileSelection`).
 
 Pemilihan sumber data terpusat di `src/lib/api/`:
 - `nas.ts` — klien backend Go (token, server URL, media URL).
