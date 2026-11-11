@@ -20,6 +20,8 @@ import {
   ArrowLeft,
   Info,
   KeyRound,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
 import {
   GDriveFile,
@@ -32,7 +34,14 @@ import {
   gdriveQuota,
   gdriveSaveClient,
   gdriveStatus,
+  gdriveUploadFile,
 } from "@/lib/api/cloud";
+import type { DisplayItem } from "@/lib/displayItem";
+import { detectFileType } from "@/lib/fileTypes";
+import ThumbnailImage from "@/components/ThumbnailImage";
+import type { LongPressPoint } from "@/hooks/useLongPress";
+import type { SelectModifiers } from "@/hooks/useFileSelection";
+import { Check } from "lucide-react";
 
 function fmtBytes(n: number): string {
   if (!n || n <= 0) return "0 B";
@@ -50,17 +59,64 @@ function fileIcon(mime: string) {
   return <FileText className="h-4 w-4 shrink-0 text-[var(--tile-blue-fg)]" aria-hidden />;
 }
 
-export default function GoogleDrivePanel() {
+export function gdriveFileToDisplayItem(f: GDriveFile): DisplayItem {
+  const isFolder = f.mimeType.includes("folder");
+  const type = isFolder ? "folder" : detectFileType({ mime: f.mimeType, name: f.name });
+  const dlUrl = isFolder ? undefined : gdriveDownloadUrl(f.id);
+  return {
+    id: `gdrive:${f.id}`,
+    name: f.name,
+    type,
+    sizeStr: f.size ? fmtBytes(Number(f.size)) : isFolder ? "Folder" : "—",
+    sizeBytes: f.size ? Number(f.size) : 0,
+    updatedAt: f.modifiedTime
+      ? new Date(f.modifiedTime).toLocaleDateString("id-ID", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "—",
+    updatedAtISO: f.modifiedTime,
+    source: "gdrive",
+    readOnly: true,
+    downloadUrl: dlUrl,
+    previewUrl: f.thumbnailLink || dlUrl,
+  };
+}
+
+interface GoogleDrivePanelProps {
+  selectionMode?: boolean;
+  selectedIds?: string[];
+  onToggleSelect?: (item: DisplayItem, modifiers: SelectModifiers) => void;
+  onOpenFile?: (item: DisplayItem) => void;
+  onDownload?: (item: DisplayItem) => void;
+  onOpenMenu?: (item: DisplayItem, anchor: LongPressPoint) => void;
+  onItemsLoaded?: (items: DisplayItem[]) => void;
+}
+
+export default function GoogleDrivePanel({
+  selectionMode = false,
+  selectedIds = [],
+  onToggleSelect,
+  onOpenFile,
+  onDownload,
+  onOpenMenu,
+  onItemsLoaded,
+}: GoogleDrivePanelProps = {}) {
   const [status, setStatus] = useState<GDriveStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [draggingOver, setDraggingOver] = useState(false);
+  const [uploadingDrive, setUploadingDrive] = useState(false);
 
   // form setup (sekali seumur pemasangan)
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [redirectUri, setRedirectUri] = useState(
-    "http://localhost:8080/api/v1/gdrive/callback"
+  const [redirectUri, setRedirectUri] = useState(() =>
+    typeof window !== "undefined"
+      ? `${backendBase()}/api/v1/gdrive/callback`
+      : "http://localhost:8080/api/v1/gdrive/callback"
   );
 
   // data drive
@@ -105,16 +161,38 @@ export default function GoogleDrivePanel() {
           });
         }
         if (q.user?.emailAddress) setEmail(q.user.emailAddress);
-        setFiles(f.files || []);
+        const list = f.files || [];
+        setFiles(list);
+        onItemsLoaded?.(list.map(gdriveFileToDisplayItem));
       } catch (e) {
         setErr((e as Error).message);
         setFiles([]);
+        onItemsLoaded?.([]);
       } finally {
         setLoadingFiles(false);
       }
     },
-    [search, folder]
+    [search, folder, onItemsLoaded]
   );
+
+  async function handleDropFiles(fileList: FileList | File[]) {
+    const arr = Array.from(fileList);
+    if (arr.length === 0) return;
+    setUploadingDrive(true);
+    setErr("");
+    setMsg(`Mengunggah ${arr.length} berkas ke Google Drive…`);
+    try {
+      for (const file of arr) {
+        await gdriveUploadFile(file, folder || undefined);
+      }
+      setMsg(`Berhasil mengunggah ${arr.length} berkas ke Google Drive.`);
+      await loadDrive({ folder, q: search });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setUploadingDrive(false);
+    }
+  }
 
   useEffect(() => {
     // Status Drive diambil sekali saat panel dibuka. Pemicunya mount, bukan
@@ -426,7 +504,31 @@ export default function GoogleDrivePanel() {
             <p className="text-[11.5px] text-subtle">{crumbs.map((c) => c.name).join(" / ")}</p>
           )}
 
-          <div className="card overflow-hidden">
+          <div
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("Files")) {
+                e.preventDefault();
+                setDraggingOver(true);
+              }
+            }}
+            onDragLeave={() => setDraggingOver(false)}
+            onDrop={(e) => {
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                e.preventDefault();
+                setDraggingOver(false);
+                void handleDropFiles(e.dataTransfer.files);
+              }
+            }}
+            className={`card relative overflow-hidden transition-colors ${
+              draggingOver ? "border-2 border-dashed border-brand bg-brand-soft/20" : ""
+            }`}
+          >
+            {uploadingDrive && (
+              <div className="flex items-center gap-2 border-b border-line bg-brand-soft/40 px-4 py-2 text-[12px] text-brand">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Mengunggah berkas ke Google Drive…
+              </div>
+            )}
             {loadingFiles ? (
               <div className="flex items-center justify-center gap-2 p-10 text-[12.5px] text-muted">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -435,21 +537,87 @@ export default function GoogleDrivePanel() {
             ) : files.length === 0 ? (
               <div className="space-y-1 p-10 text-center">
                 <p className="text-[12.5px] font-semibold text-fg">Tidak ada berkas di sini</p>
-                <p className="text-[11.5px] text-subtle">Coba kata kunci lain atau buka folder lain.</p>
+                <p className="text-[11.5px] text-subtle">
+                  Coba kata kunci lain, buka folder lain, atau seret berkas dari komputer ke sini.
+                </p>
               </div>
             ) : (
               <ul className="divide-y divide-line">
                 {files.map((f) => {
                   const isFolder = f.mimeType.includes("folder");
+                  const item = gdriveFileToDisplayItem(f);
+                  const selected = selectedIds.includes(item.id);
+                  const isImage = item.type === "image";
                   return (
-                    <li key={f.id} className="flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-surface-2">
+                    <li
+                      key={f.id}
+                      draggable={!isFolder}
+                      onDragStart={(e) => {
+                        if (isFolder) return;
+                        const allDisplay = files.filter((x) => !x.mimeType.includes("folder")).map(gdriveFileToDisplayItem);
+                        const toDrag =
+                          selected && selectedIds.length > 1
+                            ? allDisplay.filter((d) => selectedIds.includes(d.id))
+                            : [item];
+                        e.dataTransfer.setData("application/x-barva-items", JSON.stringify(toDrag));
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onContextMenu={(event) => {
+                        if (isFolder || !onOpenMenu) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onOpenMenu(item, { x: event.clientX, y: event.clientY });
+                      }}
+                      className={`flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-2 ${
+                        selected ? "bg-brand-soft/40" : ""
+                      }`}
+                    >
+                      {selectionMode && !isFolder && onToggleSelect && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onToggleSelect(item, event);
+                          }}
+                          className="shrink-0"
+                          aria-pressed={selected}
+                        >
+                          <span
+                            className={`flex h-6 w-6 items-center justify-center rounded-md border-2 transition-colors ${
+                              selected
+                                ? "border-brand bg-brand text-white"
+                                : "border-line-strong bg-surface/90 text-transparent"
+                            }`}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                        </button>
+                      )}
                       <button
-                        onClick={() => (isFolder ? openFolder(f) : undefined)}
-                        className={`flex min-w-0 flex-1 items-center gap-2 text-left ${
-                          isFolder ? "hover:text-brand" : "cursor-default"
-                        }`}
+                        type="button"
+                        onClick={(event) => {
+                          if (selectionMode && !isFolder && onToggleSelect) {
+                            onToggleSelect(item, event);
+                            return;
+                          }
+                          if (isFolder) openFolder(f);
+                          else if (onOpenFile) onOpenFile(item);
+                          else if (item.previewUrl) window.open(item.previewUrl, "_blank", "noopener,noreferrer");
+                        }}
+                        className="flex min-w-0 flex-1 items-center gap-2.5 text-left hover:text-brand"
                       >
-                        {fileIcon(f.mimeType)}
+                        {isImage && item.previewUrl ? (
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                            <ThumbnailImage
+                              src={item.previewUrl}
+                              alt={f.name}
+                              className="h-full w-full object-cover"
+                              fallback={fileIcon(f.mimeType)}
+                            />
+                          </span>
+                        ) : (
+                          fileIcon(f.mimeType)
+                        )}
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12.5px] font-medium text-fg">{f.name}</span>
                           <span className="block text-[11px] text-subtle">
@@ -466,25 +634,59 @@ export default function GoogleDrivePanel() {
                       </button>
                       {!isFolder && (
                         <div className="flex shrink-0 items-center gap-0.5">
-                          <a
-                            href={gdriveDownloadUrl(f.id)}
-                            className="icon-btn h-9 w-9"
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenFile
+                                ? onOpenFile(item)
+                                : item.previewUrl && window.open(item.previewUrl, "_blank", "noopener")
+                            }
+                            className="icon-btn h-8 w-8"
+                            title="Pratinjau"
+                            aria-label={`Pratinjau ${f.name}`}
+                          >
+                            <Eye className="h-4 w-4" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onDownload
+                                ? onDownload(item)
+                                : window.open(gdriveDownloadUrl(f.id), "_blank", "noopener")
+                            }
+                            className="icon-btn h-8 w-8"
                             title="Unduh lewat server"
                             aria-label={`Unduh ${f.name}`}
                           >
                             <Download className="h-4 w-4" aria-hidden />
-                          </a>
+                          </button>
                           {f.webViewLink && (
                             <a
                               href={f.webViewLink}
                               target="_blank"
                               rel="noreferrer"
-                              className="icon-btn h-9 w-9"
+                              className="icon-btn h-8 w-8"
                               title="Buka di Google Drive"
                               aria-label={`Buka ${f.name} di Google Drive`}
                             >
                               <ExternalLink className="h-4 w-4" aria-hidden />
                             </a>
+                          )}
+                          {onOpenMenu && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                onOpenMenu(item, { x: rect.left, y: rect.bottom + 4 });
+                              }}
+                              className="icon-btn h-8 w-8"
+                              title="Alat AI & Aksi lain"
+                              aria-label={`Aksi lain untuk ${f.name}`}
+                            >
+                              <MoreVertical className="h-4 w-4" aria-hidden />
+                            </button>
                           )}
                         </div>
                       )}
