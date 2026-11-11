@@ -144,7 +144,7 @@ export interface RelativeBounds {
  * 12 MP akan lambat dan boros memori. Hasilnya null bila gambar sepenuhnya
  * transparan.
  */
-export async function alphaBounds(bitmap: ImageBitmap): Promise<RelativeBounds | null> {
+async function alphaBounds(bitmap: ImageBitmap): Promise<RelativeBounds | null> {
   const scale = Math.min(1, BOUNDS_SCAN_WIDTH / bitmap.width);
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));

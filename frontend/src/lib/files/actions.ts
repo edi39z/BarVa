@@ -39,11 +39,11 @@ export interface FileAction {
 }
 
 /** PDF dikenali dari ekstensi karena DisplayItem tidak menyimpan MIME. */
-export function isPdfItem(item: DisplayItem): boolean {
+function isPdfItem(item: DisplayItem): boolean {
   return item.type !== "folder" && item.name.toLowerCase().endsWith(".pdf");
 }
 
-export function isImageItem(item: DisplayItem): boolean {
+function isImageItem(item: DisplayItem): boolean {
   return item.type === "image";
 }
 

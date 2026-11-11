@@ -70,7 +70,7 @@ function getDB(): Promise<IDBPDatabase<NASDatabase>> {
   return dbPromise;
 }
 
-export async function calculateSHA256(blob: Blob): Promise<string> {
+async function calculateSHA256(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -108,11 +108,6 @@ export async function saveLocalFile(
 export async function getAllLocalFiles(): Promise<StoredFile[]> {
   const db = await getDB();
   return db.getAll("files");
-}
-
-export async function getLocalFile(id: string): Promise<StoredFile | undefined> {
-  const db = await getDB();
-  return db.get("files", id);
 }
 
 export async function deleteLocalFile(id: string): Promise<void> {

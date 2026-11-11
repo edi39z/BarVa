@@ -115,11 +115,6 @@ function messageOf(error: unknown): string {
   return "";
 }
 
-export function isAbortError(error: unknown): boolean {
-  const name = nameOf(error);
-  return name === "AbortError" || name === "RenderingCancelledException";
-}
-
 function codeFor(error: unknown): StudioErrorCode {
   if (error instanceof StudioError) return error.code;
 

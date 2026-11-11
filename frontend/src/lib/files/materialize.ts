@@ -33,7 +33,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   webm: "video/webm",
 };
 
-export function guessMime(name: string): string {
+function guessMime(name: string): string {
   const extension = name.split(".").pop()?.toLowerCase() ?? "";
   return MIME_BY_EXTENSION[extension] ?? "application/octet-stream";
 }

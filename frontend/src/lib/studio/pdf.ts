@@ -1,4 +1,4 @@
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 
 /**
  * Merge multiple PDF files into one single PDF in-memory (Client-side, 0 server cost).
@@ -46,22 +46,6 @@ export async function imagesToPDF(files: File[]): Promise<Uint8Array> {
       height,
     });
   }
-
-  return pdfDoc.save();
-}
-
-/**
- * Rotate all pages in a PDF document by 90, 180, or 270 degrees.
- */
-export async function rotatePDFPages(file: File, angleDegrees: 90 | 180 | 270): Promise<Uint8Array> {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(arrayBuffer);
-  const pages = pdfDoc.getPages();
-
-  pages.forEach((page) => {
-    const currentRotation = page.getRotation().angle;
-    page.setRotation(degrees((currentRotation + angleDegrees) % 360));
-  });
 
   return pdfDoc.save();
 }

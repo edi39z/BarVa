@@ -19,10 +19,10 @@ export const SINGLE_IMAGE_TOOLS: StudioToolId[] = ["idphoto", "compress", "remov
 export const MULTI_IMAGE_TOOLS: StudioToolId[] = ["img2pdf"];
 
 /** Alat yang menerima tepat satu berkas PDF. */
-export const SINGLE_PDF_TOOLS: StudioToolId[] = ["pdf2word", "pdfedit"];
+const SINGLE_PDF_TOOLS: StudioToolId[] = ["pdf2word", "pdfedit"];
 
 /** Alat yang menerima banyak berkas PDF sekaligus. */
-export const MULTI_PDF_TOOLS: StudioToolId[] = ["mergepdf"];
+const MULTI_PDF_TOOLS: StudioToolId[] = ["mergepdf"];
 
 /**
  * Alat yang punya panel sendiri dan mengolah berkasnya di dalam panel.
