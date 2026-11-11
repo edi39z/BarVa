@@ -356,6 +356,7 @@ tinggal menyusun:
 |---|---|
 | `useTrash` | Daftar item terhapus, pemulihan (memanggil ulang daftar folder), hapus permanen |
 | `useShares` | Modal link berbagi, opsi masa berlaku/password/izin, daftar link aktif |
+| `useStudio` | Alat Studio aktif, status proses, hasil kompresi/AI, pemilih berkas, penyimpanan hasil olahan |
 | `useFileSelection` | Seleksi banyak item, rentang Shift+klik |
 | `useLongPress` | Tekan lama untuk menyalakan mode pilih |
 
