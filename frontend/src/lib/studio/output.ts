@@ -3,7 +3,7 @@
 // Sebelumnya blok `saveLocalFile` + `setLocalItems` + anchor unduhan disalin di
 // empat tempat di page.tsx, dan tiap alat baru menambah salinan lagi.
 
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import { formatBytes } from "@/lib/nasDisplay";
 import { saveLocalFile } from "@/lib/storage/indexeddb";
 

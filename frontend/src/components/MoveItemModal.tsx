@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ChevronRight, Folder, FolderInput, RefreshCw } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import Modal from "@/components/Modal";
 
 interface MoveItemModalProps {

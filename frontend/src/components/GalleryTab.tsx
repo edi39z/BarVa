@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Check, Heart, Image as ImageIcon, Play } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import ThumbnailImage from "@/components/ThumbnailImage";
 import { useLongPress, type LongPressPoint } from "@/hooks/useLongPress";
 import type { SelectModifiers } from "@/hooks/useFileSelection";

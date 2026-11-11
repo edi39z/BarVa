@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Check, Cloud, FileText, Folder, HardDrive, Server } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import Modal from "@/components/Modal";
 import { isPdfTool, isSingleFileTool, MULTI_IMAGE_TOOLS, SINGLE_IMAGE_TOOLS, type StudioToolId } from "@/lib/studio/tools";
 

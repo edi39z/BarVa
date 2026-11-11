@@ -135,6 +135,13 @@ Pemilihan sumber data terpusat di `src/lib/api/`:
 - `src/lib/storage/indexeddb.ts` — mode standalone (`idb`, skema versi 2 dengan
   object store `upload_queue`).
 
+Tipe tampilan dan turunannya punya modul sendiri — jangan menyalin logikanya di
+komponen:
+- `src/lib/fileTypes.ts` — `FileType` + `detectFileType()` dari MIME/nama.
+- `src/lib/displayItem.ts` — `DisplayItem` + `mergeDisplayItems()`.
+- `src/lib/storageStats.ts` — `computeStorageStats()` + `usagePercent()`
+  (dipakai Sidebar dan Beranda supaya angkanya sama).
+
 Studio foto/PDF (`src/lib/studio/*`) berjalan penuh di perangkat (Canvas,
 pdf-lib, pdfjs, `@imgly/background-removal`) dan tidak mengunggah foto ke server.
 

@@ -20,7 +20,7 @@ import {
   Wand2,
   Zap,
 } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import type { FileAction, FileActionId } from "@/lib/files/actions";
 import Modal from "@/components/Modal";
 

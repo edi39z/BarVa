@@ -24,7 +24,8 @@ import {
   Wand2,
   Wifi,
 } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import { mergeDisplayItems, type DisplayItem } from "@/lib/displayItem";
+import { computeStorageStats } from "@/lib/storageStats";
 import { formatBytes } from "@/lib/nasDisplay";
 import { getThumbnailUrl } from "@/lib/api/nas";
 import ThumbnailImage from "@/components/ThumbnailImage";
@@ -67,13 +68,12 @@ export default function HomeDashboard({
 }: HomeDashboardProps) {
   // Berkas lokal dan berkas server digabung tanpa duplikat, supaya bagian
   // "Kenangan" tetap terisi di kedua mode penyimpanan.
-  const merged = React.useMemo(() => {
-    const map = new Map<string, DisplayItem>();
-    [...activeItems, ...localItems].forEach((item) => {
-      if (!map.has(item.id)) map.set(item.id, item);
-    });
-    return Array.from(map.values());
-  }, [activeItems, localItems]);
+  const merged = React.useMemo(
+    () => mergeDisplayItems(activeItems, localItems),
+    [activeItems, localItems]
+  );
+
+  const stats = React.useMemo(() => computeStorageStats(merged), [merged]);
 
   const media = merged.filter((i) => i.type === "image" || i.type === "video");
   const files = merged.filter((i) => i.type !== "folder");
@@ -81,14 +81,13 @@ export default function HomeDashboard({
   const documents = merged.filter((i) => i.type === "document");
   const videos = merged.filter((i) => i.type === "video");
 
-  const totalBytes = merged.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0);
-  const sizeOf = (list: DisplayItem[]) => list.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0);
-  const mediaBytes = sizeOf(images) + sizeOf(videos);
-  const docBytes = sizeOf(documents);
+  const totalBytes = stats.totalBytes;
+  const mediaBytes = stats.imageBytes + stats.videoBytes;
+  const docBytes = stats.documentBytes;
 
   const pct = (part: number) => (totalBytes > 0 ? Math.round((part / totalBytes) * 100) : 0);
-  const photoPct = pct(sizeOf(images));
-  const videoPct = pct(sizeOf(videos));
+  const photoPct = pct(stats.imageBytes);
+  const videoPct = pct(stats.videoBytes);
   const donut = `conic-gradient(#8b5cf6 0 ${photoPct}%, #10b981 ${photoPct}% ${
     photoPct + videoPct
   }%, #3b82f6 ${photoPct + videoPct}% 100%)`;

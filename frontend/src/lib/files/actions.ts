@@ -2,7 +2,7 @@
  * Definisi aksi untuk menu berkas. Dipisah dari komponen supaya daftar aksi
  * mudah diuji dan dipakai bersama oleh daftar berkas maupun galeri.
  */
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import type { StudioToolId } from "@/lib/studio/tools";
 
 export type FileActionId =
