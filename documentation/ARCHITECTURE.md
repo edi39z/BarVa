@@ -355,6 +355,7 @@ tinggal menyusun:
 | Hook | Tanggung jawab |
 |---|---|
 | `useTrash` | Daftar item terhapus, pemulihan (memanggil ulang daftar folder), hapus permanen |
+| `useShares` | Modal link berbagi, opsi masa berlaku/password/izin, daftar link aktif |
 | `useFileSelection` | Seleksi banyak item, rentang Shift+klik |
 | `useLongPress` | Tekan lama untuk menyalakan mode pilih |
 
