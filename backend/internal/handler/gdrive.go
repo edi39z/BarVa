@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"nas-backend/internal/auth"
 	"nas-backend/internal/store"
 )
 
@@ -74,19 +74,15 @@ func (h *GDriveHandler) load() (gdriveConfig, error) {
 
 // ---------- helpers ----------
 
-func randToken(n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+// pkcePair membuat verifier dan challenge PKCE (S256). Verifier 32 byte
+// base64url (43 karakter) memenuhi batas 43–128 karakter RFC 7636.
+func pkcePair() (verifier, challenge string, err error) {
+	verifier, err = auth.NewURLToken(auth.SessionTokenBytes)
+	if err != nil {
+		return "", "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-func pkcePair() (verifier, challenge string) {
-	verifier = randToken(48)
 	sum := sha256.Sum256([]byte(verifier))
-	challenge = base64.RawURLEncoding.EncodeToString(sum[:])
-	return
+	return verifier, base64.RawURLEncoding.EncodeToString(sum[:]), nil
 }
 
 func scopeGranted(granted, want string) bool {
@@ -223,8 +219,16 @@ func (h *GDriveHandler) AuthURL(c *gin.Context) {
 		redirect = cfg.RedirectURI
 	}
 
-	state := randToken(24)
-	verifier, challenge := pkcePair()
+	state, err := auth.NewURLToken(24)
+	if err != nil {
+		failInternal(c, err, "RANDOM_ERROR", "Gagal membuat state OAuth.")
+		return
+	}
+	verifier, challenge, err := pkcePair()
+	if err != nil {
+		failInternal(c, err, "RANDOM_ERROR", "Gagal membuat verifier PKCE.")
+		return
+	}
 
 	h.mu.Lock()
 	// bersihkan state lama > 15 menit

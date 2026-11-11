@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"nas-backend/internal/auth"
 )
 
 func newTestInviteHandler(t *testing.T) *InviteHandler {
@@ -55,7 +57,7 @@ func TestInviteGrantReturnsRoleAndQuota(t *testing.T) {
 		Email:     "budi@example.com",
 		Role:      "admin",
 		QuotaGB:   50,
-		TokenHash: hashToken(raw),
+		TokenHash: auth.HashToken(raw),
 		Status:    "pending",
 		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
 	})
@@ -83,7 +85,7 @@ func TestInviteGrantRejectsUnusableInvite(t *testing.T) {
 	h := newTestInviteHandler(t)
 
 	seedInvite(t, h, inviteRecord{
-		ID: "inv_rev", TokenHash: hashToken("rev"), Status: "revoked",
+		ID: "inv_rev", TokenHash: auth.HashToken("rev"), Status: "revoked",
 		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
 	})
 	if _, err := h.Grant("rev"); err != errRevoked {
@@ -91,7 +93,7 @@ func TestInviteGrantRejectsUnusableInvite(t *testing.T) {
 	}
 
 	seedInvite(t, h, inviteRecord{
-		ID: "inv_exp", TokenHash: hashToken("exp"), Status: "pending",
+		ID: "inv_exp", TokenHash: auth.HashToken("exp"), Status: "pending",
 		ExpiresAt: time.Now().Add(-time.Hour).Format(time.RFC3339),
 	})
 	if _, err := h.Grant("exp"); err != errExpired {
@@ -99,7 +101,7 @@ func TestInviteGrantRejectsUnusableInvite(t *testing.T) {
 	}
 
 	seedInvite(t, h, inviteRecord{
-		ID: "inv_used", TokenHash: hashToken("used"), Status: "accepted",
+		ID: "inv_used", TokenHash: auth.HashToken("used"), Status: "accepted",
 		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
 	})
 	if _, err := h.Grant("used"); err != errUsed {
@@ -117,7 +119,7 @@ func TestMarkAcceptedLinksMemberToUserID(t *testing.T) {
 		Email:     "sari@example.com",
 		Role:      "member",
 		QuotaGB:   100,
-		TokenHash: hashToken(raw),
+		TokenHash: auth.HashToken(raw),
 		Status:    "pending",
 		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
 	})

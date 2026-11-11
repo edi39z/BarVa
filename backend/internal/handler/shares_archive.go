@@ -2,8 +2,6 @@ package handler
 
 import (
 	"archive/zip"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -49,9 +47,8 @@ func shareRateLimited(c *gin.Context) bool {
 // shareByToken memuat share dari token mentah. Respons 404 sudah dikirim bila
 // token tidak valid atau kedaluwarsa.
 func (h *SharesHandler) shareByToken(c *gin.Context) (db.GetShareByTokenHashRow, bool) {
-	hSum := sha256.Sum256([]byte(c.Param("token")))
 	var tokenHashPg pgtype.Text
-	_ = tokenHashPg.Scan(hex.EncodeToString(hSum[:]))
+	_ = tokenHashPg.Scan(auth.HashToken(c.Param("token")))
 
 	share, err := h.queries.GetShareByTokenHash(c.Request.Context(), tokenHashPg)
 	if err != nil {

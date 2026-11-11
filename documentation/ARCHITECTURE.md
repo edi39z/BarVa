@@ -90,7 +90,10 @@ Poin penting:
   `(owner_id, COALESCE(parent_id, ...), name) WHERE deleted_at IS NULL`.
   Karena itu upload, rename, dan move bisa mengembalikan `409 CONFLICT`.
 - **`shares` menyimpan hash token**, bukan token asli. Token asli hanya
-  dikembalikan sekali saat pembuatan.
+  dikembalikan sekali saat pembuatan. Pembuatan dan hashing token sesi, share
+  link, undangan, dan state OAuth semuanya lewat `internal/auth/token.go`
+  (`NewToken`, `NewURLToken`, `HashToken`) — jangan menulis `rand.Read` +
+  `sha256` sendiri di handler.
 - **`users.quota_bytes` = 0 berarti tanpa batas.** Pemakaian dihitung dari
   `DISTINCT object_id` milik akun, sehingga dedup CAS tidak dihitung dua kali.
   Upload melewati batas ditolak `413 QUOTA_EXCEEDED`; owner/admin dapat

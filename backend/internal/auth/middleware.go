@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"strings"
 
@@ -17,11 +15,6 @@ const (
 	ContextEmail    = "auth_user_email"
 	CookieName      = "nas_session"
 )
-
-func HashSessionToken(rawToken string) string {
-	h := sha256.Sum256([]byte(rawToken))
-	return hex.EncodeToString(h[:])
-}
 
 func AuthMiddleware(queries *db.Queries) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -55,7 +48,7 @@ func AuthMiddleware(queries *db.Queries) gin.HandlerFunc {
 			return
 		}
 
-		tokenHash := HashSessionToken(rawToken)
+		tokenHash := HashToken(rawToken)
 		session, err := queries.GetSessionByTokenHash(c.Request.Context(), tokenHash)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{

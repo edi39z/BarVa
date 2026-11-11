@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"log"
 	"net/http"
 	"strings"
@@ -188,16 +186,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	loginLimiter.reset(key)
 
-	// Generate 32 bytes random session token
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{"code": "TOKEN_ERROR", "message": "Gagal menghasilkan token sesi."},
-		})
+	rawToken, err := auth.NewToken(auth.SessionTokenBytes)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "TOKEN_ERROR", "Gagal menghasilkan token sesi.")
 		return
 	}
-	rawToken := hex.EncodeToString(tokenBytes)
-	tokenHash := auth.HashSessionToken(rawToken)
+	tokenHash := auth.HashToken(rawToken)
 
 	expiresAt := time.Now().Add(30 * 24 * time.Hour) // 30 days
 	var expiresAtPg pgtype.Timestamptz
@@ -299,7 +293,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 
 	if rawToken != "" {
-		tokenHash := auth.HashSessionToken(rawToken)
+		tokenHash := auth.HashToken(rawToken)
 		_ = h.queries.DeleteSessionByTokenHash(c.Request.Context(), tokenHash)
 	}
 
