@@ -4,14 +4,14 @@ import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import ThemeProvider from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "NAS Project — Penyimpanan Keluarga",
+  title: "Barva — Penyimpanan Keluarga",
   description:
     "Penyimpanan cloud pribadi untuk berkas, galeri foto, dan alat dokumen keluarga.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "NAS Project",
+    title: "Barva",
   },
   icons: {
     icon: "/icon-192.png",

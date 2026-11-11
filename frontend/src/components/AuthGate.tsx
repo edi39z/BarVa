@@ -68,7 +68,7 @@ export default function AuthGate({ onAuthed, onSkip }: AuthGateProps) {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-solid text-white shadow-brand">
             <HardDrive className="h-6 w-6" aria-hidden />
           </div>
-          <h1 className="text-[20px] font-bold tracking-tight text-fg">NAS Project</h1>
+          <h1 className="text-[20px] font-bold tracking-tight text-fg">Barva</h1>
           <p className="text-[12.5px] text-subtle">
             Penyimpanan pribadi keluarga Anda — masuk untuk melanjutkan
           </p>

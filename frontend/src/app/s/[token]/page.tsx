@@ -153,7 +153,7 @@ function PublicShareContent() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-solid font-bold text-white shadow-brand">
             N
           </div>
-          <span className="text-[13.5px] font-bold tracking-tight text-fg">NAS Project</span>
+          <span className="text-[13.5px] font-bold tracking-tight text-fg">Barva</span>
         </div>
 
         {isLoading && (

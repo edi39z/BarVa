@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# NAS Project - Database Disaster Recovery & Restore Script
+# Barva - Database Disaster Recovery & Restore Script
 # ==============================================================================
 set -euo pipefail
 

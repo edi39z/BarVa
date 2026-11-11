@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# NAS Project - Automated Database Backup Script (Prinsip 3-2-1)
+# Barva - Automated Database Backup Script (Prinsip 3-2-1)
 # ==============================================================================
 set -euo pipefail
 

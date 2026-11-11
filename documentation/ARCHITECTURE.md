@@ -1,6 +1,6 @@
 # Arsitektur
 
-Dokumen ini menjelaskan bagaimana NAS Project disusun dan mengapa keputusan
+Dokumen ini menjelaskan bagaimana Barva disusun dan mengapa keputusan
 tertentu diambil. Untuk perintah menjalankan, lihat [SETUP.md](SETUP.md).
 
 ---

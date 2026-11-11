@@ -1,6 +1,6 @@
-# NAS Project
+# Barva
 
-Private NAS dan cloud keluarga yang berjalan di server sendiri — dengan dua mode:
+Barva adalah private NAS dan cloud keluarga yang berjalan di server sendiri — dengan dua mode:
 **standalone di browser** (tanpa server sama sekali) atau **terhubung ke server
 pribadi** untuk kapasitas multi-terabyte, streaming video, dan deduplikasi file.
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=NAS Project Backend Daemon (Go Modular Monolith)
+Description=Barva Backend Daemon (Go Modular Monolith)
 After=network.target postgresql.service
 Wants=postgresql.service
 

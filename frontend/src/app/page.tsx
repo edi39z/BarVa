@@ -794,7 +794,7 @@ export default function Home() {
 
   // Phase 5: PWA Install & 3-2-1 Offsite Backup Handlers
   const handleInstallPwa = () => {
-    alert("Untuk memasang NAS Cloud di HP/Laptop:\n1. Buka menu browser (titik tiga ⋮ di Chrome/Edge atau tombol Share di Safari iOS)\n2. Pilih 'Tambahkan ke Layar Utama' (Add to Home Screen / Install App).\n\nAplikasi akan terpasang sebagai aplikasi PWA berkecepatan native.");
+    alert("Untuk memasang Barva di HP/Laptop:\n1. Buka menu browser (titik tiga ⋮ di Chrome/Edge atau tombol Share di Safari iOS)\n2. Pilih 'Tambahkan ke Layar Utama' (Add to Home Screen / Install App).\n\nAplikasi akan terpasang sebagai aplikasi PWA berkecepatan native.");
   };
 
   // Folder Drill-down Handlers

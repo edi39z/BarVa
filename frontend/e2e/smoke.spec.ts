@@ -12,7 +12,7 @@ test.describe("gerbang autentikasi", () => {
   test("menampilkan form login dan tautan mode standalone", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "NAS Project" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Barva" })).toBeVisible();
     await expect(page.getByText("Penyimpanan pribadi keluarga Anda")).toBeVisible();
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();

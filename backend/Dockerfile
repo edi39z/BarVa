@@ -1,5 +1,5 @@
 # ==============================================================================
-# NAS Project Backend - Multi-stage Minimal Production Container (~15 MB)
+# Barva Backend - Multi-stage Minimal Production Container (~15 MB)
 # ==============================================================================
 FROM golang:1.27-alpine AS builder
 
