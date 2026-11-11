@@ -166,8 +166,9 @@ Backend URL di-hardcode: `nas.ts` (`DEFAULT_SERVER_URL`) dan `cloud.ts`
   **sengaja dibiarkan**. Jangan tutup dengan `overrides`: itu mematikan
   pemeriksaan tipe `Config`. Alasannya di
   `documentation/CONTRIBUTING.md#dependensi-dengan-advisory-terbuka`.
-- Di Windows dengan `core.autocrlf=true`, `gofmt -l` bisa menandai semua file
-  karena CRLF; isi di Git tetap LF sehingga CI tidak gagal.
+- `.gitattributes` memaksa LF di Git dan working tree. Bila `gofmt -l` masih
+  menandai banyak file setelah clone lama, tulis ulang working tree dengan
+  `git checkout-index -a -f`.
 - `.tools/pgsql/bin/pg_ctl start` pernah mati saat shell penutupnya ditutup —
   jalankan `postgres.exe` langsung bila itu terjadi.
 - Frontend memanggil `localhost:8080` dari banyak efek; setiap efek yang
