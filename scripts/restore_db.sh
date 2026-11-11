@@ -25,7 +25,7 @@ fi
 # Verify Checksum if present
 if [ -f "${CHECKSUM_FILE}" ]; then
     echo "[INFO] Memvalidasi integritas file backup via SHA-256..."
-    EXPECTED_HASH=$(cat "${CHECKSUM_FILE}" | awk '{print $1}')
+    EXPECTED_HASH=$(awk '{print $1}' "${CHECKSUM_FILE}")
     ACTUAL_HASH=$(sha256sum "${BACKUP_FILE}" | awk '{print $1}')
 
     if [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then

@@ -11,7 +11,6 @@
 # Build Artifacts & Production
 **/.next/
 **/out/
-backend/bin/
 build/
 coverage/
 .vercel/
@@ -30,17 +29,12 @@ coverage/
 gdrive.json
 invites.json
 
-# Local Runtime Data & Storage
-backend/data/
-
 # Internal Notes & AI Instructions
+# Catatan: frontend/AGENTS.md di-track karena ditulis ulang oleh `next dev`
+# dan dirujuk CODEBUDDY.md, jadi sengaja tidak di-ignore di sini.
 IDEA.md
 ROADMAP.md
 agent.md
-AGENTS.md
-**/AGENTS.md
-docs/
-frontend/public/Kolase*
 
 # Aset turunan: disalin dari node_modules oleh scripts/sync-pdf-worker.mjs
 public/pdf.worker.min.mjs

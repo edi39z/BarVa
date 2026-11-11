@@ -69,6 +69,9 @@ ROADMAP.md
 agent.md
 AGENTS.md
 **/AGENTS.md
+# Pengecualian: frontend/AGENTS.md ditulis ulang oleh `next dev` dan dirujuk
+# CODEBUDDY.md, jadi ikut di-commit.
+!frontend/AGENTS.md
 
 # Dokumentasi publik tetap ikut di-push, termasuk nama file yang
 # sekaligus di-ignore di atas (ROADMAP.md, AGENTS.md).
