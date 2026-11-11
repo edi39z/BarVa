@@ -1,0 +1,39 @@
+# PostgreSQL khusus pengembangan lokal.
+#
+# Berbeda dari docker-compose.yml di folder ini — yang menyalakan seluruh stack
+# dalam mode release — berkas ini hanya menyalakan database. Backend tetap
+# dijalankan dari folder backend/ dengan `go run ./cmd/server`, sehingga
+# perubahan kode tidak perlu rebuild image.
+#
+# Kredensial di sini sengaja sama dengan DATABASE_URL default di README, jadi
+# backend langsung tersambung tanpa mengisi env apa pun:
+#
+#   docker compose -f deploy/docker/docker-compose.dev.yml up -d
+#
+# Hentikan dengan `... down` (data tetap tersimpan di volume) atau
+# `... down -v` bila ingin memulai dari database kosong.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: nas-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nas_db
+    ports:
+      # Hanya localhost, sama seperti stack release: database dev tidak boleh
+      # terjangkau dari perangkat lain di jaringan.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # Volume terpisah dari `nas_pgdata` milik stack release, supaya data
+      # pengembangan tidak tercampur dengan data deployment.
+      - nas_pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nas_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  nas_pgdata_dev:

@@ -26,13 +26,21 @@ cd frontend && nvm use
 
 ## 1. Database
 
+Pakai Docker bila PostgreSQL belum terpasang:
+
+```bash
+docker compose -f deploy/docker/docker-compose.dev.yml up -d
+```
+
+Atau pakai PostgreSQL lokal:
+
 ```bash
 createdb nas_db
 ```
 
-Tidak perlu menjalankan SQL manual: backend menerapkan migrasi dari folder
-`migrations/` saat start, lalu mencatat versi yang sudah dijalankan di tabel
-`schema_migrations`.
+Tidak perlu menjalankan SQL manual di kedua jalur: backend menerapkan migrasi
+dari folder `migrations/` saat start, lalu mencatat versi yang sudah dijalankan
+di tabel `schema_migrations`.
 
 Skema membuat lima tabel: `users`, `sessions`, `file_objects`, `file_nodes`,
 `shares`, plus index yang dibutuhkan (termasuk unique index nama per folder).
