@@ -5,6 +5,7 @@ import { Copy, Share2 } from "lucide-react";
 import type { DisplayItem } from "@/lib/displayItem";
 import type { ShareExpiry, SharePermission } from "@/lib/types";
 import Modal from "@/components/Modal";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface ShareLinkModalProps {
   item: DisplayItem;
@@ -35,6 +36,7 @@ export default function ShareLinkModal({
   onGenerate,
   onClose,
 }: ShareLinkModalProps) {
+  const { notify } = useConfirm();
   return (
     <Modal
       title="Bagikan tautan"
@@ -116,11 +118,15 @@ export default function ShareLinkModal({
             <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-surface p-2">
               <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{generatedUrl}</span>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (typeof navigator !== "undefined" && navigator.clipboard) {
-                    navigator.clipboard.writeText(generatedUrl);
+                    await navigator.clipboard.writeText(generatedUrl);
                   }
-                  alert("Tautan berhasil disalin.");
+                  await notify({
+                    title: "Tautan disalin",
+                    message: "Sekarang kamu bisa mengirim tautan ini ke siapa pun yang kamu pilih.",
+                    tone: "info",
+                  });
                 }}
                 className="btn btn-sm btn-secondary shrink-0"
               >

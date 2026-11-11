@@ -38,6 +38,7 @@ import {
 } from "@/lib/api/cloud";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
+import { useConfirm } from "@/components/ConfirmProvider";
 import ThumbnailImage from "@/components/ThumbnailImage";
 import type { LongPressPoint } from "@/hooks/useLongPress";
 import type { SelectModifiers } from "@/hooks/useFileSelection";
@@ -103,6 +104,7 @@ export default function GoogleDrivePanel({
   onOpenMenu,
   onItemsLoaded,
 }: GoogleDrivePanelProps = {}) {
+  const { confirm } = useConfirm();
   const [status, setStatus] = useState<GDriveStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -247,7 +249,14 @@ export default function GoogleDrivePanel({
   }
 
   async function handleDisconnect() {
-    if (!confirm("Putuskan koneksi Google Drive dari server ini?")) return;
+    const lanjut = await confirm({
+      title: "Putuskan Google Drive?",
+      message:
+        "Server ini berhenti mengakses Drive sampai kamu menghubungkannya lagi. Berkas di Drive tidak ikut terhapus.",
+      tone: "warning",
+      confirmLabel: "Putuskan",
+    });
+    if (!lanjut) return;
     setBusy(true);
     try {
       await gdriveDisconnect();

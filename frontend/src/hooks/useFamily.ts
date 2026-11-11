@@ -11,6 +11,7 @@ import {
 import { listFamilyMembers, updateMemberQuota, type NasFamilyMember, type NasUser } from "@/lib/api/nas";
 import type { FamilyMember } from "@/lib/nasDisplay";
 import type { ConnectionMode } from "@/lib/types";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const AVATAR_PALETTE = [
   "bg-emerald-600",
@@ -46,6 +47,7 @@ interface UseFamilyOptions {
  * lain.
  */
 export function useFamily({ connectionMode, currentUser }: UseFamilyOptions) {
+  const { confirm, notify } = useConfirm();
   const [subTab, setSubTab] = useState<"members" | "shares" | "remote">("members");
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
@@ -157,12 +159,14 @@ export function useFamily({ connectionMode, currentUser }: UseFamilyOptions) {
         setGeneratedInviteUrl(`${window.location.origin}/invite/${res.token}`);
         await reload();
       } catch (err) {
-        alert(
-          `Gagal membuat undangan: ${(err as Error).message}\n\nPastikan backend NAS berjalan di port 8080.`
-        );
+        await notify({
+          title: "Gagal membuat undangan",
+          message: `${(err as Error).message}\n\nPastikan backend NAS berjalan di port 8080.`,
+          tone: "danger",
+        });
       }
     },
-    [name, email, role, quotaGB, reload]
+    [name, email, role, quotaGB, reload, notify]
   );
 
   // Ubah kuota satu anggota lalu segarkan kartu agar pemakaian ikut terbarui.
@@ -176,15 +180,25 @@ export function useFamily({ connectionMode, currentUser }: UseFamilyOptions) {
 
   const revokeInviteById = useCallback(
     async (id: string) => {
-      if (!confirm("Cabut undangan ini? Tautan akan langsung tidak berlaku.")) return;
+      const lanjut = await confirm({
+        title: "Cabut undangan?",
+        message: "Tautan undangan akan langsung tidak berlaku bagi siapa pun yang memegangnya.",
+        tone: "warning",
+        confirmLabel: "Cabut undangan",
+      });
+      if (!lanjut) return;
       try {
         await revokeInvite(id);
         await reload();
       } catch (err) {
-        alert(`Gagal mencabut undangan: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal mencabut undangan",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       }
     },
-    [reload]
+    [reload, confirm, notify]
   );
 
   return {

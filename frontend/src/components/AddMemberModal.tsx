@@ -3,6 +3,7 @@
 import React from "react";
 import { CheckCircle2, Copy, Users } from "lucide-react";
 import Modal from "@/components/Modal";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface AddMemberModalProps {
   generatedInviteUrl: string;
@@ -33,6 +34,7 @@ export default function AddMemberModal({
   onClose,
   onFinish,
 }: AddMemberModalProps) {
+  const { notify } = useConfirm();
   return (
     <Modal
       title="Tambah anggota keluarga"
@@ -43,11 +45,15 @@ export default function AddMemberModal({
         generatedInviteUrl ? (
           <>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (typeof navigator !== "undefined" && navigator.clipboard) {
-                  navigator.clipboard.writeText(generatedInviteUrl);
+                  await navigator.clipboard.writeText(generatedInviteUrl);
                 }
-                alert("Tautan undangan berhasil disalin. Silakan kirim ke anggota keluarga Anda.");
+                await notify({
+                  title: "Tautan undangan disalin",
+                  message: "Kirim tautan ini ke anggota keluarga yang ingin kamu undang.",
+                  tone: "info",
+                });
               }}
               className="btn btn-primary"
             >

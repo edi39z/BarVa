@@ -7,6 +7,7 @@ import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
 import type { ActiveShare } from "@/lib/nasDisplay";
 import type { ConnectionMode, ShareExpiry, SharePermission } from "@/lib/types";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface UseSharesOptions {
   connectionMode: ConnectionMode;
@@ -21,6 +22,7 @@ interface UseSharesOptions {
  * ID server yang bisa dirujuk tautan publik.
  */
 export function useShares({ connectionMode, currentUser }: UseSharesOptions) {
+  const { confirm, notify } = useConfirm();
   const [modalFile, setModalFile] = useState<DisplayItem | null>(null);
   const [linkGenerated, setLinkGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -84,7 +86,11 @@ export function useShares({ connectionMode, currentUser }: UseSharesOptions) {
     if (!modalFile) return;
 
     if (connectionMode !== "nas") {
-      alert("Link berbagi hanya tersedia untuk berkas di server NAS.");
+      await notify({
+        title: "Belum tersedia",
+        message: "Link berbagi hanya tersedia untuk berkas di server NAS.",
+        tone: "info",
+      });
       return;
     }
 
@@ -102,29 +108,37 @@ export function useShares({ connectionMode, currentUser }: UseSharesOptions) {
       setLinkGenerated(true);
       await reload();
     } catch (err) {
-      alert(`Gagal membuat link berbagi: ${(err as Error).message}`);
+      await notify({
+        title: "Gagal membuat link berbagi",
+        message: (err as Error).message,
+        tone: "danger",
+      });
     } finally {
       setGenerating(false);
     }
-  }, [modalFile, connectionMode, permission, passwordInput, expiryOption, reload]);
+  }, [modalFile, connectionMode, permission, passwordInput, expiryOption, reload, notify]);
 
   const revoke = useCallback(
     async (id: string) => {
-      if (
-        !confirm(
-          "Cabut link berbagi ini? Pengguna yang memegang link tidak akan bisa mengakses file lagi."
-        )
-      ) {
-        return;
-      }
+      const lanjut = await confirm({
+        title: "Cabut link berbagi?",
+        message: "Pengguna yang memegang link tidak akan bisa mengakses berkas lagi.",
+        tone: "warning",
+        confirmLabel: "Cabut link",
+      });
+      if (!lanjut) return;
       try {
         await deleteShare(id);
         await reload();
       } catch (err) {
-        alert(`Gagal mencabut link: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal mencabut link",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       }
     },
-    [reload]
+    [reload, confirm, notify]
   );
 
   return useMemo(
