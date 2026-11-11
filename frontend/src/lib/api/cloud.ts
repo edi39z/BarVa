@@ -4,17 +4,13 @@
 // Kenapa lewat backend: refresh token Google tidak boleh disimpan di browser,
 // dan supaya token tidak kedaluwarsa tiap 1 jam maka server yang me-refresh.
 
-import { getStoredToken } from "./nas";
+import { getServerUrl, getStoredToken } from "./nas";
 
-const PORT = "8080";
-
+// Semua klien API memakai satu sumber URL backend (nas.ts). Dulu modul ini
+// menebak host sendiri dengan port 8080, sehingga nilai yang disimpan pengguna
+// di menu pengaturan tidak berlaku untuk Google Drive & undangan.
 export function backendBase(): string {
-  if (typeof window === "undefined") return `http://localhost:${PORT}`;
-  const override = window.localStorage.getItem("nas_backend_url");
-  if (override) return override.replace(/\/$/, "");
-  // Pakai hostname yang sama dengan halaman supaya HP lain di rumah juga bisa.
-  const host = window.location.hostname || "localhost";
-  return `http://${host}:${PORT}`;
+  return getServerUrl();
 }
 
 const STORAGE_KEY_ADMIN = "nas_admin_key";
@@ -33,6 +29,22 @@ export function setAdminKey(key: string): void {
   else window.localStorage.removeItem(STORAGE_KEY_ADMIN);
 }
 
+/**
+ * Mengambil pesan error dari respons gagal. Backend mengirim
+ * `{"error": {"code": ..., "message": ...}}`; bentuk string lama tetap
+ * diterima supaya cache service worker versi sebelumnya tidak menampilkan
+ * pesan generik.
+ */
+function errorMessage(data: unknown, status: number): string {
+  const err = (data as { error?: unknown } | null)?.error;
+  if (typeof err === "string" && err.trim()) return err;
+  if (err && typeof err === "object") {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return `Permintaan gagal (${status})`;
+}
+
 async function parseResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
   let data: unknown = null;
@@ -42,9 +54,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
     data = { error: text };
   }
   if (!res.ok) {
-    const msg =
-      (data as { error?: string })?.error || `Permintaan gagal (${res.status})`;
-    throw new Error(msg);
+    throw new Error(errorMessage(data, res.status));
   }
   return data as T;
 }

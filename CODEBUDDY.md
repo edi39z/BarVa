@@ -135,8 +135,9 @@ pdf-lib, pdfjs, `@imgly/background-removal`) dan tidak mengunggah foto ke server
 Service worker: `frontend/public/sw.js`, didaftarkan hanya di build produksi.
 Naikkan `CACHE_VERSION` bila strategi cache berubah.
 
-Backend URL di-hardcode: `nas.ts` (`DEFAULT_SERVER_URL`) dan `cloud.ts`
-(`PORT = "8080"`) — ubah keduanya bila host/port berubah.
+URL backend punya satu sumber: `getServerUrl()` di `src/lib/api/nas.ts`
+(nilai tersimpan → host halaman + port 8080). `cloud.ts` memakainya lewat
+`backendBase()` — jangan menambah sumber URL kedua.
 
 ## Aturan repo
 

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { HardDrive, Lock, Mail, RefreshCw, Shield, User } from "lucide-react";
 import {
-  getStoredServerUrl,
+  getServerUrl,
   loginNas,
   registerNas,
   NasUser,
@@ -216,7 +216,7 @@ export default function AuthGate({ onAuthed, onSkip }: AuthGateProps) {
           >
             Lanjut tanpa server (simpan di perangkat ini)
           </button>
-          <p className="font-mono text-[10.5px] text-subtle">{getStoredServerUrl()}</p>
+          <p className="font-mono text-[10.5px] text-subtle">{getServerUrl()}</p>
         </div>
 
         <p className="flex items-center justify-center gap-1.5 text-[10.5px] text-subtle">
