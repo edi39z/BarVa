@@ -191,6 +191,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: password_uji
           NAS_ADMIN_KEY: kunci_uji
+          APP_URL: http://localhost:3000
         run: docker compose -f docker-compose.yml config --quiet
 
       - name: Validasi docker compose (dev)
