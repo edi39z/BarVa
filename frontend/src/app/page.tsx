@@ -41,6 +41,7 @@ import {
   BG_MODEL_READY_KEY,
   enhancePhoto,
   removeImageBackground,
+  type BgMode,
   type BgProgress,
   type EnhanceResult,
 } from "@/lib/studio/ai";
@@ -230,6 +231,9 @@ export default function Home() {
   const [bgModelJustDownloaded, setBgModelJustDownloaded] = useState(false);
   const [bgConsentGranted, setBgConsentGranted] = useState(false);
   const [bgProgress, setBgProgress] = useState<BgProgress | null>(null);
+  const [bgMode, setBgMode] = useState<BgMode>("photo");
+  const [bgTolerance, setBgTolerance] = useState(24);
+  const [bgDropShadow, setBgDropShadow] = useState(true);
   const [lastEnhanceResult, setLastEnhanceResult] = useState<EnhanceResult | null>(null);
 
   // Model hapus latar belakang cukup diunduh sekali per perangkat.
@@ -1068,12 +1072,16 @@ export default function Home() {
         );
         setStudioSuccessMsg(`Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`);
       } else if (storagePickerTool === "removebg") {
-        const result = await removeImageBackground(files[0], setBgProgress);
+        const result = await removeImageBackground(files[0], setBgProgress, {
+          mode: bgMode,
+          tolerance: bgTolerance,
+          dropShadow: bgDropShadow,
+        });
         const filename = `TanpaLatar_${files[0].name.replace(/\.[^/.]+$/, "")}.png`;
         await commitStudioOutput(
           makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
         );
-        markBgModelReady();
+        if (bgMode === "photo") markBgModelReady();
         setStudioSuccessMsg(`Latar belakang ${files[0].name} berhasil dihapus dan disimpan sebagai ${filename}.`);
       } else if (storagePickerTool === "enhance") {
         const result = await enhancePhoto(files[0]);
@@ -1282,14 +1290,18 @@ export default function Home() {
 
     try {
       const file = files[0];
-      const result = await removeImageBackground(file, setBgProgress);
+      const result = await removeImageBackground(file, setBgProgress, {
+        mode: bgMode,
+        tolerance: bgTolerance,
+        dropShadow: bgDropShadow,
+      });
       const filename = `TanpaLatar_${file.name.replace(/\.[^/.]+$/, "")}.png`;
 
       await commitStudioOutput(
         makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
       );
 
-      markBgModelReady();
+      if (bgMode === "photo") markBgModelReady();
       setStudioSuccessMsg(`Latar belakang berhasil dihapus. Hasil disimpan sebagai ${filename}.`);
     } catch (err) {
       console.error(err);
@@ -1522,6 +1534,12 @@ export default function Home() {
               bgModelReady={bgModelReady}
               bgConsentGranted={bgConsentGranted}
               bgProgress={bgProgress}
+              bgMode={bgMode}
+              onBgModeChange={setBgMode}
+              bgTolerance={bgTolerance}
+              onBgToleranceChange={setBgTolerance}
+              bgDropShadow={bgDropShadow}
+              onBgDropShadowChange={setBgDropShadow}
               onGrantBgConsent={() => setBgConsentGranted(true)}
               lastEnhanceResult={lastEnhanceResult}
               error={studioError}

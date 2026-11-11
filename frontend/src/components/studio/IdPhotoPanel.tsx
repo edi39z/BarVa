@@ -114,7 +114,7 @@ export default function IdPhotoPanel({
       replaceSourceUrl(URL.createObjectURL(next));
 
       // Model yang sudah tersimpan langsung dipakai; kalau belum, pengguna
-      // diminta menyetujui unduhan ±40 MB lebih dulu lewat kartu di bawah.
+      // diminta menyetujui unduhan model lebih dulu lewat kartu di bawah.
       if (bgModelReady) void runSeparation(next);
     },
     [bgModelReady, replacePreviewUrl, replaceSourceUrl, runSeparation]

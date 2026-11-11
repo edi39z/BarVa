@@ -384,13 +384,22 @@ Aturan yang dipegang:
 | `lib/studio/tools.ts` | `StudioToolId`, pengelompokan alat (foto/PDF), dan `PANEL_TOOLS` |
 | `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `PdfToWordPanel`, `PdfEditorPanel`, `StudioAlert`, `StudioProgress` |
 
-**Hapus Latar Belakang.** Memakai `@imgly/background-removal` dengan model
-`isnet_quint8` (±40 MB) dan `device: "cpu"`. Model diunduh dari CDN IMG.LY pada
-pemakaian pertama lalu disimpan di cache peramban; foto sendiri tidak pernah
-keluar dari perangkat. Karena unduhannya besar, UI menampilkan kartu izin lebih
-dulu dan baru mengaktifkan pemilih berkas setelah pengguna menyetujuinya.
-Penanda `localStorage` `nas-bg-model-ready` mencegah pertanyaan berulang.
-Modul ini diimpor secara dinamis agar tidak membebani bundel awal.
+**Hapus Latar Belakang.** Ada dua mode:
+
+- **Foto / Objek** memakai `@imgly/background-removal` dengan model
+  `isnet_fp16` (±80 MB) dan `device: "gpu"` — WebGPU dipakai bila tersedia,
+  dengan fallback otomatis ke WASM. Model diunduh dari CDN IMG.LY pada pemakaian
+  pertama lalu disimpan di cache peramban; foto sendiri tidak pernah keluar dari
+  perangkat. Mask hasil model dirapikan (`refineAlpha`): alpha rendah dibuang,
+  alpha direntangkan, dan bintik kecil yang terpisah dihapus.
+- **Logo / Stiker** tidak memakai model. Warna latar diambil dari cincin piksel
+  terluar, lalu piksel yang mirip warna itu dibuat transparan. Tersedia slider
+  toleransi dan opsi buang bayangan abu-abu, cocok untuk logo atau teks datar.
+
+Karena unduhan model besar, UI menampilkan kartu izin lebih dulu dan baru
+mengaktifkan pemilih berkas setelah pengguna menyetujuinya. Penanda
+`localStorage` `nas-bg-model-ready` mencegah pertanyaan berulang. Modul ini
+diimpor secara dinamis agar tidak membebani bundel awal.
 
 **Naikkan Kualitas Foto.** Tanpa model: `createImageBitmap` → perbesaran
 bertahap 2× (interpolasi `imageSmoothingQuality: "high"`) → satu lintasan piksel
