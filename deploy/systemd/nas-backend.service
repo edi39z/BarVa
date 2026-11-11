@@ -13,16 +13,24 @@ Restart=always
 RestartSec=5s
 
 # Environment Variables
+#
+# Hanya nilai non-rahasia yang ditulis di sini. DATABASE_URL dan NAS_ADMIN_KEY
+# berisi kredensial, jadi dibaca dari file terpisah yang tidak ikut repo:
+#
+#   sudo install -d -m 750 /etc/nas
+#   sudo cp deploy/systemd/backend.env.example /etc/nas/backend.env
+#   sudo chown root:nas /etc/nas/backend.env
+#   sudo chmod 640 /etc/nas/backend.env
+#   # lalu isi nilainya, contoh: sudo -e /etc/nas/backend.env
+#
+# File itu wajib ada: GIN_MODE=release membuat backend menolak start bila
+# NAS_ADMIN_KEY kosong.
 Environment="PORT=8080"
-Environment="DATABASE_URL=postgres://nas:nas_secure_pass@localhost:5432/nas_db?sslmode=disable"
 Environment="STORAGE_DIR=/opt/nas/data/storage"
 Environment="TEMP_DIR=/opt/nas/data/tmp"
 Environment="MIGRATIONS_DIR=/opt/nas/migrations"
 Environment="GIN_MODE=release"
-# Opsional — isi untuk membuka endpoint Drive/undangan dari luar jaringan lokal.
-# Environment="NAS_ADMIN_KEY=isi-dengan-key-panjang-acak"
-# Environment="ALLOWED_ORIGINS=https://nas.example.com"
-# Environment="MAX_UPLOAD_BYTES=10737418240"
+EnvironmentFile=/etc/nas/backend.env
 
 # Security & Isolation Hardening
 ProtectSystem=full

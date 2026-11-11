@@ -206,8 +206,33 @@ Selama aplikasi belum diverifikasi Google:
 Tersedia di `deploy/`:
 
 - `deploy/systemd/nas-backend.service` — unit systemd untuk backend
+- `deploy/systemd/backend.env.example` — contoh env berisi `DATABASE_URL` dan
+  `NAS_ADMIN_KEY`
 - `deploy/nginx/nas.conf` — reverse proxy (frontend `:3000`, backend `:8080`,
   batas upload 10 GB)
+
+Unit ini **tidak** menyimpan kredensial. Rahasia dibaca dari
+`/etc/nas/backend.env`, yang harus dibuat sekali:
+
+```bash
+sudo install -d -m 750 /etc/nas
+sudo cp deploy/systemd/backend.env.example /etc/nas/backend.env
+sudo chown root:nas /etc/nas/backend.env
+sudo chmod 640 /etc/nas/backend.env
+sudo -e /etc/nas/backend.env          # isi DATABASE_URL dan NAS_ADMIN_KEY
+```
+
+Lalu pasang dan nyalakan unitnya:
+
+```bash
+sudo cp deploy/systemd/nas-backend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now nas-backend
+systemctl status nas-backend
+```
+
+`NAS_ADMIN_KEY` wajib diisi: unit memakai `GIN_MODE=release`, dan backend
+menolak start tanpa kunci itu. Periksa log dengan `journalctl -u nas-backend -f`.
 
 Untuk akses dari luar rumah, gunakan **Tailscale** atau **WireGuard**.
 Hindari tunnel HTTP untuk transfer berkas besar.
