@@ -180,6 +180,15 @@ docker compose cp ./data-lama/. nas-backend:/app/data/
 `APP_URL` juga wajib diisi ulang; tanpa itu link undangan dan redirect OAuth
 akan menunjuk `localhost:3000`.
 
+Image backend sekarang berjalan sebagai user non-root (uid `10001`). Bila volume
+`nas_storage`, `nas_tmp`, atau `nas_data` dibuat oleh image lama yang berjalan
+sebagai root, container baru tidak bisa menulis ke sana. Perbaiki sekali:
+
+```bash
+docker compose run --rm --user root --entrypoint chown nas-backend \
+  -R 10001:10001 /data /app/data
+```
+
 ---
 
 ## 5. Google Drive (opsional)

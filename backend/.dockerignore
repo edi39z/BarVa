@@ -1,0 +1,6 @@
+# Konteks build backend: jangan kirim data runtime, biner lokal, atau riwayat Git.
+.git
+data/
+bin/
+*.test
+*.exe
