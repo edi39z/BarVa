@@ -31,5 +31,5 @@ func canManageAllFiles(c *gin.Context) bool {
 }
 
 func forbid(c *gin.Context, code, message string) {
-	c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": code, "message": message}})
+	fail(c, http.StatusForbidden, code, message)
 }

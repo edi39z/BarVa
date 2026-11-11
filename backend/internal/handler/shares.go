@@ -40,7 +40,7 @@ func (h *SharesHandler) Create(c *gin.Context) {
 
 	var req CreateShareRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload share tidak valid.")
 		return
 	}
 
@@ -110,7 +110,7 @@ func (h *SharesHandler) Create(c *gin.Context) {
 		ExpiresAt:      expiresAt,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal membuat share link: " + err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal membuat share link.")
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *SharesHandler) List(c *gin.Context) {
 
 	shares, err := h.queries.ListSharesByOwner(c.Request.Context(), userId)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal memuat daftar share.")
 		return
 	}
 	if shares == nil {
@@ -164,7 +164,7 @@ func (h *SharesHandler) Delete(c *gin.Context) {
 		CreatedBy: userId,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal menghapus share link.")
 		return
 	}
 
