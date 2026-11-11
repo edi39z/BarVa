@@ -65,7 +65,8 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   pratinjau gambar/video, ganti nama, dan pindah folder
 - Trash: item terhapus bisa dipulihkan ke folder asal atau dihapus permanen
   (objek yang tidak terpakai lagi ikut dibersihkan dari disk)
-- Folder, soft delete, download, dan streaming video via HTTP 206
+- Folder, soft delete, download, unduh folder sebagai ZIP streaming, dan
+  streaming video via HTTP 206
 - Google Drive OAuth (kuota, jelajah folder, upload, download lewat server)
 - Undangan anggota keluarga (token di-hash, status pending/accepted/revoked);
   penerima undangan membuat akun nyata dengan role & kuota dari undangan

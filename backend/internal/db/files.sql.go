@@ -373,7 +373,7 @@ func (q *Queries) ListNodesByParent(ctx context.Context, arg ListNodesByParentPa
 	return items, nil
 }
 
-const listShareSubtreeNodes = `-- name: ListShareSubtreeNodes :many
+const listSubtreeNodes = `-- name: ListSubtreeNodes :many
 WITH RECURSIVE subtree AS (
     SELECT n.id AS id, n.parent_id AS parent_id, n.name AS name,
            n.is_directory AS is_directory, n.object_id AS object_id
@@ -393,7 +393,7 @@ LEFT JOIN file_objects o ON o.id = s.object_id
 ORDER BY s.is_directory DESC, s.name ASC
 `
 
-type ListShareSubtreeNodesRow struct {
+type ListSubtreeNodesRow struct {
 	ID          pgtype.UUID
 	ParentID    pgtype.UUID
 	Name        string
@@ -403,19 +403,19 @@ type ListShareSubtreeNodesRow struct {
 	MimeType    pgtype.Text
 }
 
-// ListShareSubtreeNodes mengambil seluruh isi folder (termasuk folder itu
-// sendiri) untuk dijadikan arsip zip pada share link publik. Hanya node aktif
-// yang ikut, dan pemilik tidak difilter karena akses sudah divalidasi lewat
-// token share.
-func (q *Queries) ListShareSubtreeNodes(ctx context.Context, id pgtype.UUID) ([]ListShareSubtreeNodesRow, error) {
-	rows, err := q.db.Query(ctx, listShareSubtreeNodes, id)
+// ListSubtreeNodes mengambil seluruh isi folder (termasuk folder itu sendiri)
+// untuk dijadikan arsip zip. Dipakai share link publik maupun file manager;
+// pemilik tidak difilter di sini karena akses sudah divalidasi pemanggil
+// (token share atau requireNodeAccess).
+func (q *Queries) ListSubtreeNodes(ctx context.Context, id pgtype.UUID) ([]ListSubtreeNodesRow, error) {
+	rows, err := q.db.Query(ctx, listSubtreeNodes, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListShareSubtreeNodesRow
+	var items []ListSubtreeNodesRow
 	for rows.Next() {
-		var i ListShareSubtreeNodesRow
+		var i ListSubtreeNodesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ParentID,

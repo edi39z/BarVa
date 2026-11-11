@@ -326,6 +326,13 @@ export function getDownloadUrl(fileId: string): string {
   return `${base}/api/v1/files/${fileId}/download${query ? `?${query}` : ""}`;
 }
 
+/** URL unduh isi folder sebagai ZIP; hanya berlaku di mode NAS. */
+export function getArchiveUrl(folderId: string): string {
+  const base = getServerUrl();
+  const query = appendSessionToken(new URLSearchParams()).toString();
+  return `${base}/api/v1/files/${folderId}/archive${query ? `?${query}` : ""}`;
+}
+
 // ---------------- Trash (soft-delete recovery) ----------------
 
 export interface TrashedNode {

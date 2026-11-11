@@ -8,6 +8,7 @@ import type { StudioToolId } from "@/lib/studio/tools";
 export type FileActionId =
   | "open"
   | "download"
+  | "archive"
   | "rename"
   | "move"
   | "share"
@@ -67,6 +68,8 @@ function manageActions(item: DisplayItem, foreign: boolean): FileAction[] {
 
   if (item.type !== "folder") {
     actions.push({ id: "download", label: "Unduh", group: "manage" });
+  } else {
+    actions.push({ id: "archive", label: "Unduh sebagai ZIP", group: "manage" });
   }
 
   if (!foreign) {

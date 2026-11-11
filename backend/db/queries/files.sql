@@ -151,11 +151,11 @@ WHERE o.id = $1
   AND NOT EXISTS (SELECT 1 FROM file_nodes n WHERE n.object_id = o.id)
 RETURNING o.sha256;
 
--- ListShareSubtreeNodes mengambil seluruh isi folder (termasuk folder itu
--- sendiri) untuk dijadikan arsip zip pada share link publik. Hanya node aktif
--- yang ikut, dan pemilik tidak difilter karena akses sudah divalidasi lewat
--- token share.
--- name: ListShareSubtreeNodes :many
+-- ListSubtreeNodes mengambil seluruh isi folder (termasuk folder itu sendiri)
+-- untuk dijadikan arsip zip. Dipakai share link publik maupun file manager;
+-- pemilik tidak difilter di sini karena akses sudah divalidasi pemanggil
+-- (token share atau requireNodeAccess).
+-- name: ListSubtreeNodes :many
 WITH RECURSIVE subtree AS (
     SELECT n.id AS id, n.parent_id AS parent_id, n.name AS name,
            n.is_directory AS is_directory, n.object_id AS object_id

@@ -13,7 +13,7 @@ Base URL pengembangan: `http://localhost:8080`. Semua endpoint di bawah
 |---|---|---|
 | Sesi pengguna | `Authorization: Bearer <token>` | `/auth/me`, `/files/*`, `/search`, `/shares`, `/family/*` |
 | Sesi lewat cookie | `nas_session` (HttpOnly) | Otomatis untuk `<img>`/`<video>` dan endpoint yang sama |
-| Sesi lewat query | `?token=<token>` | `/files/:id/download`, `/files/:id/stream` **hanya bila** backend di host berbeda dari halaman |
+| Sesi lewat query | `?token=<token>` | `/files/:id/download`, `/files/:id/archive`, `/files/:id/stream` **hanya bila** backend di host berbeda dari halaman |
 | Admin key | `X-Admin-Key: <kunci>` | `/gdrive/*`, `/invites/*` |
 | Tanpa autentikasi | — | `/health`, `/auth/register`, `/auth/login`, `/public/*`, `/gdrive/callback` |
 
@@ -314,6 +314,21 @@ Soft delete.
 ### `GET /api/v1/files/:id/download`
 
 Mengirim berkas dengan `Content-Disposition: attachment`.
+
+### `GET /api/v1/files/:id/archive`
+
+Mengalirkan seluruh isi folder sebagai satu arsip zip tanpa file sementara
+(`Content-Type: application/zip`). Hanya untuk node folder; berkas tunggal
+tetap memakai `/download`.
+
+- Akses memakai aturan node yang sama: pemilik sendiri, atau `owner`/`admin`
+  untuk folder anggota lain.
+- Struktur di dalam zip mengikuti hierarki folder, folder kosong tetap dibuat,
+  dan folder akar tidak muncul sebagai entri terpisah.
+- Nama entri dibersihkan dari `..`, garis miring, dan karakter kontrol.
+- Berkas yang hilang dari disk dilewati agar sisa arsip tetap terunduh.
+- Kode kesalahan: `400 INVALID_ID`, `400 NOT_DIRECTORY`, `403 FORBIDDEN`,
+  `404 NOT_FOUND`, `404 EMPTY_FOLDER`.
 
 ### `GET /api/v1/files/:id/stream`
 

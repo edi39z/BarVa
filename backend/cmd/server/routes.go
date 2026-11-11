@@ -162,6 +162,7 @@ func newRouter(cfg routerConfig) *gin.Engine {
 			protected.PATCH("/files/:id", cfg.files.Rename)
 			protected.POST("/files/:id/move", cfg.files.Move)
 			protected.GET("/files/:id/download", cfg.files.Download)
+			protected.GET("/files/:id/archive", cfg.files.DownloadArchive)
 			protected.GET("/files/:id/stream", cfg.files.Stream)
 			protected.GET("/files/:id/thumbnail", cfg.files.Thumbnail)
 
