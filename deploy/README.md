@@ -181,12 +181,19 @@ Bila disk sistem terlalu kecil, arahkan Docker ke disk data lewat
 Lalu salin isinya dalam keadaan Docker berhenti:
 
 ```bash
+# rsync tidak selalu ada di Debian minimal; pasang selagi container masih hidup
+command -v rsync >/dev/null || apt-get install -y rsync
+
 systemctl stop docker.socket docker
 rsync -aHAX --numeric-ids /var/lib/docker/ /mnt/barva/docker/
 systemctl start docker
 docker info --format '{{.DockerRootDir}}'   # harus menunjuk direktori baru
 docker ps --format '{{.Names}} {{.Status}}'
 ```
+
+Pemasangan `rsync` sengaja ditaruh sebelum Docker dihentikan: kalau dilakukan
+setelahnya, semua container sudah mati sementara langkah berikutnya gagal karena
+perintahnya tidak ada.
 
 `-aHAX` mempertahankan hardlink, permission, dan xattr; tanpa itu image bisa
 gagal dibaca. Setelah `DockerRootDir` menunjuk direktori baru dan semua
