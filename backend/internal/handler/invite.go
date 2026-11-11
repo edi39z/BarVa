@@ -198,13 +198,13 @@ func (h *InviteHandler) Create(c *gin.Context) {
 		ExpiresInHours int    `json:"expires_in_hours"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "payload tidak valid"})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload undangan tidak valid.")
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
 	if in.Name == "" || in.Email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "nama dan email wajib diisi"})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Nama dan email wajib diisi.")
 		return
 	}
 	if in.Role == "" {
@@ -238,7 +238,7 @@ func (h *InviteHandler) Create(c *gin.Context) {
 		db.Invites = append(db.Invites, rec)
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal menyimpan undangan.")
 		return
 	}
 
@@ -258,7 +258,7 @@ func (h *InviteHandler) Create(c *gin.Context) {
 func (h *InviteHandler) List(c *gin.Context) {
 	var db inviteDB
 	if err := h.store.Load(&db); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal memuat daftar undangan.")
 		return
 	}
 	now := time.Now()
@@ -330,11 +330,11 @@ func (h *InviteHandler) Revoke(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal mencabut undangan.")
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "undangan tidak ditemukan"})
+		fail(c, http.StatusNotFound, "INVITE_NOT_FOUND", "Undangan tidak ditemukan.")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
@@ -346,14 +346,14 @@ func (h *InviteHandler) Peek(c *gin.Context) {
 	token := c.Param("token")
 	var db inviteDB
 	if err := h.store.Load(&db); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal memuat undangan.")
 		return
 	}
 	hash := hashToken(token)
 	for _, inv := range db.Invites {
 		if inv.TokenHash == hash {
 			if inv.Status == "revoked" {
-				c.JSON(http.StatusGone, gin.H{"error": "undangan telah dicabut"})
+				fail(c, http.StatusGone, "INVITE_REVOKED", "Undangan telah dicabut.")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{
@@ -368,7 +368,7 @@ func (h *InviteHandler) Peek(c *gin.Context) {
 			return
 		}
 	}
-	c.JSON(http.StatusNotFound, gin.H{"error": "undangan tidak ditemukan"})
+	fail(c, http.StatusNotFound, "INVITE_NOT_FOUND", "Undangan tidak ditemukan.")
 }
 
 // Accept -> POST /api/v1/public/invites/:token/accept
@@ -432,14 +432,11 @@ func (h *InviteHandler) Accept(c *gin.Context) {
 	switch err {
 	case nil:
 		c.JSON(http.StatusOK, gin.H{"success": true, "member": result})
-	case errRevoked:
-		c.JSON(http.StatusGone, gin.H{"error": "undangan telah dicabut oleh pemilik"})
-	case errExpired:
-		c.JSON(http.StatusGone, gin.H{"error": "undangan sudah kedaluwarsa"})
-	case errNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"error": "undangan tidak ditemukan"})
+	case errRevoked, errExpired, errNotFound:
+		status, code, message := inviteErrorResponse(err)
+		fail(c, status, code, message)
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal menerima undangan.")
 	}
 }
 

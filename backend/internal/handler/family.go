@@ -47,7 +47,7 @@ func (h *FamilyHandler) ListMembers(c *gin.Context) {
 
 	users, err := h.queries.ListUsers(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal memuat daftar anggota.")
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *FamilyHandler) ListMembers(c *gin.Context) {
 			Sha256:  "",
 		})
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+			failInternal(c, err, "DB_ERROR", "Gagal menghitung pemakaian anggota.")
 			return
 		}
 		members = append(members, MemberResponse{
@@ -98,7 +98,7 @@ func (h *FamilyHandler) InviteMember(c *gin.Context) {
 
 	var req InviteMemberRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload anggota tidak valid.")
 		return
 	}
 

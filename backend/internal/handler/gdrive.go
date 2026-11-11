@@ -184,14 +184,14 @@ func (h *GDriveHandler) SaveClient(c *gin.Context) {
 		RedirectURI  string `json:"redirect_uri"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "payload tidak valid"})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload OAuth client tidak valid.")
 		return
 	}
 	in.ClientID = strings.TrimSpace(in.ClientID)
 	in.ClientSecret = strings.TrimSpace(in.ClientSecret)
 	in.RedirectURI = strings.TrimSpace(in.RedirectURI)
 	if in.ClientID == "" || in.ClientSecret == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "client_id dan client_secret wajib diisi"})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "client_id dan client_secret wajib diisi.")
 		return
 	}
 	if in.RedirectURI == "" {
@@ -203,7 +203,7 @@ func (h *GDriveHandler) SaveClient(c *gin.Context) {
 	cfg.ClientSecret = in.ClientSecret
 	cfg.RedirectURI = in.RedirectURI
 	if err := h.store.Save(&cfg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal menyimpan kredensial Google Drive.")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "redirect_uri": in.RedirectURI})
@@ -213,10 +213,9 @@ func (h *GDriveHandler) SaveClient(c *gin.Context) {
 func (h *GDriveHandler) AuthURL(c *gin.Context) {
 	cfg, _ := h.load()
 	if cfg.ClientID == "" || cfg.ClientSecret == "" {
-		c.JSON(http.StatusPreconditionRequired, gin.H{
-			"error": "OAuth client belum diatur",
-			"hint":  "Kirim client_id & client_secret ke POST /api/v1/gdrive/client",
-		})
+		failWithHint(c, http.StatusPreconditionRequired, "GDRIVE_NOT_CONFIGURED",
+			"OAuth client Google Drive belum diatur.",
+			"Kirim client_id & client_secret ke POST /api/v1/gdrive/client")
 		return
 	}
 	redirect := c.Query("redirect_uri")
@@ -367,20 +366,21 @@ func (h *GDriveHandler) fetchEmail(token string) string {
 func (h *GDriveHandler) Quota(c *gin.Context) {
 	token, err := h.accessToken()
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusUnauthorized, "GDRIVE_NOT_CONNECTED", "Google Drive belum terhubung atau token gagal diperbarui.", err)
 		return
 	}
 	req, _ := http.NewRequest("GET", "https://www.googleapis.com/drive/v3/about?fields=user,storageQuota", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := h.client.Do(req)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusBadGateway, "UPSTREAM_ERROR", "Gagal menghubungi Google Drive.", err)
 		return
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		c.JSON(resp.StatusCode, gin.H{"error": truncate(string(body), 400)})
+		failLogged(c, resp.StatusCode, "UPSTREAM_ERROR", "Google Drive menolak permintaan kuota.",
+			fmt.Errorf("status %d: %s", resp.StatusCode, truncate(string(body), 400)))
 		return
 	}
 	c.Data(http.StatusOK, "application/json", body)
@@ -390,7 +390,7 @@ func (h *GDriveHandler) Quota(c *gin.Context) {
 func (h *GDriveHandler) Files(c *gin.Context) {
 	token, err := h.accessToken()
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusUnauthorized, "GDRIVE_NOT_CONNECTED", "Google Drive belum terhubung atau token gagal diperbarui.", err)
 		return
 	}
 	limit := c.DefaultQuery("limit", "50")
@@ -419,13 +419,14 @@ func (h *GDriveHandler) Files(c *gin.Context) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := h.client.Do(req)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusBadGateway, "UPSTREAM_ERROR", "Gagal menghubungi Google Drive.", err)
 		return
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		c.JSON(resp.StatusCode, gin.H{"error": truncate(string(body), 400)})
+		failLogged(c, resp.StatusCode, "UPSTREAM_ERROR", "Google Drive menolak permintaan daftar file.",
+			fmt.Errorf("status %d: %s", resp.StatusCode, truncate(string(body), 400)))
 		return
 	}
 	c.Data(http.StatusOK, "application/json", body)
@@ -436,7 +437,7 @@ func (h *GDriveHandler) Files(c *gin.Context) {
 func (h *GDriveHandler) Download(c *gin.Context) {
 	token, err := h.accessToken()
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusUnauthorized, "GDRIVE_NOT_CONNECTED", "Google Drive belum terhubung atau token gagal diperbarui.", err)
 		return
 	}
 	id := c.Param("id")
@@ -445,13 +446,14 @@ func (h *GDriveHandler) Download(c *gin.Context) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := h.client.Do(req)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusBadGateway, "UPSTREAM_ERROR", "Gagal menghubungi Google Drive.", err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		c.JSON(resp.StatusCode, gin.H{"error": truncate(string(body), 300)})
+		failLogged(c, resp.StatusCode, "UPSTREAM_ERROR", "Google Drive menolak unduhan file.",
+			fmt.Errorf("status %d: %s", resp.StatusCode, truncate(string(body), 300)))
 		return
 	}
 
@@ -470,19 +472,19 @@ func (h *GDriveHandler) Download(c *gin.Context) {
 func (h *GDriveHandler) Upload(c *gin.Context) {
 	token, err := h.accessToken()
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusUnauthorized, "GDRIVE_NOT_CONNECTED", "Google Drive belum terhubung atau token gagal diperbarui.", err)
 		return
 	}
 	fh, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file wajib diunggah"})
+		fail(c, http.StatusBadRequest, "FILE_REQUIRED", "File upload diperlukan.")
 		return
 	}
 	parent := c.PostForm("parent")
 
 	f, err := fh.Open()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		failInternal(c, err, "FILE_ERROR", "Gagal membuka file yang diunggah.")
 		return
 	}
 	defer f.Close()
@@ -508,13 +510,14 @@ func (h *GDriveHandler) Upload(c *gin.Context) {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		failLogged(c, http.StatusBadGateway, "UPSTREAM_ERROR", "Gagal menghubungi Google Drive.", err)
 		return
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
-		c.JSON(resp.StatusCode, gin.H{"error": truncate(string(body), 400)})
+		failLogged(c, resp.StatusCode, "UPSTREAM_ERROR", "Google Drive menolak unggahan file.",
+			fmt.Errorf("status %d: %s", resp.StatusCode, truncate(string(body), 400)))
 		return
 	}
 	c.Data(resp.StatusCode, "application/json", body)

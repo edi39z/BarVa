@@ -30,6 +30,35 @@ Selalu berbentuk objek dengan `code` dan `message`:
 { "error": { "code": "CONFLICT", "message": "File dengan nama tersebut sudah ada di folder ini." } }
 ```
 
+`hint` hanya muncul bila ada tindakan lanjutan yang bisa dilakukan klien:
+
+```json
+{
+  "error": {
+    "code": "GDRIVE_NOT_CONFIGURED",
+    "message": "OAuth client Google Drive belum diatur.",
+    "hint": "Kirim client_id & client_secret ke POST /api/v1/gdrive/client"
+  }
+}
+```
+
+`message` selalu siap ditampilkan ke pengguna. Untuk kegagalan server (`5xx`)
+detail aslinya hanya masuk log backend — nama tabel, path disk, dan respons
+upstream tidak pernah ikut terkirim.
+
+Kode yang dipakai:
+
+| Kelompok | Kode |
+|---|---|
+| Validasi | `VALIDATION_ERROR`, `INVALID_ID`, `INVALID_NODE_ID`, `INVALID_NAME`, `INVALID_PARENT`, `INVALID_TARGET`, `INVALID_SIZE`, `FILE_REQUIRED`, `NOT_DIRECTORY`, `IS_DIRECTORY`, `NOT_IMAGE` |
+| Sesi & akses | `UNAUTHORIZED`, `INVALID_SESSION`, `INVALID_CREDENTIALS`, `FORBIDDEN`, `RATE_LIMITED` |
+| Akun | `USER_EXISTS`, `USER_NOT_FOUND`, `PASSWORD_REQUIRED`, `INVALID_PASSWORD`, `QUOTA_EXCEEDED`, `QUOTA_BELOW_USAGE` |
+| Berkas | `NOT_FOUND`, `CONFLICT`, `FILE_TOO_LARGE`, `STORAGE_MISSING`, `NOT_TRASHED`, `PARENT_IN_TRASH` |
+| Share | `SHARE_NOT_FOUND`, `EMPTY_SHARE` |
+| Undangan | `INVITE_NOT_FOUND`, `INVITE_REVOKED`, `INVITE_EXPIRED`, `INVITE_USED`, `INVITE_EMAIL_MISMATCH`, `INVITE_UNAVAILABLE` |
+| Google Drive | `GDRIVE_NOT_CONFIGURED`, `GDRIVE_NOT_CONNECTED`, `UPSTREAM_ERROR` |
+| Server | `SERVER_ERROR`, `DB_ERROR`, `STORAGE_ERROR`, `UPSTREAM_ERROR` |
+
 ### Kode status yang sering muncul
 
 | Status | Arti |
@@ -39,7 +68,10 @@ Selalu berbentuk objek dengan `code` dan `message`:
 | `403` | Bukan pemilik atau bukan admin |
 | `404` | Item tidak ditemukan |
 | `409` | Nama bentrok di folder yang sama |
+| `410` | Undangan sudah dicabut/kedaluwarsa (`INVITE_REVOKED`, `INVITE_EXPIRED`) |
 | `413` | Upload melebihi `MAX_UPLOAD_BYTES` |
+| `428` | OAuth client Google Drive belum diatur |
+| `502` | Google Drive tidak dapat dihubungi atau menolak permintaan |
 
 ---
 

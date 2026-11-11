@@ -57,9 +57,7 @@ func isSecureRequest(c *gin.Context) bool {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()},
-		})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload permintaan tidak valid.")
 		return
 	}
 
@@ -158,9 +156,7 @@ func inviteErrorResponse(err error) (int, string, string) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()},
-		})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload permintaan tidak valid.")
 		return
 	}
 

@@ -142,7 +142,7 @@ func (h *FilesHandler) List(c *gin.Context) {
 		ParentID:  parentId,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal memuat daftar file.")
 		return
 	}
 	if nodes == nil {
@@ -184,7 +184,7 @@ func (h *FilesHandler) ListMedia(c *gin.Context) {
 		RowLimit:  int32(limit),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal memuat daftar media.")
 		return
 	}
 	if nodes == nil {
@@ -206,7 +206,7 @@ func (h *FilesHandler) CreateFolder(c *gin.Context) {
 		ParentID *string `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+		fail(c, http.StatusBadRequest, "VALIDATION_ERROR", "Payload folder tidak valid.")
 		return
 	}
 
@@ -389,7 +389,7 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 	defer reader.Close()
 
 	if err := h.storage.Put(c.Request.Context(), hashHex, reader); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "STORAGE_ERROR", "message": "Gagal menyimpan ke storage CAS: " + err.Error()}})
+		failInternal(c, err, "STORAGE_ERROR", "Gagal menyimpan berkas ke storage.")
 		return
 	}
 
@@ -412,7 +412,7 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 	})
 	if err != nil {
 		h.discardUploadFile(c.Request.Context(), hashHex)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Gagal mencatat metadata objek: " + err.Error()}})
+		failInternal(c, err, "DB_ERROR", "Gagal mencatat metadata berkas.")
 		return
 	}
 
@@ -648,7 +648,7 @@ func (h *FilesHandler) Move(c *gin.Context) {
 	}
 	targetParent, err := h.resolveParentForMove(c.Request.Context(), node.OwnerID, rawParent)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_PARENT", "message": err.Error()}})
+		fail(c, http.StatusBadRequest, "INVALID_PARENT", err.Error())
 		return
 	}
 
