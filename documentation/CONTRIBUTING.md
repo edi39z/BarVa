@@ -150,7 +150,7 @@ cd backend && sqlc generate
 
 ### Migrasi
 
-- Tambahkan file baru `migrations/000002_*.up.sql` (dan `.down.sql`).
+- Tambahkan file baru `migrations/000003_*.up.sql` (dan `.down.sql`).
 - **Jangan** mengubah migrasi yang sudah pernah dijalankan di server mana pun.
 
 ### Keamanan endpoint

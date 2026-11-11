@@ -29,20 +29,22 @@ Pengguna memilih mode saat pertama membuka aplikasi. Frontend yang dipakai sama.
 ## Status singkat
 
 Sudah berjalan: autentikasi, file manager lengkap (unggah, folder, ganti nama,
-pindah, hapus, unduh, pratinjau), Google Drive OAuth, undangan keluarga,
-share link dengan password dan masa berlaku, streaming video.
+pindah, hapus, unduh, pratinjau), Trash dengan pemulihan, Google Drive OAuth,
+undangan keluarga, share link dengan password dan masa berlaku, streaming video,
+serta PWA offline (service worker, halaman `/offline`, antrean unggah).
 
-Belum: RBAC per berkas, service worker/offline, unduh folder sebagai zip,
-UI Trash, dan pemecahan komponen frontend. Detail di [ROADMAP.md](ROADMAP.md).
+Belum: RBAC per berkas (saat ini baru per peran) dan unduh folder sebagai zip.
+Pemecahan state `page.tsx` menjadi custom hook masih berjalan. Detail di
+[ROADMAP.md](ROADMAP.md).
 
 ## Mulai cepat
 
 ```bash
 createdb nas_db
-psql -d nas_db -f migrations/000001_init_schema.up.sql
 
 cd backend  && go run ./cmd/server     # :8080
 cd frontend && npm install && npm run dev   # :3000
 ```
 
+Skema tidak perlu diimpor manual — backend menerapkan `migrations/` saat start.
 Panduan lengkap di [SETUP.md](SETUP.md).

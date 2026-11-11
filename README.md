@@ -337,8 +337,10 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 - Path fisik file **tidak** dibentuk dari nama file kiriman pengguna (mencegah path traversal).
 - MIME dideteksi dari isi file, bukan dari header klien.
 - Upload dibatasi `MAX_UPLOAD_BYTES`; body dibaca lewat `http.MaxBytesReader`.
-- Tidak ada kredensial hardcoded di repo: password database Docker diambil dari
-  `.env` dan compose menolak start bila belum diisi.
+- Tidak ada kredensial produksi yang hardcoded di repo: password database Docker
+  diambil dari `.env` dan compose menolak start bila belum diisi. Satu-satunya
+  nilai tetap adalah `postgres/postgres` di compose **dev** (`deploy/docker/docker-compose.dev.yml`),
+  yang hanya menyalakan PostgreSQL lokal di `127.0.0.1`.
 
 **Jangan pernah commit:** `.env*`, `backend/data/gdrive.json`,
 `backend/data/invites.json`, atau file berisi kredensial OAuth.
@@ -389,7 +391,7 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 - **Jangan edit `backend/internal/db/*.go`** — itu hasil generate sqlc. Ubah
   `backend/db/queries/*.sql`, lalu jalankan `sqlc generate`.
-- Tambahkan migrasi baru sebagai `migrations/000002_*.up.sql`. **Jangan** mengubah
+- Tambahkan migrasi baru sebagai `migrations/000003_*.up.sql`. **Jangan** mengubah
   migrasi yang sudah pernah dijalankan.
 - Setiap endpoint baru yang menyentuh data pengguna wajib lewat `AuthMiddleware`
   dan memakai helper otorisasi di `backend/internal/handler/access.go`.
@@ -401,9 +403,12 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Memecah `frontend/src/app/page.tsx` (monolit ±3.900 baris) menjadi komponen
-2. Migrasi otomatis saat server start
-3. Antrean unggah saat offline
+1. Memecah state `frontend/src/app/page.tsx` (±2.200 baris) menjadi custom hook
+   (`useNasFiles`, `useTrash`, `useShares`, `useStudio`) supaya container hanya
+   mengurus komposisi.
+2. Halaman pengaturan akun yang menampilkan rincian pemakaian kuota per folder
+   dan per jenis berkas.
+3. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
 
 ---
 
