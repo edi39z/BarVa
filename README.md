@@ -216,9 +216,10 @@ npm run dev
 Buka `http://localhost:3000`, pilih **Private NAS**, lalu daftar. User pertama
 menjadi owner.
 
-> Alamat backend di-hardcode di `frontend/src/lib/api/cloud.ts` (`PORT`) dan
-> `frontend/src/lib/api/nas.ts` (`DEFAULT_SERVER_URL`). Ubah di kedua tempat
-> jika backend pindah host/port.
+> Alamat backend punya satu sumber: `frontend/src/lib/api/nas.ts`
+> (`getServerUrl()`). Nilai yang disimpan lewat menu pengaturan server menang;
+> tanpa nilai tersimpan, klien memakai host halaman + port 8080. `cloud.ts`
+> memakai fungsi yang sama, jadi Google Drive dan undangan ikut berpindah.
 
 ### 4. Google Drive (opsional)
 

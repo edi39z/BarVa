@@ -47,7 +47,7 @@ import {
 import { PANEL_TOOLS, type StudioToolId } from "@/lib/studio/tools";
 import {
   pingNasServer,
-  getStoredServerUrl,
+  getServerUrl,
   setStoredServerUrl,
   uploadToNas,
   getDownloadUrl,
@@ -284,7 +284,7 @@ export default function Home() {
   // Baca konfigurasi lokal dan isi IndexedDB. Keduanya tidak menyentuh jaringan,
   // jadi tetap jalan di mode apa pun.
   useEffect(() => {
-    const savedUrl = getStoredServerUrl();
+    const savedUrl = getServerUrl();
     // Konfigurasi server hanya ada di localStorage klien, jadi tidak bisa dibaca
     // lewat initializer useState tanpa memicu hydration mismatch saat prerender.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -589,12 +589,9 @@ export default function Home() {
       };
       setFamilyMembers((prev) => [...prev, member]);
 
-      // Tautan harus bisa dibuka dari HP anggota keluarga di WiFi rumah.
-      const host =
-        typeof window !== "undefined" && window.location.hostname !== "localhost"
-          ? window.location.origin
-          : "http://192.168.18.22:3001";
-      setGeneratedInviteUrl(`${host}/invite/${res.token}`);
+      // Tautan dibuka dari HP anggota keluarga, jadi pakai origin halaman ini
+      // (sudah host LAN/Tailscale yang sedang dipakai pengunjung).
+      setGeneratedInviteUrl(`${window.location.origin}/invite/${res.token}`);
       await refreshInvites();
     } catch (err) {
       alert(

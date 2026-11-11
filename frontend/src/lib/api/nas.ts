@@ -10,13 +10,37 @@ export interface NasHealthResponse {
 }
 
 const STORAGE_KEY_SERVER_URL = "nas_server_url";
+// Kunci lama yang dulu hanya dipakai klien cloud (Google Drive & undangan).
+// Dibaca sekali lalu dipindahkan agar tidak ada dua sumber URL backend.
+const LEGACY_STORAGE_KEY_SERVER_URL = "nas_backend_url";
 const STORAGE_KEY_TOKEN = "nas_auth_token";
 const STORAGE_KEY_USER = "nas_auth_user";
 const DEFAULT_SERVER_URL = "http://localhost:8080";
 
-export function getStoredServerUrl(): string {
+function migrateLegacyServerUrl(): void {
+	const legacy = localStorage.getItem(LEGACY_STORAGE_KEY_SERVER_URL);
+	if (legacy === null) return;
+	if (!localStorage.getItem(STORAGE_KEY_SERVER_URL) && legacy.trim()) {
+		localStorage.setItem(STORAGE_KEY_SERVER_URL, legacy.replace(/\/+$/, ""));
+	}
+	localStorage.removeItem(LEGACY_STORAGE_KEY_SERVER_URL);
+}
+
+/**
+ * URL backend yang dipakai seluruh klien API.
+ *
+ * Urutan: nilai tersimpan → host halaman + port 8080 → localhost. Menebak dari
+ * host halaman membuat HP anggota keluarga bisa langsung memakai backend tanpa
+ * mengisi apa pun; nilai tersimpan tetap menang agar backend di host lain
+ * (mis. IP Tailscale) tetap terpakai.
+ */
+export function getServerUrl(): string {
 	if (typeof window === "undefined") return DEFAULT_SERVER_URL;
-	return localStorage.getItem(STORAGE_KEY_SERVER_URL) || DEFAULT_SERVER_URL;
+	migrateLegacyServerUrl();
+	const saved = localStorage.getItem(STORAGE_KEY_SERVER_URL);
+	if (saved) return saved;
+	const host = window.location.hostname || "localhost";
+	return `http://${host}:8080`;
 }
 
 export function setStoredServerUrl(url: string): void {
@@ -53,7 +77,7 @@ export function setStoredToken(token: string | null): void {
 function sameHostAsServer(): boolean {
 	if (typeof window === "undefined") return false;
 	try {
-		const base = getStoredServerUrl();
+		const base = getServerUrl();
 		if (!base) return true; // URL relatif = origin yang sama
 		return new URL(base).hostname === window.location.hostname;
 	} catch {
@@ -92,7 +116,7 @@ export function setStoredUser(user: NasUser | null): void {
 }
 
 export async function pingNasServer(serverUrl?: string): Promise<NasHealthResponse> {
-	const base = serverUrl || getStoredServerUrl();
+	const base = serverUrl || getServerUrl();
 	const startTime = performance.now();
 
 	const controller = new AbortController();
@@ -124,7 +148,7 @@ export async function uploadToNas(
 	onProgress?: (percent: number) => void,
 	overwrite?: boolean
 ): Promise<unknown> {
-	const base = getStoredServerUrl();
+	const base = getServerUrl();
 	const token = getStoredToken();
 
 	return new Promise((resolve, reject) => {
@@ -176,7 +200,7 @@ export async function uploadToNas(
 }
 
 export function getStreamUrl(fileId: string): string {
-	const base = getStoredServerUrl();
+	const base = getServerUrl();
 	const query = appendSessionToken(new URLSearchParams()).toString();
 	return `${base}/api/v1/files/${fileId}/stream${query ? `?${query}` : ""}`;
 }
@@ -184,7 +208,7 @@ export function getStreamUrl(fileId: string): string {
 // URL pratinjau kecil untuk tag <img>. Token hanya ditempel bila cookie sesi
 // tidak ikut terkirim (backend di host lain).
 export function getThumbnailUrl(fileId: string, size: "small" | "large" = "small"): string {
-	const base = getStoredServerUrl();
+	const base = getServerUrl();
 	const params = appendSessionToken(new URLSearchParams({ size }));
 	return `${base}/api/v1/files/${fileId}/thumbnail?${params.toString()}`;
 }
@@ -211,7 +235,7 @@ function authHeaders(): HeadersInit {
 }
 
 async function nasFetch(path: string, init?: RequestInit): Promise<Response> {
-	const res = await fetch(`${getStoredServerUrl()}${path}`, {
+	const res = await fetch(`${getServerUrl()}${path}`, {
 		...init,
 		headers: { ...authHeaders(), ...(init?.headers || {}) },
 	});
@@ -283,7 +307,7 @@ export async function moveNasFile(id: string, parentId: string | null): Promise<
 }
 
 export function getDownloadUrl(fileId: string): string {
-	const base = getStoredServerUrl();
+	const base = getServerUrl();
 	const query = appendSessionToken(new URLSearchParams()).toString();
 	return `${base}/api/v1/files/${fileId}/download${query ? `?${query}` : ""}`;
 }
@@ -399,7 +423,7 @@ export async function registerNas(input: {
 	inviteToken?: string;
 }): Promise<NasUser> {
 	const { inviteToken, ...rest } = input;
-	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/register`, {
+	const res = await fetch(`${getServerUrl()}/api/v1/auth/register`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(
@@ -415,7 +439,7 @@ export async function loginNas(input: {
 	email: string;
 	password: string;
 }): Promise<{ token: string; user: NasUser }> {
-	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/login`, {
+	const res = await fetch(`${getServerUrl()}/api/v1/auth/login`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
@@ -437,7 +461,7 @@ export async function fetchMe(): Promise<NasUser | null> {
 	const token = getStoredToken();
 	if (!token) return null;
 
-	const res = await fetch(`${getStoredServerUrl()}/api/v1/auth/me`, {
+	const res = await fetch(`${getServerUrl()}/api/v1/auth/me`, {
 		headers: { Authorization: `Bearer ${token}` },
 	});
 	if (res.status === 401) {
@@ -455,7 +479,7 @@ export async function logoutNas(): Promise<void> {
 	const token = getStoredToken();
 	if (token) {
 		try {
-			await fetch(`${getStoredServerUrl()}/api/v1/auth/logout`, {
+			await fetch(`${getServerUrl()}/api/v1/auth/logout`, {
 				method: "POST",
 				headers: { Authorization: `Bearer ${token}` },
 			});
