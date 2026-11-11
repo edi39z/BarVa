@@ -170,6 +170,12 @@ cd backend && sqlc generate
   bagian yang tidak jelas dari kodenya sendiri.
 - **TypeScript:** strict mode, tanpa `any` bila bisa dihindari, komponen
   fungsional.
+- **Indentasi & akhir baris:** `.editorconfig` di akar repo menetapkan LF, UTF-8,
+  dan spasi 2 untuk semua berkas, kecuali Go yang tetap memakai tab mengikuti
+  `gofmt`. Editor yang mendukung EditorConfig otomatis mengikuti aturan ini.
+- **Tipe domain bersama:** taruh di `src/lib/types.ts` (mis. `AppTab`,
+  `ConnectionMode`), jangan di komponen, supaya tidak ada impor tipe
+  antarkomponen.
 - **Dependensi baru:** hindari bila stdlib atau fitur platform sudah cukup.
   Jelaskan alasannya di PR.
 

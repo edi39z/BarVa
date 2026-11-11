@@ -137,6 +137,8 @@ Pemilihan sumber data terpusat di `src/lib/api/`:
 
 Tipe tampilan dan turunannya punya modul sendiri — jangan menyalin logikanya di
 komponen:
+- `src/lib/types.ts` — `AppTab`, `StudioTool`, `ConnectionMode` (dipakai Sidebar,
+  MobileNav, Beranda, dan modal pengaturan server).
 - `src/lib/fileTypes.ts` — `FileType` + `detectFileType()` dari MIME/nama.
 - `src/lib/displayItem.ts` — `DisplayItem` + `mergeDisplayItems()`.
 - `src/lib/storageStats.ts` — `computeStorageStats()` + `usagePercent()`

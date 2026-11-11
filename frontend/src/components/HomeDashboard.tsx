@@ -28,17 +28,15 @@ import { mergeDisplayItems, type DisplayItem } from "@/lib/displayItem";
 import { computeStorageStats } from "@/lib/storageStats";
 import { formatBytes } from "@/lib/nasDisplay";
 import { getThumbnailUrl } from "@/lib/api/nas";
+import type { AppTab, ConnectionMode, StudioTool } from "@/lib/types";
 import ThumbnailImage from "@/components/ThumbnailImage";
-
-export type AppTab = "home" | "files" | "trash" | "gallery" | "studio" | "gdrive" | "shares";
-export type StudioTool = "img2pdf" | "mergepdf" | "idphoto" | "compress";
 
 interface HomeDashboardProps {
   activeItems: DisplayItem[];
   localItems: DisplayItem[];
   isGdriveConnected: boolean;
   nasLatency: number | null;
-  connectionMode: "standalone" | "nas";
+  connectionMode: ConnectionMode;
   nasStatus: "online" | "offline" | "checking";
   serverUrl: string;
   onCreateFolder: () => void | Promise<void>;
