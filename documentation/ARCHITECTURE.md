@@ -354,6 +354,7 @@ tinggal menyusun:
 
 | Hook | Tanggung jawab |
 |---|---|
+| `useNasFiles` | Daftar berkas folder aktif, media galeri, navigasi folder (breadcrumb, masuk, kembali) |
 | `useTrash` | Daftar item terhapus, pemulihan (memanggil ulang daftar folder), hapus permanen |
 | `useShares` | Modal link berbagi, opsi masa berlaku/password/izin, daftar link aktif |
 | `useStudio` | Alat Studio aktif, status proses, hasil kompresi/AI, pemilih berkas, penyimpanan hasil olahan |

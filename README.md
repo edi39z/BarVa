@@ -403,9 +403,9 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Memecah state `frontend/src/app/page.tsx` (±2.200 baris) menjadi custom hook
-   (`useNasFiles`, `useTrash`, `useShares`, `useStudio`) supaya container hanya
-   mengurus komposisi.
+1. Memindahkan sisa state `frontend/src/app/page.tsx` (±1.550 baris) ke hook:
+   sesi/koneksi server, keluarga & undangan, serta aksi massal. Empat kelompok
+   besar (`useNasFiles`, `useTrash`, `useShares`, `useStudio`) sudah diekstrak.
 2. Halaman pengaturan akun yang menampilkan rincian pemakaian kuota per folder
    dan per jenis berkas.
 3. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).

@@ -32,7 +32,6 @@ import {
   fetchMe,
   logoutNas,
   listNasFiles,
-  listNasMedia,
   createNasFolder,
   deleteNasFile,
   renameNasFile,
@@ -70,6 +69,7 @@ import {
   type GroupMode,
 } from "@/lib/files/actions";
 import { useFileSelection } from "@/hooks/useFileSelection";
+import { useNasFiles } from "@/hooks/useNasFiles";
 import { useShares } from "@/hooks/useShares";
 import { useStudio } from "@/hooks/useStudio";
 import { useTrash } from "@/hooks/useTrash";
@@ -147,12 +147,6 @@ export default function Home() {
 
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
 
-  // Folder Drill-down & Breadcrumbs State
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<{ id: string | null; name: string }[]>([
-    { id: null, name: "Semua File" },
-  ]);
-
   // Generated Invitation Link for Family
   const [generatedInviteUrl, setGeneratedInviteUrl] = useState("");
   // Undangan & anggota yang tersimpan di server NAS
@@ -160,15 +154,6 @@ export default function Home() {
 
   // Local storage items from IndexedDB
   const [localItems, setLocalItems] = useState<DisplayItem[]>([]);
-
-  // File manager NAS — daftar file yang benar-benar ada di server
-  const [nasItems, setNasItems] = useState<DisplayItem[]>([]);
-  const [nasFilesLoading, setNasFilesLoading] = useState(false);
-  const [nasFilesError, setNasFilesError] = useState("");
-
-  // Media NAS lintas folder untuk galeri. Dipisah dari nasItems karena
-  // nasItems hanya berisi isi folder yang sedang dibuka.
-  const [mediaItems, setMediaItems] = useState<DisplayItem[]>([]);
 
   // Antrean upload offline
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -279,56 +264,15 @@ export default function Home() {
     };
   }, []);
 
-  // Muat isi folder aktif langsung dari server NAS.
-  const loadNasFiles = useCallback(async (parentId: string | null) => {
-    setNasFilesLoading(true);
-    setNasFilesError("");
-    try {
-      const nodes = await listNasFiles(parentId);
-      setNasItems(nodes.map(nasNodeToDisplay));
-    } catch (err) {
-      setNasItems([]);
-      setNasFilesError((err as Error).message);
-    } finally {
-      setNasFilesLoading(false);
-    }
-  }, []);
-
-  // Di luar mode NAS, `nasItems` yang tersisa tidak pernah dirender karena
-  // `activeItems` memilih `localItems`. Jadi tidak perlu direset lewat setState.
-  useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) return;
-    // Pemuat menyalakan indikator loading secara sinkron supaya UI langsung
-    // bereaksi; itu bagian dari efek samping fetch, bukan state turunan.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadNasFiles(currentFolderId);
-  }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
-
-  // Galeri memuat media lintas folder setiap kali tabnya dibuka, supaya
-  // unggahan/hapus terbaru langsung terlihat tanpa memuat seluruh pohon berkas.
-  useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) return;
-    if (activeTab !== "gallery") return;
-
-    let cancelled = false;
-    listNasMedia()
-      .then((nodes) => {
-        if (!cancelled) setMediaItems(nodes.map(nasNodeToDisplay));
-      })
-      .catch(() => {
-        if (!cancelled) setMediaItems([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [connectionMode, currentUser, activeTab]);
+  // Daftar berkas NAS, media galeri, dan navigasi folder dikelola hook sendiri.
+  const files = useNasFiles({ connectionMode, currentUser, activeTab });
+  const { currentFolderId, breadcrumbs: folderBreadcrumbs } = files;
 
   // Trash NAS: daftar, pemulihan, dan hapus permanen dikelola hook sendiri.
   const trash = useTrash({
     connectionMode,
     currentUser,
-    onRestored: () => loadNasFiles(currentFolderId),
+    onRestored: () => files.reload(),
   });
 
   // Link berbagi: modal, opsi, dan daftar link aktif dikelola hook sendiri.
@@ -337,16 +281,10 @@ export default function Home() {
   /** Segarkan daftar folder, galeri, dan trash setelah aksi yang mengubah data. */
   const refreshLibrary = useCallback(async () => {
     if (connectionMode !== "nas" || !currentUser) return;
-    await loadNasFiles(currentFolderId);
-    if (activeTab === "gallery") {
-      try {
-        setMediaItems((await listNasMedia()).map(nasNodeToDisplay));
-      } catch {
-        // Biarkan daftar lama; galeri memuat ulang saat tabnya dibuka lagi.
-      }
-    }
+    await files.reload();
+    if (activeTab === "gallery") await files.reloadMedia();
     await trash.reload();
-  }, [connectionMode, currentUser, currentFolderId, activeTab, loadNasFiles, trash]);
+  }, [connectionMode, currentUser, activeTab, files, trash]);
 
   /**
    * Unggah hasil olahan tanpa menimpa berkas lain. Bila nama sudah dipakai,
@@ -395,7 +333,7 @@ export default function Home() {
       const result = await flushUploadQueue();
       if (!alive) return;
       setPendingUploads(result.pending);
-      if (result.uploaded > 0) loadNasFiles(currentFolderId);
+      if (result.uploaded > 0) files.reload();
     };
 
     syncCount();
@@ -405,7 +343,7 @@ export default function Home() {
       alive = false;
       window.removeEventListener("online", run);
     };
-  }, [connectionMode, currentUser, currentFolderId, loadNasFiles]);
+  }, [connectionMode, currentUser, files]);
 
   // Segarkan status Drive setiap kali kembali ke dashboard, karena panel
   // Drive punya state sendiri dan bisa berubah tanpa reload halaman. Status
@@ -605,24 +543,10 @@ export default function Home() {
     alert("Untuk memasang Barva di HP/Laptop:\n1. Buka menu browser (titik tiga ⋮ di Chrome/Edge atau tombol Share di Safari iOS)\n2. Pilih 'Tambahkan ke Layar Utama' (Add to Home Screen / Install App).\n\nAplikasi akan terpasang sebagai aplikasi PWA berkecepatan native.");
   };
 
-  // Folder Drill-down Handlers
-  const handleOpenFolder = (folder: DisplayItem) => {
-    setCurrentFolderId(folder.id);
-    setFolderBreadcrumbs((prev) => [...prev, { id: folder.id, name: folder.name }]);
-  };
-
-  const handleNavigateBreadcrumb = (targetId: string | null, index: number) => {
-    setCurrentFolderId(targetId);
-    setFolderBreadcrumbs((prev) => prev.slice(0, index + 1));
-  };
-
-  const handleGoBackFolder = () => {
-    if (folderBreadcrumbs.length <= 1) return;
-    const newBreadcrumbs = folderBreadcrumbs.slice(0, -1);
-    const parentTarget = newBreadcrumbs[newBreadcrumbs.length - 1];
-    setFolderBreadcrumbs(newBreadcrumbs);
-    setCurrentFolderId(parentTarget.id);
-  };
+  // Navigasi folder memakai aksi dari hook daftar berkas.
+  const handleOpenFolder = files.openFolder;
+  const handleNavigateBreadcrumb = files.navigateBreadcrumb;
+  const handleGoBackFolder = files.goBack;
 
   const handleCreateFolder = async () => {
     const folderName = prompt("Masukkan nama folder baru:");
@@ -631,7 +555,7 @@ export default function Home() {
     if (connectionMode === "nas") {
       try {
         await createNasFolder(folderName, currentFolderId);
-        await loadNasFiles(currentFolderId);
+        await files.reload();
       } catch (err) {
         alert(`Gagal membuat folder: ${(err as Error).message}`);
       }
@@ -761,17 +685,17 @@ export default function Home() {
     try {
       const result = await flushUploadQueue();
       setPendingUploads(result.pending);
-      if (result.uploaded > 0) await loadNasFiles(currentFolderId);
+      if (result.uploaded > 0) await files.reload();
     } finally {
       setFlushingQueue(false);
     }
   };
 
   const handleRealFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const picked = e.target.files;
+    if (!picked || picked.length === 0) return;
 
-    const file = files[0];
+    const file = picked[0];
     setUploadFileName(file.name);
     setIsUploading(true);
     setUploadProgress(10);
@@ -806,7 +730,7 @@ export default function Home() {
           await uploadToNas(file, currentFolderId, report, true);
         }
         setUploadProgress(100);
-        await loadNasFiles(currentFolderId);
+        await files.reload();
         // Segarkan pemakaian kuota yang tampil di sidebar.
         try {
           const me = await fetchMe();
@@ -890,8 +814,7 @@ export default function Home() {
       if (!confirm("Pindahkan item ini ke Trash? Kamu masih bisa memulihkannya nanti.")) return;
       try {
         await deleteNasFile(id);
-        setNasItems((prev) => prev.filter((item) => item.id !== id));
-        setMediaItems((prev) => prev.filter((item) => item.id !== id));
+        files.removeLocally(id);
         if (selectedMedia?.id === id) setSelectedMedia(null);
         trash.reload();
       } catch (err) {
@@ -904,7 +827,7 @@ export default function Home() {
     try {
       await deleteLocalFile(id);
       setLocalItems((prev) => prev.filter((item) => item.id !== id));
-      setMediaItems((prev) => prev.filter((item) => item.id !== id));
+      files.removeLocally(id);
       if (selectedMedia?.id === id) setSelectedMedia(null);
     } catch (err) {
       console.error("Delete error:", err);
@@ -933,11 +856,11 @@ export default function Home() {
   // Sumber data UI: server NAS saat mode NAS, IndexedDB saat standalone.
   // Tanpa sesi NAS, daftar dari server tidak boleh ditampilkan meski datanya
   // masih tersisa di state — dulu ini ditangani dengan mereset state di efek.
-  const activeItems = connectionMode === "nas" ? (currentUser ? nasItems : []) : localItems;
+  const activeItems = connectionMode === "nas" ? (currentUser ? files.items : []) : localItems;
 
   // Galeri memakai media lintas folder di mode NAS; di standalone seluruh
   // item lokal memang sudah terkumpul di satu tempat.
-  const galleryItems = connectionMode === "nas" ? (currentUser ? mediaItems : []) : localItems;
+  const galleryItems = connectionMode === "nas" ? (currentUser ? files.mediaItems : []) : localItems;
 
   // Owner/admin bisa melihat berkas anggota lain; UI perlu menandainya agar
   // tidak tertukar dengan berkas sendiri.
@@ -1307,12 +1230,12 @@ export default function Home() {
               pendingUploads={pendingUploads}
               isOnline={isOnline}
               flushingQueue={flushingQueue}
-              nasFilesLoading={nasFilesLoading}
-              nasFilesError={nasFilesError}
+              nasFilesLoading={files.loading}
+              nasFilesError={files.error}
               isForeign={isForeignItem}
               thumbnailUrl={thumbnailForItem}
               onFlushQueue={handleFlushQueue}
-              onReload={() => loadNasFiles(currentFolderId)}
+              onReload={() => files.reload()}
               onGoBack={handleGoBackFolder}
               onBreadcrumb={handleNavigateBreadcrumb}
               onOpenFolder={handleOpenFolder}
