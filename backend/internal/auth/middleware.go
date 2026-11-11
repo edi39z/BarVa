@@ -12,7 +12,6 @@ import (
 const (
 	ContextUserID   = "auth_user_id"
 	ContextUserRole = "auth_user_role"
-	ContextEmail    = "auth_user_email"
 	CookieName      = "nas_session"
 )
 
@@ -63,7 +62,6 @@ func AuthMiddleware(queries *db.Queries) gin.HandlerFunc {
 		// Store user details in context
 		c.Set(ContextUserID, session.UserID)
 		c.Set(ContextUserRole, session.Role)
-		c.Set(ContextEmail, session.Email)
 
 		c.Next()
 	}

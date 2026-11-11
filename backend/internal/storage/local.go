@@ -74,44 +74,10 @@ func (l *LocalStorage) Put(ctx context.Context, key string, src io.Reader) error
 	return nil
 }
 
-func (l *LocalStorage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
-	path := l.getPath(key)
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	return file, nil
-}
-
 func (l *LocalStorage) Delete(ctx context.Context, key string) error {
 	path := l.getPath(key)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
-}
-
-func (l *LocalStorage) Exists(ctx context.Context, key string) (bool, error) {
-	path := l.getPath(key)
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-func (l *LocalStorage) Stat(ctx context.Context, key string) (ObjectInfo, error) {
-	path := l.getPath(key)
-	info, err := os.Stat(path)
-	if err != nil {
-		return ObjectInfo{}, err
-	}
-	return ObjectInfo{
-		Key:       key,
-		Size:      info.Size(),
-		UpdatedAt: info.ModTime(),
-	}, nil
 }

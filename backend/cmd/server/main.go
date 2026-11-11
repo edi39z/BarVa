@@ -76,6 +76,30 @@ func validateAdminKey(ginMode, adminKey string) error {
 	return nil
 }
 
+// pruneExpiredSessions membersihkan sesi kedaluwarsa saat start lalu sekali
+// sehari. AuthMiddleware hanya menolak token yang sudah lewat masa berlaku,
+// tidak menghapusnya, jadi tanpa pembersihan tabel sessions tumbuh terus.
+func pruneExpiredSessions(ctx context.Context, queries *db.Queries) {
+	run := func() {
+		if err := queries.DeleteExpiredSessions(ctx); err != nil {
+			log.Printf("[Barva] Gagal membersihkan sesi kedaluwarsa: %v", err)
+		}
+	}
+
+	run()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
 func main() {
 	port := getEnv("PORT", "8080")
 	dbUrl := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable")
@@ -128,6 +152,12 @@ func main() {
 
 		queries = db.New(pool)
 		dbAvailable = true
+
+		// Pembersihan sesi berjalan di latar belakang; kegagalannya tidak
+		// boleh menahan atau mematikan server.
+		pruneCtx, pruneCancel := context.WithCancel(context.Background())
+		defer pruneCancel()
+		go pruneExpiredSessions(pruneCtx, queries)
 	}
 
 	// 3. Fitur yang TIDAK bergantung pada PostgreSQL: Google Drive OAuth dan

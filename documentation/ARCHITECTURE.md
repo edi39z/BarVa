@@ -120,9 +120,10 @@ data/storage/
 - Penulisan dilakukan ke `tmp/` lalu dipindahkan secara atomik, sehingga tidak
   ada objek setengah jadi bila koneksi terputus.
 - `StorageProvider` (`internal/storage/storage.go`) adalah antarmuka:
-  `Put`, `Get`, `Delete`, `Exists`, `Stat`, `GetPhysicalPath`. Implementasi saat
-  ini hanya `LocalStorage`; antarmuka ada agar backend lain bisa ditambah tanpa
-  mengubah handler.
+  `Put`, `Delete`, `GetPhysicalPath`. Implementasi saat ini hanya
+  `LocalStorage`; antarmuka ada agar backend lain bisa ditambah tanpa
+  mengubah handler. Pembacaan isi berkas memakai path fisik itu langsung,
+  sehingga tidak perlu metode `Get`/`Stat` terpisah.
 
 ---
 
@@ -147,6 +148,10 @@ POST /auth/login
 Token dikirim kembali sebagai `Authorization: Bearer <token>`. `AuthMiddleware`
 menerima tiga sumber, berurutan: header, cookie `nas_session`, lalu query
 `?token=` (dipakai `<img>` dan `<video>` yang tidak bisa mengirim header).
+
+Middleware hanya menolak token yang sudah lewat `expires_at`; barisnya tidak
+dihapus. Karena itu backend menjalankan `DeleteExpiredSessions` sekali saat
+start lalu setiap 24 jam, supaya tabel `sessions` tidak tumbuh tanpa batas.
 
 ### 4.2 Upload
 
