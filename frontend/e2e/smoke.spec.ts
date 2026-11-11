@@ -64,9 +64,12 @@ test.describe("tekan lama memilih item", () => {
     "base64"
   );
 
-  /** Menekan jari selama 700 ms, melewati ambang 450 ms di `useLongPress`. */
-  async function longPress(page: Page, target: Locator) {
-    const point = { clientX: 120, clientY: 120, pointerId: 1, pointerType: "touch", isPrimary: true };
+  /**
+   * Menahan penunjuk selama 700 ms, melewati ambang 450 ms di `useLongPress`.
+   * `pointerType` bisa "touch" (jari) atau "mouse" (tahan klik kiri).
+   */
+  async function longPress(page: Page, target: Locator, pointerType: "touch" | "mouse" = "touch") {
+    const point = { clientX: 120, clientY: 120, pointerId: 1, pointerType, isPrimary: true };
     await target.dispatchEvent("pointerdown", { ...point, button: 0, buttons: 1, bubbles: true });
     await page.waitForTimeout(700);
     await target.dispatchEvent("pointerup", { ...point, button: 0, buttons: 0, bubbles: true });
@@ -91,11 +94,20 @@ test.describe("tekan lama memilih item", () => {
     // Label aksi ikut menyesuaikan: satu item tidak memakai akhiran "semua".
     await expect(page.getByRole("button", { name: "Hapus latar" })).toBeVisible();
 
-    // Menekan lama item yang sudah terpilih tidak mengubah apa pun.
+    // Menahan penunjuk pada item yang sudah terpilih tidak mengubah apa pun.
     await longPress(page, card);
     await expect(page.getByText("1 item dipilih")).toBeVisible();
 
     await page.getByRole("button", { name: "Batal memilih" }).click();
+    await expect(page.getByText("1 item dipilih")).toHaveCount(0);
+
+    // Mouse juga memicu seleksi, bukan hanya layar sentuh.
+    await longPress(page, card, "mouse");
+    await expect(page.getByText("1 item dipilih")).toBeVisible();
+
+    // Menahan mouse di atas tombol ⋮ tidak boleh menyalakan seleksi.
+    await page.getByRole("button", { name: "Batal memilih" }).click();
+    await longPress(page, card.getByRole("button", { name: /Lihat|Buka/ }).first(), "mouse");
     await expect(page.getByText("1 item dipilih")).toHaveCount(0);
 
     await card.click({ button: "right" });
@@ -108,7 +120,7 @@ test.describe("tekan lama memilih item", () => {
     const photo = page.locator('[role="button"]').filter({ hasText: "tekan-lama.png" }).first();
     await expect(photo).toBeVisible({ timeout: 15_000 });
 
-    await longPress(page, photo);
+    await longPress(page, photo, "mouse");
     await expect(page.getByText("1 item dipilih")).toBeVisible();
   });
 });

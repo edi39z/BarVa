@@ -89,8 +89,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   kualitas foto 2×. Foto tidak pernah diunggah ke server
 - Menu aksi pintar di daftar berkas dan galeri: klik kanan atau tombol ⋮
   memunculkan aksi sesuai tipe (gambar: hapus latar, kompres, pasfoto;
-  PDF: PDF ke Word, editor PDF). Tekan lama pada layar sentuh langsung
-  menyalakan mode **Pilih** dan menandai item itu, seperti galeri ponsel.
+  PDF: PDF ke Word, editor PDF). Menahan klik kiri atau tekan lama pada layar
+  sentuh langsung menyalakan mode **Pilih** dan menandai item itu, seperti
+  galeri ponsel.
   Mode Pilih mendukung aksi banyak sekaligus:
   jadikan PDF, gabung PDF, hapus, pindah, buat folder dari pilihan, dan
   kelompokkan otomatis per tipe atau bulan. Berkas NAS diunduh sementara

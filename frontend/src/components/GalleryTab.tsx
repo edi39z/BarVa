@@ -90,7 +90,7 @@ export default function GalleryTab({
         <div>
           <h1 className="text-[17px] font-bold text-fg">Galeri Foto & Video</h1>
           <p className="mt-0.5 text-[12.5px] text-subtle">
-            {visible.length} media · ketuk untuk melihat, tekan lama untuk memilih, klik kanan untuk aksi
+            {visible.length} media · ketuk untuk melihat, tahan klik atau tekan lama untuk memilih
           </p>
         </div>
 
