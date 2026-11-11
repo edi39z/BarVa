@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { formatBytes } from "@/lib/nasDisplay";
 import type { CompressionResult } from "@/lib/studio/image";
-import { BG_MODEL_APPROX_MB, type BgMode, type BgProgress, type EnhanceResult } from "@/lib/studio/ai";
+import { BG_MODEL_APPROX_MB, type BgProgress, type EnhanceResult } from "@/lib/studio/ai";
 import type { StudioToolId } from "@/lib/studio/tools";
 import type { StudioErrorInfo } from "@/lib/studio/errors";
 import type { StudioOutput } from "@/lib/studio/output";
@@ -50,8 +50,6 @@ interface StudioTabProps {
   bgModelReady: boolean;
   bgConsentGranted: boolean;
   bgProgress: BgProgress | null;
-  bgMode: BgMode;
-  onBgModeChange: (mode: BgMode) => void;
   bgTolerance: number;
   onBgToleranceChange: (value: number) => void;
   bgDropShadow: boolean;
@@ -142,6 +140,15 @@ const TOOLS: {
   },
 ];
 
+/** Label awam untuk kekuatan pembersihan, supaya angka 0–50 mudah dipahami. */
+function cleanupStrengthLabel(value: number) {
+  if (value === 0) return "Nonaktif";
+  if (value <= 10) return "Ringan";
+  if (value <= 25) return "Sedang";
+  if (value <= 40) return "Kuat";
+  return "Maksimal";
+}
+
 export default function StudioTab({
   tool,
   onToolChange,
@@ -164,8 +171,6 @@ export default function StudioTab({
   bgModelReady,
   bgConsentGranted,
   bgProgress,
-  bgMode,
-  onBgModeChange,
   bgTolerance,
   onBgToleranceChange,
   bgDropShadow,
@@ -252,80 +257,41 @@ export default function StudioTab({
               className="hidden"
             />
 
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Jenis gambar">
-              <button
-                type="button"
-                onClick={() => onBgModeChange("photo")}
-                aria-pressed={bgMode === "photo"}
-                className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                  bgMode === "photo"
-                    ? "border-brand-border bg-brand-soft"
-                    : "border-line bg-surface hover:border-line-strong hover:bg-surface-2"
-                }`}
-              >
-                <span className={`block text-[12.5px] font-semibold ${bgMode === "photo" ? "text-brand" : "text-fg"}`}>
-                  Foto / Objek
-                </span>
-                <span className="mt-0.5 block text-[11px] text-subtle">Model AI, untuk orang &amp; produk</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onBgModeChange("logo")}
-                aria-pressed={bgMode === "logo"}
-                className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                  bgMode === "logo"
-                    ? "border-brand-border bg-brand-soft"
-                    : "border-line bg-surface hover:border-line-strong hover:bg-surface-2"
-                }`}
-              >
-                <span className={`block text-[12.5px] font-semibold ${bgMode === "logo" ? "text-brand" : "text-fg"}`}>
-                  Logo / Stiker
-                </span>
-                <span className="mt-0.5 block text-[11px] text-subtle">Pisah warna, tepi tajam</span>
-              </button>
-            </div>
-
-            {bgMode === "logo" && (
-              <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3.5">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-[12px]">
-                    <label htmlFor="bg-tolerance" className="font-semibold text-muted">
-                      Toleransi warna latar
-                    </label>
-                    <span className="font-semibold tabular-nums text-brand">{bgTolerance}%</span>
-                  </div>
-                  <input
-                    id="bg-tolerance"
-                    type="range"
-                    min="0"
-                    max="60"
-                    step="1"
-                    value={bgTolerance}
-                    onChange={(e) => onBgToleranceChange(parseInt(e.target.value, 10))}
-                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-surface-3 accent-[var(--brand-solid)]"
-                  />
-                  <div className="mt-1 flex justify-between text-[11px] text-subtle">
-                    <span>Lebih ketat</span>
-                    <span>Lebih agresif</span>
-                  </div>
+            <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3.5">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-[12px]">
+                  <label htmlFor="bg-cleanup" className="font-semibold text-muted">
+                    Bersihkan sisa latar
+                  </label>
+                  <span className="font-semibold text-brand">{cleanupStrengthLabel(bgTolerance)}</span>
                 </div>
-                <label className="flex items-start gap-2 text-[12px] text-muted">
-                  <input
-                    type="checkbox"
-                    checked={bgDropShadow}
-                    onChange={(e) => onBgDropShadowChange(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span>Buang bayangan abu-abu di sekitar logo</span>
-                </label>
-                <p className="text-[11px] leading-relaxed text-subtle">
-                  Paling cocok untuk logo berwarna datar di atas latar polos. Kalau warna logo sama dengan latar,
-                  bagian itu bisa ikut terpotong.
+                <input
+                  id="bg-cleanup"
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="1"
+                  value={bgTolerance}
+                  onChange={(e) => onBgToleranceChange(parseInt(e.target.value, 10))}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-surface-3 accent-[var(--brand-solid)]"
+                />
+                <p className="mt-1.5 text-[11px] leading-relaxed text-subtle">
+                  Semakin ke kanan, semakin banyak sisa warna latar yang dibuang. Naikkan kalau masih ada sisa;
+                  turunkan kalau bagian gambar ikut terhapus.
                 </p>
               </div>
-            )}
+              <label className="flex items-start gap-2 text-[12px] text-muted">
+                <input
+                  type="checkbox"
+                  checked={bgDropShadow}
+                  onChange={(e) => onBgDropShadowChange(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>Buang bayangan abu-abu di tepi gambar</span>
+              </label>
+            </div>
 
-            {bgMode === "photo" && !bgCanRun && (
+            {!bgCanRun && (
               <div className="rounded-xl border border-line bg-surface-2 p-4">
                 <div className="flex items-start gap-3">
                   <span
@@ -378,24 +344,20 @@ export default function StudioTab({
 
             <div className="rounded-xl border-2 border-dashed border-line-strong bg-surface-2 px-4 py-8 text-center">
               <Wand2 className="mx-auto mb-2 h-9 w-9 text-[var(--tile-teal-fg)]" aria-hidden />
-              <p className="text-[13px] font-semibold text-fg">
-                {bgMode === "logo" ? "Pilih logo yang ingin dihapus latarnya" : "Pilih foto yang ingin dihapus latarnya"}
-              </p>
+              <p className="text-[13px] font-semibold text-fg">Pilih gambar yang ingin dihapus latarnya</p>
               <p className="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-subtle">
-                {bgMode === "logo"
-                  ? "Latar polos di tepi gambar dijadikan transparan tanpa model AI. Hasil disimpan sebagai PNG."
-                  : "Paling cocok untuk foto orang, produk, atau hewan. Hasil disimpan sebagai PNG transparan."}
+                Berlaku untuk foto maupun logo. Hasil disimpan sebagai PNG transparan.
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button
-                  disabled={processing || (bgMode === "photo" && !bgCanRun)}
+                  disabled={processing || !bgCanRun}
                   onClick={() => removeBgRef.current?.click()}
                   className="btn btn-primary"
                 >
                   {processing ? "Memproses…" : "Pilih dari perangkat"}
                 </button>
                 <button
-                  disabled={processing || (bgMode === "photo" && !bgCanRun)}
+                  disabled={processing || !bgCanRun}
                   onClick={() => onOpenStoragePicker("removebg")}
                   className="btn btn-secondary"
                 >
@@ -403,11 +365,8 @@ export default function StudioTab({
                   Pilih dari berkas tersimpan
                 </button>
               </div>
-              {bgMode === "photo" && bgModelReady && !processing && (
+              {bgModelReady && !processing && (
                 <p className="mt-3 text-[11.5px] text-subtle">Model AI sudah siap di perangkat ini.</p>
-              )}
-              {bgMode === "logo" && !processing && (
-                <p className="mt-3 text-[11.5px] text-subtle">Mode logo langsung jalan tanpa unduh model.</p>
               )}
             </div>
           </div>

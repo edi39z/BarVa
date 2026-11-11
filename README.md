@@ -83,9 +83,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   PDF→Word (teks jadi bisa diedit, halaman hasil pindai masuk sebagai gambar),
   editor PDF (hapus, geser, putar, dan sisipkan halaman dari PDF lain), pasfoto
   dengan ukuran resmi (2×3, 3×4, 4×6, paspor, 2×2 inci) atau ukuran kustom dan
-  warna latar bebas lewat kode hex, kompres foto, hapus latar belakang (mode foto
-  memakai model AI ±80 MB yang diunduh sekali setelah pengguna memberi izin;
-  mode logo memisahkan warna latar tanpa model), dan peningkatan
+  warna latar bebas lewat kode hex, kompres foto, hapus latar belakang (model AI
+  ±80 MB yang diunduh sekali setelah pengguna memberi izin, dengan pembersihan
+  sisa latar dan bayangan), dan peningkatan
   kualitas foto 2×. Foto tidak pernah diunggah ke server
 - Migrasi database otomatis saat backend start (`schema_migrations`), termasuk
   baseline untuk database lama

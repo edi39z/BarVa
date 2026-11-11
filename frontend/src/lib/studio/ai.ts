@@ -14,18 +14,13 @@ export const BG_MODEL_READY_KEY = "nas-bg-model-ready";
 export type BgPhase = "download" | "process";
 
 /**
- * Cara memisahkan latar:
- * - `photo` memakai model AI (ISNet) untuk foto orang, produk, atau hewan.
- * - `logo` memakai pemisahan warna deterministik untuk gambar datar seperti
- *   logo, stiker, dan teks. Tidak mengunduh model dan hasilnya bertepi tajam.
+ * Opsi pembersihan setelah model AI memisahkan latar. Satu alur dipakai untuk
+ * foto maupun logo, jadi pengguna tidak perlu memilih jenis gambar.
  */
-export type BgMode = "photo" | "logo";
-
 export interface BgOptions {
-  mode?: BgMode;
-  /** Toleransi warna latar untuk mode logo, 0–100. Default 24. */
+  /** Kekuatan pembersihan sisa warna latar, 0–50. 0 berarti tidak dibersihkan. */
   tolerance?: number;
-  /** Buang bayangan abu-abu di sekitar logo. Default aktif di mode logo. */
+  /** Buang bayangan abu-abu yang sering tertinggal di tepi objek. */
   dropShadow?: boolean;
 }
 
@@ -60,10 +55,6 @@ export async function removeImageBackground(
   onProgress?: (progress: BgProgress) => void,
   options: BgOptions = {}
 ): Promise<ImageOutput> {
-  if (options.mode === "logo") {
-    return removeLogoBackground(file, options, onProgress);
-  }
-
   const { removeBackground } = await import("@imgly/background-removal");
 
   const blob = await removeBackground(file, {
@@ -78,78 +69,11 @@ export async function removeImageBackground(
     },
   });
 
-  // Mask dari model masih menyisakan piksel alpha rendah di sekitar objek.
-  // Bersihkan supaya tepinya tidak berbayang abu-abu.
-  const cleaned = await refineAlpha(blob);
+  // Mask dari model masih menyisakan piksel alpha rendah dan warna latar di
+  // sekitar objek. Bersihkan supaya tepinya tidak berbayang abu-abu.
+  const cleaned = await refineAlpha(blob, file, options);
   const size = await readImageSize(cleaned);
   return { blob: cleaned, width: size.width, height: size.height };
-}
-
-/** Batas dimensi mode logo supaya canvas tetap aman di ponsel. */
-const MAX_LOGO_DIMENSION = 3200;
-
-/**
- * Hapus latar gambar datar (logo/stiker) tanpa model AI.
- *
- * Warna latar diambil dari tepi gambar, lalu semua piksel yang mirip warna itu
- * dibuat transparan. Opsi `dropShadow` ikut membuang bayangan abu-abu yang
- * biasanya tertinggal di sekitar logo.
- */
-async function removeLogoBackground(
-  file: File,
-  { tolerance = 24, dropShadow = true }: BgOptions,
-  onProgress?: (progress: BgProgress) => void
-): Promise<ImageOutput> {
-  onProgress?.({ phase: "process", percent: 5 });
-
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_LOGO_DIMENSION / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    bitmap.close();
-    throw new Error("Peramban ini tidak mendukung pengolahan gambar.");
-  }
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-
-  const image = ctx.getImageData(0, 0, width, height);
-  const data = image.data;
-  onProgress?.({ phase: "process", percent: 35 });
-
-  const background = sampleBorderColor(data, width, height);
-  const limit = Math.round(Math.max(0, Math.min(100, tolerance)) * 2.55);
-  const alpha = new Uint8Array(width * height);
-
-  for (let pixel = 0, index = 0; pixel < alpha.length; pixel++, index += 4) {
-    const dr = Math.abs(data[index] - background.r);
-    const dg = Math.abs(data[index + 1] - background.g);
-    const db = Math.abs(data[index + 2] - background.b);
-    const isBackground = Math.max(dr, dg, db) <= limit;
-    const isShadow =
-      dropShadow && !isBackground && looksLikeGreyShadow(data[index], data[index + 1], data[index + 2]);
-
-    alpha[pixel] = isBackground || isShadow ? 0 : 255;
-  }
-
-  onProgress?.({ phase: "process", percent: 70 });
-  featherAlpha(alpha, width, height);
-
-  for (let pixel = 0, index = 0; pixel < alpha.length; pixel++, index += 4) {
-    // Pertahankan transparansi asli bila berkas sumber sudah PNG transparan.
-    data[index + 3] = Math.min(data[index + 3], alpha[pixel]);
-  }
-
-  ctx.putImageData(image, 0, 0);
-  const blob = await canvasToBlob(canvas);
-  onProgress?.({ phase: "process", percent: 100 });
-
-  return { blob, width, height };
 }
 
 /** Ambil warna latar dari cincin piksel terluar, memakai warna tersering. */
@@ -231,41 +155,133 @@ function featherAlpha(alpha: Uint8Array, width: number, height: number) {
 }
 
 /**
- * Rapikan mask dari model: buang sisa alpha sangat rendah, regangkan alpha
- * supaya tepi lebih tegas, lalu hilangkan bintik kecil yang terpisah.
+ * Rapikan mask dari model: buang sisa warna latar di dekat tepi, buang bayangan
+ * abu-abu bila diminta, regangkan alpha, lalu hilangkan bintik kecil.
  */
-async function refineAlpha(blob: Blob): Promise<Blob> {
-  const bitmap = await createImageBitmap(blob);
+async function refineAlpha(blob: Blob, source: File, options: BgOptions): Promise<Blob> {
+  const [maskBitmap, sourceBitmap] = await Promise.all([createImageBitmap(blob), createImageBitmap(source)]);
+  const width = maskBitmap.width;
+  const height = maskBitmap.height;
+  const total = width * height;
+
   const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    bitmap.close();
+    maskBitmap.close();
+    sourceBitmap.close();
     return blob;
   }
-  ctx.drawImage(bitmap, 0, 0);
-  bitmap.close();
+  ctx.drawImage(maskBitmap, 0, 0);
+  maskBitmap.close();
 
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const image = ctx.getImageData(0, 0, width, height);
   const data = image.data;
+
+  // Warna asli diperlukan untuk mengenali sisa latar dan bayangan.
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = width;
+  sourceCanvas.height = height;
+  const sourceCtx = sourceCanvas.getContext("2d");
+  let sourceData: Uint8ClampedArray | null = null;
+  if (sourceCtx) {
+    sourceCtx.drawImage(sourceBitmap, 0, 0, width, height);
+    sourceData = sourceCtx.getImageData(0, 0, width, height).data;
+  }
+  sourceBitmap.close();
+
+  const tolerance = Math.max(0, Math.min(50, options.tolerance ?? 15));
+  const dropShadow = options.dropShadow ?? true;
+  const background = sourceData ? sampleBorderColor(sourceData, width, height) : null;
+  const nearEdge = tolerance > 0 && sourceData ? markNearTransparent(data, width, height, 3) : null;
+  const limit = Math.round(tolerance * 2.55);
   const low = 18;
   const high = 235;
 
-  for (let index = 3; index < data.length; index += 4) {
-    const value = data[index];
-    if (value <= low) {
-      data[index] = 0;
-    } else if (value >= high) {
-      data[index] = 255;
-    } else {
-      data[index] = Math.round(((value - low) / (high - low)) * 255);
+  for (let pixel = 0, index = 0; pixel < total; pixel++, index += 4) {
+    let alpha = data[index + 3];
+    if (alpha === 0) continue;
+
+    if (sourceData) {
+      if (nearEdge && nearEdge[pixel] && background) {
+        const diff = Math.max(
+          Math.abs(sourceData[index] - background.r),
+          Math.abs(sourceData[index + 1] - background.g),
+          Math.abs(sourceData[index + 2] - background.b)
+        );
+        if (diff <= limit) alpha = 0;
+      }
+      if (alpha > 0 && dropShadow && looksLikeGreyShadow(sourceData[index], sourceData[index + 1], sourceData[index + 2])) {
+        alpha = 0;
+      }
+    }
+
+    data[index + 3] = alpha <= low ? 0 : alpha >= high ? 255 : Math.round(((alpha - low) / (high - low)) * 255);
+  }
+
+  const alphaMask = new Uint8Array(total);
+  for (let pixel = 0, index = 3; pixel < total; pixel++, index += 4) {
+    alphaMask[pixel] = data[index];
+  }
+  featherAlpha(alphaMask, width, height);
+  for (let pixel = 0, index = 3; pixel < total; pixel++, index += 4) {
+    data[index] = alphaMask[pixel];
+  }
+
+  clearSmallAlphaIslands(data, width, height);
+  ctx.putImageData(image, 0, 0);
+  return canvasToBlob(canvas);
+}
+
+/**
+ * Tandai piksel yang jaraknya maksimal `radius` dari area transparan. Sisa
+ * warna latar hanya dibersihkan di area ini supaya warna objek di bagian dalam
+ * tidak ikut terhapus.
+ */
+function markNearTransparent(data: Uint8ClampedArray, width: number, height: number, radius: number) {
+  const total = width * height;
+  const near = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  for (let pixel = 0; pixel < total; pixel++) {
+    if (data[pixel * 4 + 3] === 0) {
+      near[pixel] = 1;
+      queue[tail++] = pixel;
     }
   }
 
-  clearSmallAlphaIslands(data, canvas.width, canvas.height);
-  ctx.putImageData(image, 0, 0);
-  return canvasToBlob(canvas);
+  let depth = 0;
+  while (head < tail && depth < radius) {
+    const layerEnd = tail;
+    while (head < layerEnd) {
+      const pixel = queue[head++];
+      const x = pixel % width;
+      const y = (pixel - x) / width;
+
+      if (x > 0 && !near[pixel - 1]) {
+        near[pixel - 1] = 1;
+        queue[tail++] = pixel - 1;
+      }
+      if (x < width - 1 && !near[pixel + 1]) {
+        near[pixel + 1] = 1;
+        queue[tail++] = pixel + 1;
+      }
+      if (y > 0 && !near[pixel - width]) {
+        near[pixel - width] = 1;
+        queue[tail++] = pixel - width;
+      }
+      if (y < height - 1 && !near[pixel + width]) {
+        near[pixel + width] = 1;
+        queue[tail++] = pixel + width;
+      }
+    }
+    depth++;
+  }
+
+  return near;
 }
 
 /** Hapus gumpalan opaque yang luasnya di bawah ambang (debu sisa model). */
