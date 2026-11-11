@@ -29,16 +29,15 @@ Pengguna memilih mode saat pertama membuka aplikasi. Frontend yang dipakai sama.
 ## Status singkat
 
 Sudah berjalan: autentikasi, file manager lengkap (unggah, folder, ganti nama,
-pindah, hapus, unduh, pratinjau), Trash dengan pemulihan, Google Drive OAuth,
-undangan keluarga, share link dengan password dan masa berlaku, streaming video,
-pencarian isi dokumen (PDF/DOCX/teks), Studio foto & PDF yang berjalan di
-perangkat, serta PWA offline (service worker, halaman `/offline`, antrean
-unggah).
+pindah, hapus, unduh, unduh folder sebagai ZIP, pratinjau), Trash dengan
+pemulihan, Google Drive OAuth, undangan keluarga, share link dengan password dan
+masa berlaku, streaming video, pencarian isi dokumen (PDF/DOCX/teks), Studio
+foto & PDF yang berjalan di perangkat, serta PWA offline (service worker,
+halaman `/offline`, antrean unggah).
 
-Belum: RBAC per berkas (saat ini baru per peran) dan unduh folder sebagai zip
-dari file manager (zip saat ini hanya tersedia lewat share link). `page.tsx`
-sudah dipecah menjadi sembilan hook; sisanya masih container ±1.000 baris yang
-bisa dirapikan bertahap. Detail di [ROADMAP.md](ROADMAP.md).
+Belum: RBAC per berkas (saat ini baru per peran). `page.tsx` sudah dipecah
+menjadi sembilan hook; sisanya masih container ±1.000 baris yang bisa dirapikan
+bertahap. Detail di [ROADMAP.md](ROADMAP.md).
 
 ## Mulai cepat
 

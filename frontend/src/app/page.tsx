@@ -8,6 +8,7 @@ import {
 } from "@/lib/storage/indexeddb";
 import {
   getDownloadUrl,
+  getArchiveUrl,
   getThumbnailUrl,
   listNasFiles,
   createNasFolder,
@@ -515,6 +516,14 @@ export default function Home() {
     }
     if (action.id === "download") {
       handleDownload(item);
+      return;
+    }
+    if (action.id === "archive") {
+      if (connectionMode === "nas") {
+        window.open(getArchiveUrl(item.id), "_blank", "noopener");
+      } else {
+        alert("Unduh folder sebagai ZIP baru tersedia di mode NAS.");
+      }
       return;
     }
     if (action.id === "rename") {

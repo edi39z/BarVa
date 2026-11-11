@@ -4,6 +4,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Download,
   Eye,
+  FileArchive,
   FileText,
   FileType2,
   FolderInput,
@@ -27,6 +28,7 @@ import Modal from "@/components/Modal";
 const ACTION_ICONS: Record<FileActionId, React.ElementType> = {
   open: FolderOpen,
   download: Download,
+  archive: FileArchive,
   rename: Pencil,
   move: FolderInput,
   share: Share2,
