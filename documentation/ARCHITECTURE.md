@@ -356,6 +356,7 @@ tinggal menyusun:
 |---|---|
 | `useNasSession` | Mode koneksi, URL/admin key, pengguna yang masuk, kesehatan server, status jaringan, status Google Drive |
 | `useNasFiles` | Daftar berkas folder aktif, media galeri, navigasi folder (breadcrumb, masuk, kembali) |
+| `useFamily` | Anggota keluarga, undangan (buat/cabut), perubahan kuota, formulir tambah anggota |
 | `useTrash` | Daftar item terhapus, pemulihan (memanggil ulang daftar folder), hapus permanen |
 | `useShares` | Modal link berbagi, opsi masa berlaku/password/izin, daftar link aktif |
 | `useStudio` | Alat Studio aktif, status proses, hasil kompresi/AI, pemilih berkas, penyimpanan hasil olahan |
