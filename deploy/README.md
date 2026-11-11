@@ -140,9 +140,14 @@ dipakai image lain.
 **3. Image versi lama yang ber-tag** — pilih manual, jangan borongan:
 
 ```bash
+# dikelompokkan per repository, versi lama jadi berdekatan
 docker images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' | sort
 docker rmi <repo>:<tag-lama>
 ```
+
+Perintah di atas diurutkan menurut nama repository, **bukan** ukuran. Untuk
+melihat image terbesar lebih dulu, pakai `docker system df -v` — tabelnya sudah
+urut menurun berdasarkan SIZE.
 
 Sisakan tag yang sedang berjalan dan satu versi sebelumnya untuk rollback.
 
@@ -179,11 +184,13 @@ Lalu salin isinya dalam keadaan Docker berhenti:
 systemctl stop docker.socket docker
 rsync -aHAX --numeric-ids /var/lib/docker/ /mnt/barva/docker/
 systemctl start docker
+docker info --format '{{.DockerRootDir}}'   # harus menunjuk direktori baru
+docker ps --format '{{.Names}} {{.Status}}'
 ```
 
 `-aHAX` mempertahankan hardlink, permission, dan xattr; tanpa itu image bisa
-gagal dibaca. Setelah Docker hidup dan semua container sehat, salinan lama di
-`/var/lib/docker` boleh dihapus.
+gagal dibaca. Setelah `DockerRootDir` menunjuk direktori baru dan semua
+container sehat, salinan lama di `/var/lib/docker` boleh dihapus.
 
 Tambahkan drop-in agar Docker tidak start dengan `data-root` kosong bila mount
 gagal:
