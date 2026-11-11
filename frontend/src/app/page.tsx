@@ -14,23 +14,14 @@ import {
   createInvite,
   listInvites,
   revokeInvite,
-  getAdminKey,
-  setAdminKey,
-  gdriveStatus,
   Invite as ServerInvite,
   Member as ServerMember,
 } from "@/lib/api/cloud";
 import {
-  pingNasServer,
-  getServerUrl,
-  setStoredServerUrl,
   uploadToNas,
   getDownloadUrl,
-  getStoredToken,
   getThumbnailUrl,
-  getStoredUser,
   fetchMe,
-  logoutNas,
   listNasFiles,
   createNasFolder,
   deleteNasFile,
@@ -38,8 +29,6 @@ import {
   moveNasFile,
   listFamilyMembers,
   updateMemberQuota,
-  NasHealthResponse,
-  NasUser,
   NasFamilyMember,
 } from "@/lib/api/nas";
 import AddMemberModal from "@/components/AddMemberModal";
@@ -70,13 +59,13 @@ import {
 } from "@/lib/files/actions";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useNasFiles } from "@/hooks/useNasFiles";
+import { useNasSession } from "@/hooks/useNasSession";
 import { useShares } from "@/hooks/useShares";
 import { useStudio } from "@/hooks/useStudio";
 import { useTrash } from "@/hooks/useTrash";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
 import { FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
-import type { ConnectionMode } from "@/lib/types";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
@@ -109,7 +98,6 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadFileName, setUploadFileName] = useState("");
-  const [isGdriveConnected, setIsGdriveConnected] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<DisplayItem | null>(null);
 
   // Rename & pindah folder (khusus mode NAS)
@@ -122,20 +110,31 @@ export default function Home() {
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveBusy, setMoveBusy] = useState(false);
 
-  // Phase 3: Dual-Mode Connection State
-  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("nas");
-  const [serverUrl, setServerUrl] = useState<string>("http://localhost:8080");
-  const [inputServerUrl, setInputServerUrl] = useState<string>("http://localhost:8080");
-  const [inputAdminKey, setInputAdminKey] = useState<string>("");
-  const [currentUser, setCurrentUser] = useState<NasUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [nasHealth, setNasHealth] = useState<NasHealthResponse | null>(null);
-  const [nasStatus, setNasStatus] = useState<"online" | "offline" | "checking">("checking");
-  const [nasLatency, setNasLatency] = useState<number | null>(null);
-  const [isOnline, setIsOnline] = useState(true);
-  const [serverModalOpen, setServerModalOpen] = useState(false);
-  const [isTestingPing, setIsTestingPing] = useState(false);
-  const [pingTestMessage, setPingTestMessage] = useState<string>("");
+  // Sesi, koneksi server, dan status jaringan dikelola hook sendiri.
+  const {
+    connectionMode,
+    setConnectionMode,
+    serverUrl,
+    inputServerUrl,
+    setInputServerUrl,
+    inputAdminKey,
+    setInputAdminKey,
+    currentUser,
+    setCurrentUser,
+    authReady,
+    nasHealth,
+    nasStatus,
+    nasLatency,
+    isOnline,
+    serverModalOpen,
+    setServerModalOpen,
+    isTestingPing,
+    pingTestMessage,
+    isGdriveConnected,
+    testPing,
+    saveServerConfig,
+    logout,
+  } = useNasSession({ activeTab });
 
   // Phase 4: Family Sharing & Remote Access State
   const [familySubTab, setFamilySubTab] = useState<"members" | "shares" | "remote">("members");
@@ -171,17 +170,8 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Baca konfigurasi lokal dan isi IndexedDB. Keduanya tidak menyentuh jaringan,
-  // jadi tetap jalan di mode apa pun.
+  // Isi IndexedDB tidak menyentuh jaringan, jadi tetap dimuat di mode apa pun.
   useEffect(() => {
-    const savedUrl = getServerUrl();
-    // Konfigurasi server hanya ada di localStorage klien, jadi tidak bisa dibaca
-    // lewat initializer useState tanpa memicu hydration mismatch saat prerender.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setServerUrl(savedUrl);
-    setInputServerUrl(savedUrl);
-    setInputAdminKey(getAdminKey());
-
     async function loadIndexedDB() {
       try {
         const stored = await getAllLocalFiles();
@@ -210,58 +200,6 @@ export default function Home() {
       }
     }
     loadIndexedDB();
-  }, []);
-
-  // Kesehatan server dan status Google Drive hanya ada artinya di mode NAS.
-  // Dulu polling ini jalan tanpa syarat, sehingga di mode mandiri interval
-  // 10 detik terus menembak localhost:8080 dan membanjiri konsol dengan
-  // ERR_CONNECTION_REFUSED untuk server yang memang tidak dipakai.
-  //
-  // Gerbang `currentUser` penting: sebelum login aplikasi masih menampilkan
-  // gerbang autentikasi yang tidak memakai status server sama sekali, jadi
-  // probe di tahap itu hanya menghasilkan request gagal di konsol.
-  useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) return;
-
-    async function checkHealth() {
-      try {
-        const h = await pingNasServer(serverUrl);
-        setNasHealth(h);
-        setNasStatus("online");
-        setNasLatency(h.latencyMs ?? null);
-      } catch {
-        setNasStatus("offline");
-        setNasLatency(null);
-      }
-    }
-
-    // Status Google Drive diambil dari server, bukan dari state lokal.
-    async function checkGdrive() {
-      try {
-        const s = await gdriveStatus();
-        setIsGdriveConnected(s.connected);
-      } catch {
-        setIsGdriveConnected(false);
-      }
-    }
-
-    checkHealth();
-    checkGdrive();
-    const pingInterval = setInterval(checkHealth, 10000);
-    return () => clearInterval(pingInterval);
-  }, [connectionMode, currentUser, serverUrl]);
-
-  // Status jaringan browser. Berbeda dari nasStatus: NAS bisa mati walau
-  // internet ada, dan sebaliknya.
-  useEffect(() => {
-    const sync = () => setIsOnline(navigator.onLine);
-    sync();
-    window.addEventListener("online", sync);
-    window.addEventListener("offline", sync);
-    return () => {
-      window.removeEventListener("online", sync);
-      window.removeEventListener("offline", sync);
-    };
   }, []);
 
   // Daftar berkas NAS, media galeri, dan navigasi folder dikelola hook sendiri.
@@ -344,49 +282,6 @@ export default function Home() {
       window.removeEventListener("online", run);
     };
   }, [connectionMode, currentUser, files]);
-
-  // Segarkan status Drive setiap kali kembali ke dashboard, karena panel
-  // Drive punya state sendiri dan bisa berubah tanpa reload halaman. Status
-  // ini milik akun yang sedang masuk, jadi tidak perlu diambil tanpa sesi.
-  useEffect(() => {
-    if (activeTab !== "home" || connectionMode !== "nas" || !currentUser) return;
-    let alive = true;
-    gdriveStatus()
-      .then((s) => {
-        if (alive) setIsGdriveConnected(s.connected);
-      })
-      .catch(() => {
-        if (alive) setIsGdriveConnected(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [activeTab, connectionMode, currentUser]);
-
-  // Ping Test Handler
-  const handleTestPing = async () => {
-    setIsTestingPing(true);
-    setPingTestMessage("");
-    try {
-      const h = await pingNasServer(inputServerUrl);
-      setNasHealth(h);
-      setNasLatency(h.latencyMs ?? null);
-      setNasStatus("online");
-      setPingTestMessage(`Terhubung! Latensi: ${h.latencyMs} ms • Versi: ${h.version}`);
-    } catch {
-      setNasStatus("offline");
-      setPingTestMessage("Gagal terhubung. Pastikan server aktif dan alamat URL benar.");
-    } finally {
-      setIsTestingPing(false);
-    }
-  };
-
-  const handleSaveServerConfig = () => {
-    setStoredServerUrl(inputServerUrl);
-    setAdminKey(inputAdminKey);
-    setServerUrl(inputServerUrl);
-    setServerModalOpen(false);
-  };
 
   // Phase 4: Family Member & Sharing Handlers
   const handleAddFamilyMember = async (e: React.FormEvent) => {
@@ -498,35 +393,6 @@ export default function Home() {
     if (connectionMode !== "nas" || !currentUser) return;
     refreshInvites();
   }, [connectionMode, currentUser]);
-
-  // Validasi token sesi NAS yang tersimpan saat aplikasi dibuka.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!getStoredToken()) {
-        setAuthReady(true);
-        return;
-      }
-      try {
-        const user = await fetchMe();
-        if (alive) setCurrentUser(user);
-      } catch {
-        // Server tidak terjangkau (offline). Pakai profil terakhir agar
-        // aplikasi tetap terbuka; semua request API akan gagal sampai online.
-        if (alive) setCurrentUser(getStoredUser());
-      } finally {
-        if (alive) setAuthReady(true);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const handleLogout = async () => {
-    await logoutNas();
-    setCurrentUser(null);
-  };
 
   const handleRevokeInvite = async (id: string) => {
     if (!confirm("Cabut undangan ini? Tautan akan langsung tidak berlaku.")) return;
@@ -1170,7 +1036,7 @@ export default function Home() {
         currentUser={currentUser}
         onOpenServer={() => setServerModalOpen(true)}
         onInstallPwa={handleInstallPwa}
-        onLogout={handleLogout}
+        onLogout={logout}
       />
 
       {/* 2. MAIN WORKSPACE */}
@@ -1384,7 +1250,7 @@ export default function Home() {
         connectionMode={connectionMode}
         onOpenServer={() => setServerModalOpen(true)}
         onInstallPwa={handleInstallPwa}
-        onLogout={handleLogout}
+        onLogout={logout}
       />
 
       {/* 3. LIGHTBOX / MEDIA DETAIL MODAL */}
@@ -1532,8 +1398,8 @@ export default function Home() {
           pingMessage={pingTestMessage}
           status={nasStatus}
           health={nasHealth}
-          onTestPing={handleTestPing}
-          onSave={handleSaveServerConfig}
+          onTestPing={testPing}
+          onSave={saveServerConfig}
           onClose={() => setServerModalOpen(false)}
         />
       )}
