@@ -373,8 +373,8 @@ Aturan yang dipegang:
   props. Ini menjaga container sebagai satu-satunya pemilik state.
 - Tipe bersama (`DisplayItem`, `FamilyMember`, `ActiveShare`, `formatBytes`,
   `nasNodeToDisplay`) ada di `lib/nasDisplay.ts`, bukan di `page.tsx`.
-- `AppTab` dideklarasikan di `HomeDashboard` dan dipakai ulang oleh `Sidebar`,
-  sehingga penambahan tab cukup diubah di satu tempat.
+- Tipe domain lintas komponen (`AppTab`, `StudioTool`, `ConnectionMode`) ada di
+  `lib/types.ts`; komponen tidak mengimpor tipe dari komponen lain.
 - `StudioToolId` ada di `lib/studio/tools.ts` dan dipakai `StudioTab`,
   `StoragePickerModal`, serta `page.tsx` — menambah alat baru cukup diubah di
   satu tempat itu.

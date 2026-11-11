@@ -18,7 +18,7 @@ import type { NasUser } from "@/lib/api/nas";
 import { mergeDisplayItems, type DisplayItem } from "@/lib/displayItem";
 import { formatBytes } from "@/lib/nasDisplay";
 import { computeStorageStats, usagePercent } from "@/lib/storageStats";
-import type { AppTab } from "@/components/HomeDashboard";
+import type { AppTab, ConnectionMode } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 
 // Kuota cadangan bila server belum menetapkan batas (quota_bytes = 0).
@@ -31,7 +31,7 @@ interface SidebarProps {
   /** Berkas lokal di perangkat; digabung agar angka sama dengan Beranda. */
   localItems: DisplayItem[];
   trashCount: number;
-  connectionMode: "standalone" | "nas";
+  connectionMode: ConnectionMode;
   nasStatus: "online" | "offline" | "checking";
   nasLatency: number | null;
   isGdriveConnected: boolean;

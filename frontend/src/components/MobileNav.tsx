@@ -15,13 +15,13 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import type { AppTab } from "@/components/HomeDashboard";
+import type { AppTab, ConnectionMode } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 
 interface MobileNavProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
-  connectionMode: "standalone" | "nas";
+  connectionMode: ConnectionMode;
   onOpenServer: () => void;
   onInstallPwa: () => void;
   onLogout: () => void;

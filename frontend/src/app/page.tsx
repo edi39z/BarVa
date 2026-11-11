@@ -106,6 +106,7 @@ import { useFileSelection } from "@/hooks/useFileSelection";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
 import { ActiveShare, FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
+import type { ConnectionMode } from "@/lib/types";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
@@ -155,7 +156,7 @@ export default function Home() {
   const [moveBusy, setMoveBusy] = useState(false);
 
   // Phase 3: Dual-Mode Connection State
-  const [connectionMode, setConnectionMode] = useState<"standalone" | "nas">("nas");
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("nas");
   const [serverUrl, setServerUrl] = useState<string>("http://localhost:8080");
   const [inputServerUrl, setInputServerUrl] = useState<string>("http://localhost:8080");
   const [inputAdminKey, setInputAdminKey] = useState<string>("");

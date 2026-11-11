@@ -3,9 +3,8 @@
 import React from "react";
 import { Activity, Check, RefreshCw, Server, Wifi, WifiOff } from "lucide-react";
 import type { NasHealthResponse } from "@/lib/api/nas";
+import type { ConnectionMode } from "@/lib/types";
 import Modal from "@/components/Modal";
-
-export type ConnectionMode = "standalone" | "nas";
 
 interface ServerSettingsModalProps {
   mode: ConnectionMode;
