@@ -243,33 +243,65 @@ Selama aplikasi belum diverifikasi Google:
 Tersedia di `deploy/`:
 
 - `deploy/systemd/nas-backend.service` — unit systemd untuk backend
-- `deploy/systemd/backend.env.example` — contoh env berisi `DATABASE_URL` dan
-  `NAS_ADMIN_KEY`
+- `deploy/systemd/nas-frontend.service` — unit systemd untuk frontend Next.js
+- `deploy/systemd/backend.env.example` — contoh env berisi `DATABASE_URL`,
+  `NAS_ADMIN_KEY`, dan `APP_URL`
 - `deploy/nginx/nas.conf` — reverse proxy (frontend `:3000`, backend `:8080`,
   batas upload 10 GB)
 
-Unit ini **tidak** menyimpan kredensial. Rahasia dibaca dari
-`/etc/nas/backend.env`, yang harus dibuat sekali:
+### 6.1 Siapkan berkas di `/opt/nas`
+
+```bash
+sudo install -d -o nas -g nas /opt/nas/backend/bin /opt/nas/migrations /opt/nas/data
+
+# biner backend
+cd backend
+CGO_ENABLED=0 go build -o /tmp/barva-server ./cmd/server
+sudo install -o nas -g nas -m 755 /tmp/barva-server /opt/nas/backend/bin/server
+
+# migrasi (dijalankan otomatis saat start)
+sudo cp -r migrations/. /opt/nas/migrations/
+
+# frontend: build di tempat unit akan menjalankannya
+sudo install -d -o nas -g nas /opt/nas/frontend
+sudo cp -r frontend/. /opt/nas/frontend/
+sudo chown -R nas:nas /opt/nas/frontend
+cd /opt/nas/frontend && sudo -u nas npm ci && sudo -u nas npm run build
+```
+
+### 6.2 Env backend
+
+Unit **tidak** menyimpan kredensial. Rahasia dan `APP_URL` dibaca dari
+`/etc/nas/backend.env`:
 
 ```bash
 sudo install -d -m 750 /etc/nas
 sudo cp deploy/systemd/backend.env.example /etc/nas/backend.env
 sudo chown root:nas /etc/nas/backend.env
 sudo chmod 640 /etc/nas/backend.env
-sudo -e /etc/nas/backend.env          # isi DATABASE_URL dan NAS_ADMIN_KEY
-```
-
-Lalu pasang dan nyalakan unitnya:
-
-```bash
-sudo cp deploy/systemd/nas-backend.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now nas-backend
-systemctl status nas-backend
+sudo -e /etc/nas/backend.env   # isi DATABASE_URL, NAS_ADMIN_KEY, APP_URL
 ```
 
 `NAS_ADMIN_KEY` wajib diisi: unit memakai `GIN_MODE=release`, dan backend
-menolak start tanpa kunci itu. Periksa log dengan `journalctl -u nas-backend -f`.
+menolak start bila kunci kosong, masih nilai contoh, atau kurang dari 32
+karakter. `APP_URL` menentukan alamat pada link undangan dan redirect OAuth.
+
+### 6.3 Pasang unit
+
+```bash
+sudo cp deploy/systemd/nas-backend.service /etc/systemd/system/
+sudo cp deploy/systemd/nas-frontend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now nas-backend nas-frontend
+systemctl status nas-backend nas-frontend
+```
+
+Frontend berjalan di `:3000` dan backend di `:8080`; keduanya hanya diakses
+lewat nginx. Bila perlu menambah env frontend, letakkan di
+`/etc/nas/frontend.env` (opsional, format `KEY=value`).
+
+Periksa log dengan `journalctl -u nas-backend -f` atau
+`journalctl -u nas-frontend -f`.
 
 Untuk akses dari luar rumah, gunakan **Tailscale** atau **WireGuard**.
 Hindari tunnel HTTP untuk transfer berkas besar.

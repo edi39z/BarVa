@@ -1,0 +1,26 @@
+[Unit]
+Description=Barva Frontend (Next.js)
+After=network.target nas-backend.service
+Wants=nas-backend.service
+
+[Service]
+Type=simple
+User=nas
+Group=nas
+WorkingDirectory=/opt/nas/frontend
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+# Opsional: nilai tambahan seperti NEXT_PUBLIC_* bila nanti dibutuhkan.
+EnvironmentFile=-/etc/nas/frontend.env
+ExecStart=/usr/bin/env npm run start
+Restart=always
+RestartSec=5s
+
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -101,7 +101,7 @@ hanya bila yang berubah salah satu dari: `backend/**`, `frontend/**`,
 | `Backend (Go)` | `go vet ./...`, cek `gofmt -l`, `go build ./...`, lalu `go test ./...` |
 | `Frontend (Next.js)` | `npm run lint`, `tsc --noEmit`, lalu `npm run build` |
 | `E2E (Playwright)` | `npm run build` lalu `e2e/smoke.spec.ts` di Chromium |
-| `Deploy (config)` | `docker compose config` untuk kedua compose, `docker build` image backend (Dockerfile), `systemd-analyze verify` pada unit (dengan path sementara), penjagaan agar kredensial tidak ditulis di unit, dan `nginx -t` untuk `deploy/nginx/nas.conf` |
+| `Deploy (config)` | `docker compose config` untuk kedua compose, `docker build` image backend (Dockerfile), `systemd-analyze verify` pada kedua unit (dengan path sementara), penjagaan agar kredensial tidak ditulis di unit, dan `nginx -t` untuk `deploy/nginx/nas.conf` |
 
 Suite e2e lain (`nas-mode`, `offline-upload`, `public-share`) tidak dijalankan
 di CI karena butuh backend hidup dan akun uji.

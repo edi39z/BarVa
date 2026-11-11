@@ -28,8 +28,11 @@ RestartSec=5s
 Environment="PORT=8080"
 Environment="STORAGE_DIR=/opt/nas/data/storage"
 Environment="TEMP_DIR=/opt/nas/data/tmp"
+Environment="DATA_DIR=/opt/nas/data"
+Environment="THUMBNAIL_DIR=/opt/nas/data/thumbnails"
 Environment="MIGRATIONS_DIR=/opt/nas/migrations"
 Environment="GIN_MODE=release"
+# APP_URL juga dibaca dari file ini karena bergantung pada alamat deployment.
 EnvironmentFile=/etc/nas/backend.env
 
 # Security & Isolation Hardening
