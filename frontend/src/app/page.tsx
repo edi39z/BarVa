@@ -54,6 +54,7 @@ import { useStudio } from "@/hooks/useStudio";
 import { useTrash } from "@/hooks/useTrash";
 import { useUploads } from "@/hooks/useUploads";
 import type { DisplayItem } from "@/lib/displayItem";
+import { mergeDisplayItems } from "@/lib/displayItem";
 import { formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
 import { itemToFile } from "@/lib/files/materialize";
 import { gdriveUploadFile } from "@/lib/api/cloud";
@@ -386,6 +387,12 @@ export default function Home() {
     connectionMode,
     currentFolderId,
     localItems,
+    // Pemilih berkas Studio ikut menampilkan isi folder aktif dan seluruh media
+    // galeri di mode NAS; isinya diunduh saat dipilih.
+    libraryItems:
+      connectionMode === "nas" && currentUser
+        ? mergeDisplayItems(files.mediaItems, files.items)
+        : [],
     setLocalItems,
     refreshLibrary,
     uploadWithUniqueName,
@@ -1145,7 +1152,7 @@ export default function Home() {
       {studio.pickerOpen && (
         <StoragePickerModal
           tool={studio.pickerTool}
-          localItems={localItems}
+          items={studio.pickerItems}
           selectedIds={studio.selectedStorageIds}
           onSelectedIdsChange={studio.setSelectedStorageIds}
           onClose={() => studio.closeStoragePicker()}
