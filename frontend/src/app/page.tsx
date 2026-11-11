@@ -15,6 +15,7 @@ import {
   renameNasFile,
   moveNasFile,
 } from "@/lib/api/nas";
+import AccountSettingsModal from "@/components/AccountSettingsModal";
 import AddMemberModal from "@/components/AddMemberModal";
 import AuthGate from "@/components/AuthGate";
 import FamilySharingTab from "@/components/FamilySharingTab";
@@ -60,6 +61,7 @@ export default function Home() {
   const [storageFilter, setStorageFilter] = useState<"local" | "gdrive">("local");
   const [galleryCategory, setGalleryCategory] = useState<"all" | "image" | "video" | "favorite">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<DisplayItem | null>(null);
 
   // Rename & pindah folder (khusus mode NAS)
@@ -545,9 +547,13 @@ export default function Home() {
         isGdriveConnected={isGdriveConnected}
         serverUrl={serverUrl}
         currentUser={currentUser}
+        onOpenAccount={() => setAccountModalOpen(true)}
         onOpenServer={() => setServerModalOpen(true)}
         onInstallPwa={handleInstallPwa}
-        onLogout={logout}
+        onLogout={() => {
+          setAccountModalOpen(false);
+          logout();
+        }}
       />
 
       {/* 2. MAIN WORKSPACE */}
@@ -587,6 +593,7 @@ export default function Home() {
               onUpload={() => fileInputRef.current?.click()}
               onDownload={handleDownload}
               onOpenMedia={setSelectedMedia}
+              onOpenAccount={() => setAccountModalOpen(true)}
               onOpenServer={() => setServerModalOpen(true)}
             />
           )}
@@ -759,9 +766,14 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         connectionMode={connectionMode}
+        currentUser={currentUser}
+        onOpenAccount={() => setAccountModalOpen(true)}
         onOpenServer={() => setServerModalOpen(true)}
         onInstallPwa={handleInstallPwa}
-        onLogout={logout}
+        onLogout={() => {
+          setAccountModalOpen(false);
+          logout();
+        }}
       />
 
       {/* 3. LIGHTBOX / MEDIA DETAIL MODAL */}
@@ -912,6 +924,15 @@ export default function Home() {
           onTestPing={testPing}
           onSave={saveServerConfig}
           onClose={() => setServerModalOpen(false)}
+        />
+      )}
+
+      {accountModalOpen && (
+        <AccountSettingsModal
+          connectionMode={connectionMode}
+          currentUser={currentUser}
+          localItems={localItems}
+          onClose={() => setAccountModalOpen(false)}
         />
       )}
 

@@ -37,6 +37,7 @@ interface SidebarProps {
   isGdriveConnected: boolean;
   serverUrl: string;
   currentUser: NasUser | null;
+  onOpenAccount: () => void;
   onOpenServer: () => void;
   onInstallPwa: () => void;
   onLogout: () => void;
@@ -63,6 +64,7 @@ export default function Sidebar({
   isGdriveConnected,
   serverUrl,
   currentUser,
+  onOpenAccount,
   onOpenServer,
   onInstallPwa,
   onLogout,
@@ -230,17 +232,24 @@ export default function Sidebar({
         </div>
 
         {currentUser ? (
-          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-2.5 py-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[12px] font-bold uppercase text-brand">
-              {currentUser.username.slice(0, 2)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12.5px] font-semibold text-fg">{currentUser.username}</p>
-              <p className="truncate text-[11px] text-subtle">
-                {formatBytes(currentUser.quota_used_bytes ?? 0)}
-                {currentUser.quota_bytes ? ` / ${formatBytes(currentUser.quota_bytes)}` : ""}
-              </p>
-            </div>
+          <div className="flex items-center gap-1.5 rounded-xl border border-line bg-surface-2 px-2.5 py-2">
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              title="Buka pengaturan akun"
+              className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[12px] font-bold uppercase text-brand">
+                {currentUser.username.slice(0, 2)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-semibold text-fg">{currentUser.username}</p>
+                <p className="truncate text-[11px] text-subtle">
+                  {formatBytes(currentUser.quota_used_bytes ?? 0)}
+                  {currentUser.quota_bytes ? ` / ${formatBytes(currentUser.quota_bytes)}` : ""}
+                </p>
+              </div>
+            </button>
             <button onClick={onLogout} className="icon-btn" aria-label="Keluar dari akun" title="Keluar">
               <LogOut className="h-4 w-4" aria-hidden />
             </button>

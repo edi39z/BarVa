@@ -45,6 +45,7 @@ interface HomeDashboardProps {
   onUpload: () => void;
   onDownload: (item: DisplayItem) => void;
   onOpenMedia: (item: DisplayItem) => void;
+  onOpenAccount: () => void;
   onOpenServer: () => void;
 }
 
@@ -62,6 +63,7 @@ export default function HomeDashboard({
   onUpload,
   onDownload,
   onOpenMedia,
+  onOpenAccount,
   onOpenServer,
 }: HomeDashboardProps) {
   // Berkas lokal dan berkas server digabung tanpa duplikat, supaya bagian
@@ -530,7 +532,7 @@ export default function HomeDashboard({
           </div>
 
           <button
-            onClick={() => onNavigate("files")}
+            onClick={onOpenAccount}
             className="mt-2 w-full rounded-xl border border-line py-2 text-[12px] font-semibold text-brand transition-colors hover:bg-brand-soft"
           >
             Kelola penyimpanan
