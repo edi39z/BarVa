@@ -61,11 +61,13 @@ async function parseResponse<T>(res: Response): Promise<T> {
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const adminKey = getAdminKey();
+  const token = getStoredToken();
   const res = await fetch(`${backendBase()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       ...(adminKey ? { "X-Admin-Key": adminKey } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {}),
     },
   });
@@ -160,13 +162,66 @@ export function gdriveFiles(opts?: { q?: string; folder?: string; limit?: number
 }
 
 export function gdriveDownloadUrl(id: string) {
+  const p = new URLSearchParams();
   const key = getAdminKey();
-  const suffix = key ? `?admin_key=${encodeURIComponent(key)}` : "";
-  return `${backendBase()}/api/v1/gdrive/file/${id}/download${suffix}`;
+  const token = getStoredToken();
+  if (key) p.set("admin_key", key);
+  if (token) p.set("token", token);
+  const qs = p.toString();
+  return `${backendBase()}/api/v1/gdrive/file/${id}/download${qs ? `?${qs}` : ""}`;
+}
+
+// ---------------- Disk Eksternal (HDD 500GB Read-Only) ----------------
+
+export type HddEntry = {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size_bytes: number;
+  modified_time: string;
+  mime_type: string;
+};
+
+export function hddList(opts?: { path?: string; q?: string }) {
+  const p = new URLSearchParams();
+  if (opts?.path) p.set("path", opts.path);
+  if (opts?.q) p.set("q", opts.q);
+  return j<{ path: string; read_only: boolean; items: HddEntry[] }>(
+    `/api/v1/hdd/list?${p.toString()}`
+  );
+}
+
+export function hddDownloadUrl(relPath: string, inline = false) {
+  const p = new URLSearchParams();
+  p.set("path", relPath);
+  if (inline) p.set("inline", "1");
+  const key = getAdminKey();
+  const token = getStoredToken();
+  if (key) p.set("admin_key", key);
+  if (token) p.set("token", token);
+  return `${backendBase()}/api/v1/hdd/download?${p.toString()}`;
 }
 
 export function gdriveDisconnect() {
   return j<{ success: boolean }>("/api/v1/gdrive/disconnect", { method: "POST" });
+}
+
+export async function gdriveUploadFile(file: File, parentId?: string) {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  if (parentId) form.append("parent", parentId);
+
+  const adminKey = getAdminKey();
+  const token = getStoredToken();
+  const res = await fetch(`${backendBase()}/api/v1/gdrive/upload`, {
+    method: "POST",
+    headers: {
+      ...(adminKey ? { "X-Admin-Key": adminKey } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: form,
+  });
+  return parseResponse<{ id: string; name: string; mimeType: string; size?: string }>(res);
 }
 
 // ---------------- Undangan keluarga ----------------

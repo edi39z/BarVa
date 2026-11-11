@@ -19,6 +19,14 @@ export interface DisplayItem {
   duration?: string;
   dimensions?: string;
   blob?: Blob;
+  /** Sumber penyimpanan khusus untuk tindakan non-destruktif / penyalinan lintas penyimpanan. */
+  source?: "local" | "gdrive" | "hdd";
+  /** URL unduhan/streaming langsung (mis. dari HDD 500GB atau Google Drive). */
+  downloadUrl?: string;
+  /** URL pratinjau/thumbnail khusus (mis. dari Google Drive atau HDD 500GB). */
+  previewUrl?: string;
+  /** Menandakan berkas dikunci baca-saja (mis. HDD 500GB data lama). */
+  readOnly?: boolean;
 }
 
 /**
