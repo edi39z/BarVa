@@ -192,11 +192,13 @@ func main() {
 	log.Printf("[Barva] Google Drive & undangan aktif (data: %s)", dataDir)
 
 	// 4. Rakit handler + tabel route.
+	hddDir := getEnv("EXTERNAL_HDD_DIR", "")
 	cfg := routerConfig{
 		dbAvailable: dbAvailable,
 		queries:     queries,
 		gdrive:      gdriveHandler,
 		invites:     inviteHandler,
+		hdd:         handler.NewHDDHandler(hddDir),
 	}
 	if dbAvailable && queries != nil {
 		cfg.auth = handler.NewAuthHandler(queries, inviteHandler)

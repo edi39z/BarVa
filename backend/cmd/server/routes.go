@@ -20,6 +20,7 @@ type routerConfig struct {
 	queries     *db.Queries
 	gdrive      *handler.GDriveHandler
 	invites     *handler.InviteHandler
+	hdd         *handler.HDDHandler
 	auth        *handler.AuthHandler
 	files       *handler.FilesHandler
 	shares      *handler.SharesHandler
@@ -110,10 +111,10 @@ func newRouter(cfg routerConfig) *gin.Engine {
 	// dari Google dan tidak bisa membawa header kustom.
 	v1.GET("/gdrive/callback", cfg.gdrive.Callback)
 
-	// Endpoint sensitif: wajib admin key, atau akses dari jaringan lokal
-	// bila NAS_ADMIN_KEY belum diset.
+	// Endpoint sensitif: wajib sesi owner/admin, admin key, atau akses dari
+	// jaringan lokal bila NAS_ADMIN_KEY belum diset.
 	admin := v1.Group("")
-	admin.Use(auth.AdminKeyMiddleware())
+	admin.Use(auth.AdminKeyMiddleware(cfg.queries))
 	{
 		admin.GET("/gdrive/status", cfg.gdrive.Status)
 		admin.POST("/gdrive/client", cfg.gdrive.SaveClient)
@@ -127,6 +128,11 @@ func newRouter(cfg routerConfig) *gin.Engine {
 		admin.GET("/invites", cfg.invites.List)
 		admin.POST("/invites", cfg.invites.Create)
 		admin.DELETE("/invites/:id", cfg.invites.Revoke)
+
+		if cfg.hdd != nil {
+			admin.GET("/hdd/list", cfg.hdd.List)
+			admin.GET("/hdd/download", cfg.hdd.Download)
+		}
 	}
 
 	// Undangan publik tetap terbuka untuk anggota yang diundang.
