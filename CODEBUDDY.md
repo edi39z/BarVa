@@ -167,8 +167,9 @@ Backend URL di-hardcode: `nas.ts` (`DEFAULT_SERVER_URL`) dan `cloud.ts`
   pemeriksaan tipe `Config`. Alasannya di
   `documentation/CONTRIBUTING.md#dependensi-dengan-advisory-terbuka`.
 - `.gitattributes` memaksa LF di Git dan working tree. Bila `gofmt -l` masih
-  menandai banyak file setelah clone lama, tulis ulang working tree dengan
-  `git checkout-index -a -f`.
+  menandai file lama, hapus lalu checkout ulang file itu (`rm <file> && git
+  checkout -- <file>`); checkout biasa tidak menulis ulang file yang dianggap
+  tidak berubah.
 - `.tools/pgsql/bin/pg_ctl start` pernah mati saat shell penutupnya ditutup —
   jalankan `postgres.exe` langsung bila itu terjadi.
 - Frontend memanggil `localhost:8080` dari banyak efek; setiap efek yang
