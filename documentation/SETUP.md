@@ -308,7 +308,61 @@ Hindari tunnel HTTP untuk transfer berkas besar.
 
 ---
 
-## 7. Pemeriksaan sebelum commit
+## 7. Backup & restore
+
+Skrip di `scripts/` membaca env yang sama dengan service, jadi bisa dijalankan
+langsung dari shell atau cron. Semua skrip sudah executable.
+
+### Backup
+
+```bash
+sudo BACKUP_DIR=/opt/nas/backups \
+     DATA_DIR=/opt/nas/data \
+     DB_PASSWORD=... \
+     ./scripts/backup_db.sh
+```
+
+Menghasilkan dua berkas per run, masing-masing dengan `.sha256`:
+
+| Berkas | Isi |
+|---|---|
+| `nas_db_backup_<timestamp>.sql.gz` | Dump PostgreSQL (`--clean --if-exists`) |
+| `nas_db_data_<timestamp>.tar.gz` | `DATA_DIR`: `gdrive.json`, `invites.json`, cache thumbnail |
+
+Retensi default 14 hari (`RETENTION_DAYS`). Objek berkas di `STORAGE_DIR` tidak
+diikutkan karena ukurannya besar; itu tugas sinkronisasi offsite.
+
+### Restore
+
+```bash
+./scripts/restore_db.sh /opt/nas/backups/postgres/nas_db_backup_20261111_020000.sql.gz
+sudo tar -xzf /opt/nas/backups/postgres/nas_db_data_20261111_020000.tar.gz -C /opt/nas
+```
+
+`restore_db.sh` memverifikasi checksum bila tersedia dan memakai
+`ON_ERROR_STOP=1`, sehingga restore berhenti pada error pertama alih-alih
+melaporkan sukses palsu.
+
+### Sinkronisasi offsite (3-2-1)
+
+```bash
+sudo REMOTE_TARGET=gdrive:Barva_Offsite_Backup ./scripts/offsite_sync.sh
+```
+
+Skrip menjalankan backup dulu, lalu `rclone copy` (bukan `sync`) untuk objek
+CAS, metadata, dan dump. `copy` dipakai agar penghapusan lokal tidak ikut
+menghapus salinan offsite. Thumbnail dikecualikan karena bisa dibuat ulang.
+Log ditulis ke `${LOG_DIR:-/var/log/nas}/offsite_sync.log`.
+
+Contoh cron harian pukul 02.00:
+
+```cron
+0 2 * * * /opt/nas/scripts/offsite_sync.sh >> /var/log/nas/cron.log 2>&1
+```
+
+---
+
+## 8. Pemeriksaan sebelum commit
 
 ```bash
 cd backend  && go build ./... && go vet ./... && go test ./...

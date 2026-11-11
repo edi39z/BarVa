@@ -40,6 +40,12 @@ else
 fi
 
 echo "[INFO] Mengembalikan database '${DB_NAME}' dari ${BACKUP_FILE}..."
-gunzip -c "${BACKUP_FILE}" | PGPASSWORD="${DB_PASSWORD:-}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}"
+# ON_ERROR_STOP membuat psql berhenti pada error pertama; tanpa itu skrip tetap
+# mencetak sukses meski restore gagal di tengah jalan.
+gunzip -c "${BACKUP_FILE}" | PGPASSWORD="${DB_PASSWORD:-}" psql \
+    -v ON_ERROR_STOP=1 \
+    -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}"
 
 echo "[SUCCESS] Database '${DB_NAME}' berhasil dipulihkan!"
+echo "[INFO] Arsip metadata (bila ada) dipulihkan terpisah:"
+echo "       sudo tar -xzf ${DB_NAME}_data_<timestamp>.tar.gz -C /opt/nas"
