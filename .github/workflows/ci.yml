@@ -246,20 +246,27 @@ jobs:
           done
 
       # nas.conf hanya berisi blok server, jadi dibungkus http{} minimal.
+      # Validasi memakai image nginx yang sama dengan produksi. Memasang
+      # nginx-light lewat apt membuat job bergantung pada repo APT runner dan
+      # pernah gagal dua kali berturut-turut saat runner tidak bisa me-resolve
+      # azure.archive.ubuntu.com. Docker sudah tersedia di runner.
       - name: Validasi konfigurasi nginx
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq nginx-light >/dev/null
-          # Upstream di nas.conf memakai nama service Docker. Runner tidak punya
-          # DNS Docker, jadi arahkan ke loopback supaya `nginx -t` bisa resolve.
-          echo "127.0.0.1 nas-backend nas-frontend" | sudo tee -a /etc/hosts >/dev/null
           work=$(mktemp -d)
           {
             echo "events {}"
             echo "http {"
             echo "  include /etc/nginx/mime.types;"
-            echo "  include $PWD/deploy/nginx/nas.conf;"
+            echo "  include /etc/nginx/nas.conf;"
             echo "}"
           } > "$work/nginx.conf"
-          sudo nginx -t -c "$work/nginx.conf"
+          # Upstream di nas.conf memakai nama service Docker. Container ini
+          # tidak berada di jaringan compose, jadi kedua nama diarahkan ke
+          # loopback agar `nginx -t` bisa me-resolve-nya.
+          docker run --rm \
+            --add-host nas-backend:127.0.0.1 \
+            --add-host nas-frontend:127.0.0.1 \
+            -v "$PWD/deploy/nginx/nas.conf:/etc/nginx/nas.conf:ro" \
+            -v "$work/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            nginx:1.27-alpine nginx -t
