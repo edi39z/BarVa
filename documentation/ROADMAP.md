@@ -20,7 +20,7 @@ janji tanggal.
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
 | **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server; folder bisa diunduh sebagai zip streaming |
 | **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata dengan role & kuota dari undangan |
-| **Kuota** | `users.quota_bytes` ditegakkan saat upload (`413 QUOTA_EXCEEDED`), dihitung per objek unik, dedup tidak dihitung dua kali; pemakaian tampil di sidebar; owner/admin dapat mengubah kuota anggota dari Family Hub (`PATCH /family/members/:id/quota`) dengan penjagaan `409 QUOTA_BELOW_USAGE` |
+| **Kuota** | `users.quota_bytes` ditegakkan saat upload (`413 QUOTA_EXCEEDED`), dihitung per objek unik, dedup tidak dihitung dua kali; pemakaian tampil di sidebar; owner/admin dapat mengubah kuota anggota dari Family Hub (`PATCH /family/members/:id/quota`) dengan penjagaan `409 QUOTA_BELOW_USAGE`; rincian per jenis berkas dan per folder tersedia di modal pengaturan akun (`GET /auth/me/usage`) |
 | **Google Drive** | OAuth 2.0, refresh token di server, kuota, jelajah folder, unggah, unduh lewat server |
 | **Hardening** | CORS whitelist, admin key wajib di mode release, batas ukuran unggah, MIME dari isi berkas, validasi folder induk, rate limit login & password share |
 | **Deploy** | Dockerfile multi-stage, docker-compose, unit systemd, konfigurasi Nginx |
@@ -30,11 +30,10 @@ janji tanggal.
 
 ## Berikutnya
 
-### 1. Sisa kuota di pengaturan akun
+### 1. Pencarian isi dokumen
 
-Penegakan kuota sudah jalan saat upload. Yang belum: halaman pengaturan akun
-yang menampilkan rincian per folder dan per jenis berkas. Sementara ini angka
-pemakaian hanya muncul di sidebar.
+Pencarian saat ini hanya mencocokkan nama berkas di folder aktif. Pencarian isi
+dokumen membutuhkan ekstraksi teks di server dan indeks tambahan.
 
 ---
 

@@ -24,6 +24,7 @@ type routerConfig struct {
 	files       *handler.FilesHandler
 	shares      *handler.SharesHandler
 	family      *handler.FamilyHandler
+	usage       *handler.UsageHandler
 }
 
 // originAllowed membatasi CORS ke jaringan lokal, Tailscale, dan daftar
@@ -149,6 +150,7 @@ func newRouter(cfg routerConfig) *gin.Engine {
 		protected.Use(auth.AuthMiddleware(cfg.queries))
 		{
 			protected.GET("/auth/me", cfg.auth.Me)
+			protected.GET("/auth/me/usage", cfg.usage.Summary)
 
 			// File manager & media streaming.
 			protected.GET("/files", cfg.files.List)

@@ -304,7 +304,7 @@ Base URL: `http://localhost:8080/api/v1`
 
 | Grup | Prefix | Autentikasi |
 |---|---|---|
-| Auth | `/auth/*` | Publik (kecuali `/auth/me`) |
+| Auth | `/auth/*` | Publik (kecuali `/auth/me` dan `/auth/me/usage`) |
 | File manager | `/files/*` | Bearer token |
 | Shares | `/shares/*` | Bearer token |
 | Share publik | `/public/share/:token` | Publik |
@@ -403,10 +403,8 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Halaman pengaturan akun yang menampilkan rincian pemakaian kuota per folder
-   dan per jenis berkas.
-2. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
-3. Merapikan `eslint-disable` yang tersisa dan menjalankan Prettier massal
+1. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
+2. Merapikan `eslint-disable` yang tersisa dan menjalankan Prettier massal
    setelah struktur frontend stabil.
 
 ---

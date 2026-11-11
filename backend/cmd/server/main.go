@@ -188,6 +188,7 @@ func main() {
 		cfg.files = handler.NewFilesHandler(queries, store, tempDir, thumbDir)
 		cfg.shares = handler.NewSharesHandler(queries)
 		cfg.family = handler.NewFamilyHandler(queries)
+		cfg.usage = handler.NewUsageHandler(queries)
 
 		// Undangan yang diterima harus menunjuk ke UUID user sebenarnya, bukan
 		// ID acak — supaya daftar anggota tidak punya dua identitas.

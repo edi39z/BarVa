@@ -12,9 +12,11 @@ import {
   Share2,
   Smartphone,
   Trash2,
+  UserRound,
   Wand2,
   X,
 } from "lucide-react";
+import type { NasUser } from "@/lib/api/nas";
 import type { AppTab, ConnectionMode } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -22,6 +24,8 @@ interface MobileNavProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
   connectionMode: ConnectionMode;
+  currentUser: NasUser | null;
+  onOpenAccount: () => void;
   onOpenServer: () => void;
   onInstallPwa: () => void;
   onLogout: () => void;
@@ -38,6 +42,8 @@ export default function MobileNav({
   activeTab,
   onTabChange,
   connectionMode,
+  currentUser,
+  onOpenAccount,
   onOpenServer,
   onInstallPwa,
   onLogout,
@@ -148,6 +154,18 @@ export default function MobileNav({
                 >
                   <Trash2 className="h-[18px] w-[18px] text-muted" aria-hidden />
                   Sampah
+                </button>
+              )}
+              {currentUser && (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenAccount();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13.5px] font-medium text-fg hover:bg-surface-3"
+                >
+                  <UserRound className="h-[18px] w-[18px] text-muted" aria-hidden />
+                  Pengaturan akun
                 </button>
               )}
               <button

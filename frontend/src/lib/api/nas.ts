@@ -475,6 +475,36 @@ export async function fetchMe(): Promise<NasUser | null> {
   return json.data;
 }
 
+export type NasUsageKind = "image" | "video" | "document" | "archive";
+
+export interface NasUsageType {
+  type: NasUsageKind;
+  size_bytes: number;
+  file_count: number;
+}
+
+export interface NasUsageFolder {
+  /** `null` berarti berkas di akar atau isi folder yang induknya sudah dihapus. */
+  id: string | null;
+  name: string;
+  size_bytes: number;
+  file_count: number;
+}
+
+export interface NasUsageSummary {
+  quota_bytes: number;
+  used_bytes: number;
+  by_type: NasUsageType[];
+  by_folder: NasUsageFolder[];
+}
+
+export async function fetchUsageSummary(): Promise<NasUsageSummary> {
+  const res = await nasFetch("/api/v1/auth/me/usage");
+  if (!res.ok) throw new Error(await parseError(res));
+  const json = (await res.json()) as { data: NasUsageSummary };
+  return json.data;
+}
+
 export async function logoutNas(): Promise<void> {
   const token = getStoredToken();
   if (token) {

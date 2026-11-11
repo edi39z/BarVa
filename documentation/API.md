@@ -141,6 +141,40 @@ Dibatasi 5 kegagalan per 15 menit per kombinasi IP+email → `429 RATE_LIMITED`.
 `quota_used_bytes` adalah pemakaian disk saat ini (objek aktif, dihitung sekali
 per sha256). `quota_bytes = 0` berarti tanpa batas.
 
+### `GET /api/v1/auth/me/usage`
+
+Rincian pemakaian kuota pengguna yang sedang login.
+
+```json
+{
+  "data": {
+    "quota_bytes": 107374182400,
+    "used_bytes": 5368709120,
+    "by_type": [
+      { "type": "image", "size_bytes": 3221225472, "file_count": 120 },
+      { "type": "video", "size_bytes": 1610612736, "file_count": 8 },
+      { "type": "document", "size_bytes": 536870912, "file_count": 42 },
+      { "type": "archive", "size_bytes": 0, "file_count": 0 }
+    ],
+    "by_folder": [
+      { "id": "uuid", "name": "Foto Keluarga", "size_bytes": 4294967296, "file_count": 110 },
+      { "id": null, "name": "", "size_bytes": 1073741824, "file_count": 60 }
+    ]
+  }
+}
+```
+
+- `by_type` selalu berisi empat kategori: `image`, `video` (termasuk audio),
+  `document`, `archive`. Kategori diturunkan dari MIME objek, dan setiap objek
+  dihitung sekali — sama seperti `quota_used_bytes`.
+- `used_bytes` adalah jumlah `by_type`, sehingga kedua bagian selalu konsisten.
+- `by_folder` berisi maksimal 50 folder terbesar. Ukurannya **rekursif**
+  (termasuk subfolder). `id: null` menggabungkan berkas di akar dan isi folder
+  yang induknya sudah dihapus (label UI: "Di luar folder").
+- Jumlah `by_folder` bisa melebihi `used_bytes` karena berkas yang sama di dua
+  folder top-level dihitung di keduanya. Jangan memakai penjumlahan `by_folder`
+  sebagai total pemakaian.
+
 ### `POST /api/v1/auth/logout`
 
 ```json
