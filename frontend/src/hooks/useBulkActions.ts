@@ -22,6 +22,10 @@ interface UseBulkActionsOptions {
   downloadItem: (item: DisplayItem) => void;
   /** Buka dialog pindah untuk satu atau banyak item. */
   requestMove: (items: DisplayItem[]) => void;
+  /** Salin berkas ke penyimpanan tujuan tanpa menghapus aslinya. */
+  copyItemsToStorage?: (items: DisplayItem[], target: "local" | "gdrive") => Promise<void>;
+  /** Penulis notifikasi hasil operasi; state-nya dipegang pemanggil. */
+  setLibraryNotice: (notice: string) => void;
   processItemsWithTool: (
     tool: StudioToolId,
     items: DisplayItem[],
@@ -48,6 +52,8 @@ export function useBulkActions({
   refreshLibrary,
   downloadItem,
   requestMove,
+  copyItemsToStorage,
+  setLibraryNotice,
   processItemsWithTool,
 }: UseBulkActionsOptions) {
   // Menu aksi satu berkas (klik kanan / tombol titik tiga).
@@ -59,7 +65,6 @@ export function useBulkActions({
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; label: string } | null>(null);
   const [smartFolderOpen, setSmartFolderOpen] = useState(false);
   const [smartFolderMode, setSmartFolderMode] = useState<GroupMode>("type");
-  const [libraryNotice, setLibraryNotice] = useState("");
 
   const selectedItems = useMemo(
     () => selectionSource.filter((item) => selectedIds.includes(item.id)),
@@ -106,7 +111,7 @@ export function useBulkActions({
         setBulkBusy(false);
       }
     },
-    [connectionMode, clearSelection, refreshLibrary, setLocalItems]
+    [connectionMode, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice]
   );
 
   const createFolderFromSelection = useCallback(
@@ -150,7 +155,7 @@ export function useBulkActions({
         setBulkBusy(false);
       }
     },
-    [connectionMode, currentFolderId, clearSelection, refreshLibrary, setLocalItems]
+    [connectionMode, currentFolderId, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice]
   );
 
   const confirmAutoGroup = useCallback(async () => {
@@ -215,6 +220,7 @@ export function useBulkActions({
     refreshLibrary,
     selectedItems,
     setLocalItems,
+    setLibraryNotice,
     smartFolderMode,
   ]);
 
@@ -233,6 +239,12 @@ export function useBulkActions({
       }
       if (action.id === "download") {
         items.forEach((item) => downloadItem(item));
+        clearSelection();
+        return;
+      }
+      if ((action.id === "copy-local" || action.id === "copy-gdrive") && copyItemsToStorage) {
+        const target = action.id === "copy-local" ? "local" : "gdrive";
+        await copyItemsToStorage(items, target);
         clearSelection();
         return;
       }
@@ -287,12 +299,14 @@ export function useBulkActions({
     [
       bulkDelete,
       clearSelection,
+      copyItemsToStorage,
       createFolderFromSelection,
       currentFolderId,
       downloadItem,
       processItemsWithTool,
       requestMove,
       selectedItems,
+      setLibraryNotice,
     ]
   );
 
@@ -308,8 +322,6 @@ export function useBulkActions({
       setSmartFolderOpen,
       smartFolderMode,
       setSmartFolderMode,
-      libraryNotice,
-      setLibraryNotice,
       selectedItems,
       bulkDelete,
       createFolderFromSelection,
@@ -325,7 +337,6 @@ export function useBulkActions({
       bulkProgress,
       smartFolderOpen,
       smartFolderMode,
-      libraryNotice,
       selectedItems,
       bulkDelete,
       createFolderFromSelection,

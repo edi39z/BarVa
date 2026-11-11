@@ -18,7 +18,9 @@ interface MediaLightboxProps {
 }
 
 export default function MediaLightbox({ item, onClose, onDownload }: MediaLightboxProps) {
-  const mediaSrc = item.blob ? URL.createObjectURL(item.blob) : getStreamUrl(item.id);
+  const mediaSrc = item.blob
+    ? URL.createObjectURL(item.blob)
+    : item.previewUrl || item.downloadUrl || getStreamUrl(item.id);
 
   return (
     <Modal

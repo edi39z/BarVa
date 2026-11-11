@@ -54,13 +54,15 @@ import { useTrash } from "@/hooks/useTrash";
 import { useUploads } from "@/hooks/useUploads";
 import type { DisplayItem } from "@/lib/displayItem";
 import { formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
+import { itemToFile } from "@/lib/files/materialize";
+import { gdriveUploadFile } from "@/lib/api/cloud";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"home" | "files" | "trash" | "gallery" | "studio" | "gdrive" | "shares">("home");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [storageFilter, setStorageFilter] = useState<"local" | "gdrive">("local");
+  const [storageFilter, setStorageFilter] = useState<"local" | "gdrive" | "hdd">("local");
   const [galleryCategory, setGalleryCategory] = useState<"all" | "image" | "video" | "favorite">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchScope, setSearchScope] = useState<SearchScope>("name");
@@ -129,6 +131,11 @@ export default function Home() {
 
   // Local storage items from IndexedDB
   const [localItems, setLocalItems] = useState<DisplayItem[]>([]);
+  // Daftar item eksternal (HDD 500GB / Google Drive) yang sedang tampil untuk seleksi banyak
+  const [externalItems, setExternalItems] = useState<DisplayItem[]>([]);
+  // Notifikasi hasil operasi massal; state dipegang di sini agar penyalinan
+  // lintas penyimpanan (dipanggil dari menu maupun seret-lepas) bisa menulisnya.
+  const [libraryNotice, setLibraryNotice] = useState("");
 
   // Menu aksi per berkas + seleksi banyak + smart foldering
   const selection = useFileSelection();
@@ -196,6 +203,7 @@ export default function Home() {
     flushingQueue,
     fileInputRef,
     uploadWithUniqueName,
+    uploadFiles,
     flushQueue: handleFlushQueue,
     handleFileInputChange: handleRealFileUpload,
   } = useUploads({
@@ -344,6 +352,10 @@ export default function Home() {
 
   // Real Download Blob
   const handleDownload = (item: DisplayItem) => {
+    if (item.downloadUrl) {
+      window.open(item.downloadUrl, "_blank", "noopener");
+      return;
+    }
     // Mode NAS: unduh langsung dari server (endpoint menerima token lewat query).
     if (connectionMode === "nas" && item.type !== "folder") {
       window.open(getDownloadUrl(item.id), "_blank", "noopener");
@@ -446,14 +458,25 @@ export default function Home() {
 
   // ---------------- Menu aksi berkas & seleksi banyak ----------------
 
-  const selectionSource = activeTab === "gallery" ? galleryItems : activeItems;
+  const selectionSource =
+    activeTab === "gallery"
+      ? galleryItems
+      : activeTab === "files" && (storageFilter === "hdd" || storageFilter === "gdrive")
+        ? externalItems
+        : activeTab === "gdrive"
+          ? externalItems
+          : activeItems;
   const visibleSelectionIds = resultsMode
     ? []
     : activeTab === "gallery"
       ? galleryItems.map((item) => item.id)
-      : filteredFiles
-          .filter((item) => (item.parentId || null) === currentFolderId)
-          .map((item) => item.id);
+      : activeTab === "files" && (storageFilter === "hdd" || storageFilter === "gdrive")
+        ? externalItems.filter((item) => item.type !== "folder").map((item) => item.id)
+        : activeTab === "gdrive"
+          ? externalItems.filter((item) => item.type !== "folder").map((item) => item.id)
+          : filteredFiles
+              .filter((item) => (item.parentId || null) === currentFolderId)
+              .map((item) => item.id);
 
   // Potongan teks dan folder asal hanya relevan di mode hasil pencarian isi.
   const searchSnippets = Object.fromEntries(
@@ -473,6 +496,39 @@ export default function Home() {
           ? "Sedang mengindeks berkas lokal. Hasil bisa bertambah setelah selesai."
           : "";
 
+  // Menyalin berkas lintas penyimpanan secara baca-saja (aman untuk HDD 500GB)
+  const copyItemsToStorage = useCallback(
+    async (items: DisplayItem[], target: "local" | "gdrive") => {
+      const filesOnly = items.filter((i) => i.type !== "folder");
+      if (filesOnly.length === 0) return;
+      try {
+        if (target === "local") {
+          const materialized: File[] = [];
+          for (const item of filesOnly) {
+            materialized.push(await itemToFile(item, connectionMode));
+          }
+          await uploadFiles(materialized);
+          setLibraryNotice(
+            `Berhasil menyalin ${materialized.length} berkas ke Perangkat ini (data asli tetap utuh).`
+          );
+        } else {
+          let count = 0;
+          for (const item of filesOnly) {
+            const file = await itemToFile(item, connectionMode);
+            await gdriveUploadFile(file);
+            count += 1;
+          }
+          setLibraryNotice(
+            `Berhasil menyalin ${count} berkas ke Google Drive (data asli tetap utuh).`
+          );
+        }
+      } catch (err) {
+        alert(`Gagal menyalin berkas: ${(err as Error).message}`);
+      }
+    },
+    [connectionMode, uploadFiles, setLibraryNotice]
+  );
+
   // Menu aksi berkas dan operasi massal dikelola hook sendiri.
   const {
     actionMenuItem,
@@ -485,8 +541,6 @@ export default function Home() {
     setSmartFolderOpen,
     smartFolderMode,
     setSmartFolderMode,
-    libraryNotice,
-    setLibraryNotice,
     selectedItems,
     confirmAutoGroup: handleConfirmAutoGroup,
     bulkAction: handleBulkAction,
@@ -501,6 +555,8 @@ export default function Home() {
     refreshLibrary,
     downloadItem: handleDownload,
     requestMove: openMoveModal,
+    copyItemsToStorage,
+    setLibraryNotice,
     processItemsWithTool: studio.processItemsWithTool,
   });
 
@@ -516,6 +572,14 @@ export default function Home() {
     }
     if (action.id === "download") {
       handleDownload(item);
+      return;
+    }
+    if (action.id === "copy-local") {
+      await copyItemsToStorage([item], "local");
+      return;
+    }
+    if (action.id === "copy-gdrive") {
+      await copyItemsToStorage([item], "gdrive");
       return;
     }
     if (action.id === "archive") {
@@ -555,7 +619,7 @@ export default function Home() {
   useEffect(() => {
     selection.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, currentFolderId]);
+  }, [activeTab, currentFolderId, storageFilter]);
 
   // Mode hasil pencarian isi tidak mendukung pemilihan banyak item.
   useEffect(() => {
@@ -685,9 +749,7 @@ export default function Home() {
               onToggleSelect={(item, modifiers) => {
                 if (modifiers.shiftKey && selection.anchorId) {
                   selection.selectRange(
-                    activeItems
-                      .filter((entry) => (entry.parentId || null) === currentFolderId)
-                      .map((entry) => entry.id),
+                    visibleSelectionIds,
                     selection.anchorId,
                     item.id
                   );
@@ -706,6 +768,9 @@ export default function Home() {
               snippets={searchSnippets}
               folderNames={searchFolderNames}
               searchNotice={contentSearchNotice}
+              onDropUploadFiles={(dropped) => void uploadFiles(dropped)}
+              onDropCopyItems={(itemsToCopy, target) => void copyItemsToStorage(itemsToCopy, target)}
+              onExternalItemsLoaded={setExternalItems}
             />
           )}
 
@@ -793,7 +858,17 @@ export default function Home() {
           )}
 
           {/* TAB 4: GOOGLE DRIVE (dihandle komponen terpisah) */}
-          {activeTab === "gdrive" && <GoogleDrivePanel />}
+          {activeTab === "gdrive" && (
+            <GoogleDrivePanel
+              selectionMode={selection.mode}
+              selectedIds={selection.selectedIds}
+              onToggleSelect={(item) => selection.toggle(item.id)}
+              onOpenFile={setSelectedMedia}
+              onDownload={handleDownload}
+              onOpenMenu={openFileActionMenu}
+              onItemsLoaded={setExternalItems}
+            />
+          )}
 
           {/* TAB 5: FAMILY SHARING & REMOTE ACCESS */}
           {activeTab === "shares" && (

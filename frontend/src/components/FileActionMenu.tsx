@@ -2,6 +2,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  Cloud,
   Download,
   Eye,
   FileArchive,
@@ -11,6 +12,7 @@ import {
   FolderOpen,
   FolderPlus,
   FolderTree,
+  HardDrive,
   Layers,
   PanelsTopLeft,
   Pencil,
@@ -29,6 +31,8 @@ const ACTION_ICONS: Record<FileActionId, React.ElementType> = {
   open: FolderOpen,
   download: Download,
   archive: FileArchive,
+  "copy-local": HardDrive,
+  "copy-gdrive": Cloud,
   rename: Pencil,
   move: FolderInput,
   share: Share2,

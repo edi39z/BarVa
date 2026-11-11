@@ -9,6 +9,8 @@ export type FileActionId =
   | "open"
   | "download"
   | "archive"
+  | "copy-local"
+  | "copy-gdrive"
   | "rename"
   | "move"
   | "share"
@@ -68,11 +70,19 @@ function manageActions(item: DisplayItem, foreign: boolean): FileAction[] {
 
   if (item.type !== "folder") {
     actions.push({ id: "download", label: "Unduh", group: "manage" });
-  } else {
+    if (item.source === "hdd" || item.source === "gdrive") {
+      actions.push({ id: "copy-local", label: "Salin ke Perangkat ini", group: "manage" });
+    }
+    if (item.source !== "gdrive") {
+      actions.push({ id: "copy-gdrive", label: "Salin ke Google Drive", group: "manage" });
+    }
+  } else if (!item.readOnly && item.source !== "hdd" && item.source !== "gdrive") {
     actions.push({ id: "archive", label: "Unduh sebagai ZIP", group: "manage" });
   }
 
-  if (!foreign) {
+  // Berkas read-only (seperti HDD 500GB data lama) atau Google Drive tidak boleh
+  // dimutasi/dihapus agar data lama 100% aman dari terhapus atau korup.
+  if (!foreign && !item.readOnly && item.source !== "hdd" && item.source !== "gdrive") {
     actions.push({ id: "rename", label: "Ganti nama", group: "manage" });
     actions.push({ id: "move", label: "Pindahkan", group: "manage" });
     if (item.type !== "folder") {
@@ -138,11 +148,18 @@ export function actionsForSelection(items: DisplayItem[], foreign = false): File
   }
 
   const manage: FileAction[] = [];
+  const anyReadOnly = items.some((i) => i.readOnly || i.source === "hdd" || i.source === "gdrive");
 
   if (files.length > 0) {
     manage.push({ id: "download", label: `Unduh${suffix}`, group: "manage" });
+    if (files.some((i) => i.source === "hdd" || i.source === "gdrive")) {
+      manage.push({ id: "copy-local", label: `Salin ke Perangkat ini${suffix}`, group: "manage" });
+    }
+    if (files.some((i) => i.source !== "gdrive")) {
+      manage.push({ id: "copy-gdrive", label: `Salin ke Google Drive${suffix}`, group: "manage" });
+    }
   }
-  if (!foreign) {
+  if (!foreign && !anyReadOnly) {
     manage.push({ id: "newfolder", label: "Buat folder dari pilihan", group: "manage" });
     manage.push({ id: "group-type", label: "Kelompokkan per tipe", group: "manage" });
     manage.push({ id: "group-month", label: "Kelompokkan per bulan", group: "manage" });
