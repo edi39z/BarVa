@@ -6,16 +6,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"nas-backend/internal/auth"
 	"nas-backend/internal/db"
 )
 
 // ListTrash menampilkan semua node milik user yang sudah di-soft-delete.
 func (h *FilesHandler) ListTrash(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -38,15 +35,13 @@ func (h *FilesHandler) ListTrash(c *gin.Context) {
 // masih berada di trash, supaya item tidak muncul kembali di tempat yang
 // tidak bisa dijangkau pengguna.
 func (h *FilesHandler) Restore(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
-	var nodeId pgtype.UUID
-	if err := nodeId.Scan(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_ID", "message": "ID tidak valid."}})
+	nodeId, ok := parseUUIDParam(c, "id", "ID tidak valid.")
+	if !ok {
 		return
 	}
 
@@ -100,15 +95,13 @@ func (h *FilesHandler) Restore(c *gin.Context) {
 // folder. Objek CAS yang tidak lagi dipakai node mana pun ikut dihapus dari
 // disk; objek yang masih dipakai node lain dibiarkan (deduplikasi).
 func (h *FilesHandler) Purge(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
-	var nodeId pgtype.UUID
-	if err := nodeId.Scan(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_ID", "message": "ID tidak valid."}})
+	nodeId, ok := parseUUIDParam(c, "id", "ID tidak valid.")
+	if !ok {
 		return
 	}
 

@@ -19,7 +19,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"nas-backend/internal/auth"
 	"nas-backend/internal/db"
 	"nas-backend/internal/storage"
 )
@@ -121,9 +120,8 @@ func (h *FilesHandler) resolveParentForMove(ctx context.Context, ownerID pgtype.
 }
 
 func (h *FilesHandler) List(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -162,9 +160,8 @@ const (
 // ListMedia mengembalikan seluruh foto & video milik pengguna lintas folder.
 // Galeri memakai ini agar media di subfolder tidak tersembunyi.
 func (h *FilesHandler) ListMedia(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -195,9 +192,8 @@ func (h *FilesHandler) ListMedia(c *gin.Context) {
 }
 
 func (h *FilesHandler) CreateFolder(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -314,9 +310,8 @@ func (h *FilesHandler) discardUploadFile(ctx context.Context, sha string) {
 }
 
 func (h *FilesHandler) Upload(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -474,9 +469,7 @@ func (h *FilesHandler) Download(c *gin.Context) {
 	}
 
 	// Validate ownership (owner/admin boleh mengakses berkas anggota lain)
-	userId, ok := auth.GetUserID(c)
-	if !ok || !canAccessNode(c, userId, node.OwnerID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "Akses ditolak."}})
+	if _, ok := requireNodeAccess(c, node.OwnerID); !ok {
 		return
 	}
 
@@ -512,9 +505,7 @@ func (h *FilesHandler) Stream(c *gin.Context) {
 	}
 
 	// Check ownership (owner/admin boleh mengakses berkas anggota lain)
-	userId, ok := auth.GetUserID(c)
-	if !ok || !canAccessNode(c, userId, node.OwnerID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "Akses ditolak."}})
+	if _, ok := requireNodeAccess(c, node.OwnerID); !ok {
 		return
 	}
 
@@ -550,15 +541,13 @@ func isUniqueViolation(err error) bool {
 
 // Rename mengubah nama file/folder. Nama harus unik di dalam folder yang sama.
 func (h *FilesHandler) Rename(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
-	var nodeId pgtype.UUID
-	if err := nodeId.Scan(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_ID", "message": "ID tidak valid."}})
+	nodeId, ok := parseUUIDParam(c, "id", "ID tidak valid.")
+	if !ok {
 		return
 	}
 
@@ -610,15 +599,13 @@ func (h *FilesHandler) Rename(c *gin.Context) {
 // Move memindahkan file/folder ke folder lain. Folder tidak boleh dipindahkan
 // ke dalam dirinya sendiri atau ke salah satu turunannya.
 func (h *FilesHandler) Move(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
-	var nodeId pgtype.UUID
-	if err := nodeId.Scan(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_ID", "message": "ID tidak valid."}})
+	nodeId, ok := parseUUIDParam(c, "id", "ID tidak valid.")
+	if !ok {
 		return
 	}
 
@@ -690,9 +677,8 @@ func (h *FilesHandler) Move(c *gin.Context) {
 }
 
 func (h *FilesHandler) SoftDelete(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 

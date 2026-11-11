@@ -98,6 +98,10 @@ Tiga lapis otentikasi:
   saat `GIN_MODE=release`.
 - `handler/access.go` — otorisasi per node (`canAccessNode`): `member` hanya
   berkasnya sendiri, `owner`/`admin` boleh semua anggota.
+- `handler/helpers.go` — `currentUser`, `requireNodeAccess`, `parseUUIDParam`:
+  ketiganya mengirim respons error sendiri, pemanggil cukup `return`.
+- `handler/errors.go` — `fail`/`failInternal` satu-satunya pembentuk envelope
+  `{"error":{"code","message"}}`; jangan menulis `gin.H{"error": ...}` manual.
 
 ### Penyimpanan
 

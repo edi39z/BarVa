@@ -39,9 +39,8 @@ type MemberResponse struct {
 }
 
 func (h *FamilyHandler) ListMembers(c *gin.Context) {
-	userId, ok := auth.GetUserID(c)
+	userId, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Tidak terautentikasi."}})
 		return
 	}
 
@@ -89,10 +88,8 @@ func (h *FamilyHandler) ListMembers(c *gin.Context) {
 }
 
 func (h *FamilyHandler) InviteMember(c *gin.Context) {
-	// Check user role from context
-	userRole, _ := c.Get(auth.ContextUserRole)
-	if userRole != "owner" && userRole != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "Hanya Owner atau Admin yang dapat menambahkan anggota keluarga."}})
+	if !isPrivilegedRole(auth.GetUserRole(c)) {
+		fail(c, http.StatusForbidden, "FORBIDDEN", "Hanya Owner atau Admin yang dapat menambahkan anggota keluarga.")
 		return
 	}
 

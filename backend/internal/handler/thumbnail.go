@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
-	"nas-backend/internal/auth"
 	"nas-backend/internal/thumbnail"
 )
 
@@ -19,9 +17,8 @@ import (
 // disk dengan nama <sha256>_<sisi>.jpg; karena objek CAS tidak pernah berubah,
 // cache tidak perlu divalidasi ulang.
 func (h *FilesHandler) Thumbnail(c *gin.Context) {
-	var nodeId pgtype.UUID
-	if err := nodeId.Scan(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "INVALID_ID", "message": "ID file tidak valid."}})
+	nodeId, ok := parseUUIDParam(c, "id", "ID file tidak valid.")
+	if !ok {
 		return
 	}
 
@@ -31,9 +28,7 @@ func (h *FilesHandler) Thumbnail(c *gin.Context) {
 		return
 	}
 
-	userId, ok := auth.GetUserID(c)
-	if !ok || !canAccessNode(c, userId, node.OwnerID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "Akses ditolak."}})
+	if _, ok := requireNodeAccess(c, node.OwnerID); !ok {
 		return
 	}
 
