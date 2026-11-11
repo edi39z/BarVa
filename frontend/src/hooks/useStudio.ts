@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   BG_MODEL_READY_KEY,
   enhancePhoto,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/studio/output";
 import { PANEL_TOOLS, type StudioToolId } from "@/lib/studio/tools";
 import type { DisplayItem } from "@/lib/displayItem";
+import { mergeDisplayItems } from "@/lib/displayItem";
 import { FileTooLargeError, MAX_PROCESS_BYTES, itemToFile } from "@/lib/files/materialize";
 import { formatBytes } from "@/lib/nasDisplay";
 import type { AppTab, ConnectionMode } from "@/lib/types";
@@ -28,6 +29,11 @@ interface UseStudioOptions {
   connectionMode: ConnectionMode;
   currentFolderId: string | null;
   localItems: DisplayItem[];
+  /**
+   * Berkas dari pustaka aktif (server NAS, Google Drive, atau HDD) yang boleh
+   * dipilih di pemilih berkas Studio. Isinya diunduh ke perangkat saat dipilih.
+   */
+  libraryItems: DisplayItem[];
   setLocalItems: React.Dispatch<React.SetStateAction<DisplayItem[]>>;
   /** Menyegarkan daftar folder/galeri/trash setelah hasil disimpan. */
   refreshLibrary: () => Promise<void>;
@@ -47,6 +53,7 @@ export function useStudio({
   connectionMode,
   currentFolderId,
   localItems,
+  libraryItems,
   setLocalItems,
   refreshLibrary,
   uploadWithUniqueName,
@@ -63,6 +70,13 @@ export function useStudio({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerTool, setPickerTool] = useState<StudioToolId>("img2pdf");
   const [selectedStorageIds, setSelectedStorageIds] = useState<string[]>([]);
+
+  // Berkas lokal didahulukan karena blob-nya sudah ada di perangkat; berkas
+  // pustaka (NAS/Drive/HDD) menyusul dan baru diunduh saat dipilih.
+  const pickerItems = useMemo(
+    () => mergeDisplayItems(localItems, libraryItems),
+    [localItems, libraryItems]
+  );
 
   const [compressQuality, setCompressQuality] = useState<number>(0.75);
   const [lastCompressResult, setLastCompressResult] = useState<CompressionResult | null>(null);
@@ -248,40 +262,21 @@ export function useStudio({
       return;
     }
 
-    setProcessing(true);
-    setSuccessMsg("");
-    setError(null);
-    setPickerOpen(false);
+    // Urutan pilihan dipertahankan supaya hasil gabungan PDF mengikuti urutan
+    // yang terlihat di daftar, bukan urutan acak dari filter.
+    const selectedItems = selectedStorageIds
+      .map((id) => pickerItems.find((item) => item.id === id))
+      .filter((item): item is DisplayItem => Boolean(item));
 
-    try {
-      const selectedItems = localItems.filter((i) => selectedStorageIds.includes(i.id));
-      const files: File[] = [];
-
-      for (const item of selectedItems) {
-        if (item.blob) {
-          files.push(new File([item.blob], item.name, { type: item.blob.type || "application/octet-stream" }));
-        }
-      }
-
-      if (files.length === 0) {
-        setError({
-          code: "IMAGE_INVALID",
-          title: "Berkas tidak bisa dibaca",
-          message: "Isi berkas ini belum tersedia di memori perangkat.",
-          hint: "Buka berkasnya sekali dari daftar utama, lalu ulangi.",
-          tone: "danger",
-        });
-        return;
-      }
-
-      await runTool(pickerTool, files);
-    } catch (err) {
-      console.error(err);
-      setError(describeStudioError(err));
-    } finally {
-      setProcessing(false);
-      setBgProgress(null);
+    if (selectedItems.length === 0) {
+      notifyIncompleteInput("Berkas yang dipilih tidak lagi tersedia.");
+      return;
     }
+
+    setPickerOpen(false);
+    // processItemsWithTool mengunduh berkas pustaka lebih dulu dan menangani
+    // galat ukuran, jadi pemilih tidak perlu tahu asal berkasnya.
+    await processItemsWithTool(pickerTool, selectedItems);
   };
 
   // Studio: Images to PDF
@@ -485,6 +480,7 @@ export function useStudio({
     setPickedFile,
     pickerOpen,
     pickerTool,
+    pickerItems,
     selectedStorageIds,
     setSelectedStorageIds,
     compressQuality,

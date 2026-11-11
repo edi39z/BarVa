@@ -499,6 +499,17 @@ Berkas dan media di galeri memakai satu menu aksi yang sama:
 | `lib/studio/tools.ts` | `StudioToolId`, pengelompokan alat (foto/PDF), dan `PANEL_TOOLS` |
 | `components/studio/` | Panel alat beropsi: `IdPhotoPanel`, `PdfToWordPanel`, `PdfEditorPanel`, `StudioAlert`, `StudioProgress` |
 
+**Pemilih berkas Studio.** Setiap panel alat punya tombol "Pilih dari berkas
+tersimpan" yang membuka `StoragePickerModal`. Isinya berasal dari
+`pickerItems` di `useStudio`: gabungan berkas yang sudah ada di perangkat
+(`localItems`) dengan pustaka yang sedang aktif di mode NAS — berkas folder
+aktif ditambah media galeri — sehingga foto di Drive/HDD bisa diolah tanpa
+mengunduhnya lewat menu Semua Berkas lebih dulu. Tiap baris menampilkan chip
+tipe berkas dan chip asal (Perangkat, Drive, HDD, NAS); folder disaring keluar
+karena alat Studio hanya menerima berkas. Berkas pustaka baru diunduh saat
+tombol "Gunakan" ditekan, lewat jalur yang sama dengan pemrosesan massal
+(`itemToFile`), termasuk batas ukuran berkas yang bisa diolah.
+
 **Hapus Latar Belakang.** Satu alur untuk foto maupun logo, memakai
 `@imgly/background-removal` dengan model `isnet_fp16` (±80 MB) dan
 `device: "gpu"` — WebGPU dipakai bila tersedia, dengan fallback otomatis ke

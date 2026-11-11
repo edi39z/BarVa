@@ -8,22 +8,28 @@ import { isPdfTool, isSingleFileTool, MULTI_IMAGE_TOOLS, SINGLE_IMAGE_TOOLS, typ
 
 export type { StudioToolId };
 
-// Hanya berkas di perangkat ini yang bisa dipilih. Studio memproses berkas
-// sepenuhnya di browser, jadi sumbernya wajib Blob lokal; berkas NAS dan Google
-// Drive harus diunduh lebih dulu. Tab kosong untuk kedua sumber itu dulu hanya
-// membingungkan.
+// Berkas dari pustaka (NAS, Google Drive, HDD) ikut ditampilkan dan diunduh ke
+// perangkat saat dipilih, karena Studio memproses berkas sepenuhnya di browser.
 interface StoragePickerModalProps {
   tool: StudioToolId;
-  localItems: DisplayItem[];
+  items: DisplayItem[];
   selectedIds: string[];
   onSelectedIdsChange: React.Dispatch<React.SetStateAction<string[]>>;
   onClose: () => void;
   onConfirm: () => void;
 }
 
+/** Asal berkas, ditampilkan sebagai label kecil di tiap baris. */
+function sourceLabel(item: DisplayItem): string {
+  if (item.blob) return "Perangkat";
+  if (item.source === "gdrive") return "Drive";
+  if (item.source === "hdd") return "HDD";
+  return "NAS";
+}
+
 export default function StoragePickerModal({
   tool,
-  localItems,
+  items,
   selectedIds,
   onSelectedIdsChange,
   onClose,
@@ -31,7 +37,8 @@ export default function StoragePickerModal({
 }: StoragePickerModalProps) {
   const isSingleTool = isSingleFileTool(tool);
 
-  const eligibleItems = localItems.filter((item) => {
+  const eligibleItems = items.filter((item) => {
+    if (item.type === "folder") return false;
     if (SINGLE_IMAGE_TOOLS.includes(tool) || MULTI_IMAGE_TOOLS.includes(tool)) {
       return item.type === "image";
     }
@@ -64,9 +71,9 @@ export default function StoragePickerModal({
         <div className="rounded-xl border border-dashed border-line-strong bg-surface-2 px-4 py-10 text-center">
           <FileText className="mx-auto mb-2 h-8 w-8 text-subtle" aria-hidden />
           <p className="text-[12.5px] font-semibold text-fg">Belum ada berkas yang cocok</p>
-          <p className="mx-auto mt-1 max-w-xs text-[11.5px] leading-relaxed text-subtle">
-            Unggah {isPdfTool(tool) ? "berkas PDF" : "foto"} lebih dulu lewat menu Semua Berkas.
-            Berkas dari server NAS atau Google Drive perlu diunduh ke perangkat ini dulu.
+          <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-relaxed text-subtle">
+            Tidak ada {isPdfTool(tool) ? "berkas PDF" : "foto"} di penyimpanan ini. Unggah lewat
+            menu Semua Berkas, atau buka folder lain yang berisi berkas tersebut.
           </p>
         </div>
       ) : (
@@ -106,7 +113,10 @@ export default function StoragePickerModal({
                       {item.sizeStr} · {item.updatedAt}
                     </span>
                   </span>
-                  <span className="chip chip-neutral shrink-0 uppercase">{item.type}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="chip chip-neutral uppercase">{item.type}</span>
+                    <span className="chip chip-neutral">{sourceLabel(item)}</span>
+                  </span>
                 </button>
               </li>
             );
