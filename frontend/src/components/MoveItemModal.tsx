@@ -6,7 +6,7 @@ import type { DisplayItem } from "@/lib/nasDisplay";
 import Modal from "@/components/Modal";
 
 interface MoveItemModalProps {
-  item: DisplayItem;
+  items: DisplayItem[];
   crumbs: { id: string | null; name: string }[];
   folders: DisplayItem[];
   loading: boolean;
@@ -17,7 +17,7 @@ interface MoveItemModalProps {
 }
 
 export default function MoveItemModal({
-  item,
+  items,
   crumbs,
   folders,
   loading,
@@ -26,10 +26,16 @@ export default function MoveItemModal({
   onConfirm,
   onClose,
 }: MoveItemModalProps) {
+  const single = items.length === 1 ? items[0] : null;
+
   return (
     <Modal
-      title="Pindahkan item"
-      description={`Pilih folder tujuan untuk “${item.name}”.`}
+      title={single ? "Pindahkan item" : `Pindahkan ${items.length} item`}
+      description={
+        single
+          ? `Pilih folder tujuan untuk “${single.name}”.`
+          : "Semua item terpilih akan dipindahkan ke folder yang sama."
+      }
       icon={<FolderInput className="h-4 w-4" aria-hidden />}
       onClose={onClose}
       footer={

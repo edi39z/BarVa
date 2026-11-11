@@ -87,6 +87,12 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   ±80 MB yang diunduh sekali setelah pengguna memberi izin, dengan pembersihan
   sisa latar dan bayangan), dan peningkatan
   kualitas foto 2×. Foto tidak pernah diunggah ke server
+- Menu aksi pintar di daftar berkas dan galeri: klik kanan, tekan lama, atau
+  tombol ⋮ memunculkan aksi sesuai tipe (gambar: hapus latar, kompres, pasfoto;
+  PDF: PDF ke Word, editor PDF). Mode **Pilih** mendukung aksi banyak sekaligus:
+  jadikan PDF, gabung PDF, hapus, pindah, buat folder dari pilihan, dan
+  kelompokkan otomatis per tipe atau bulan. Berkas NAS diunduh sementara
+  (maks. 200 MB), diproses di perangkat, lalu hasilnya diunggah ke folder asal
 - Migrasi database otomatis saat backend start (`schema_migrations`), termasuk
   baseline untuk database lama
 - Hardening: CORS whitelist, admin key, batas ukuran upload, deteksi MIME dari isi file

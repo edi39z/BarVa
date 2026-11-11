@@ -75,7 +75,9 @@ import {
 import AddMemberModal from "@/components/AddMemberModal";
 import AuthGate from "@/components/AuthGate";
 import FamilySharingTab from "@/components/FamilySharingTab";
+import FileActionMenu from "@/components/FileActionMenu";
 import FileExplorerTab from "@/components/FileExplorerTab";
+import FileSelectionBar from "@/components/FileSelectionBar";
 import GalleryTab from "@/components/GalleryTab";
 import HomeDashboard from "@/components/HomeDashboard";
 import MediaLightbox from "@/components/MediaLightbox";
@@ -84,10 +86,24 @@ import MoveItemModal from "@/components/MoveItemModal";
 import ServerSettingsModal from "@/components/ServerSettingsModal";
 import Sidebar from "@/components/Sidebar";
 import ShareLinkModal from "@/components/ShareLinkModal";
+import SmartFolderModal from "@/components/SmartFolderModal";
 import StoragePickerModal from "@/components/StoragePickerModal";
 import StudioTab from "@/components/StudioTab";
 import TrashTab from "@/components/TrashTab";
 import WorkspaceHeader from "@/components/WorkspaceHeader";
+import {
+  actionsForItem,
+  actionsForSelection,
+  groupItems,
+  type FileAction,
+  type GroupMode,
+} from "@/lib/files/actions";
+import {
+  FileTooLargeError,
+  MAX_PROCESS_BYTES,
+  itemToFile,
+} from "@/lib/files/materialize";
+import { useFileSelection } from "@/hooks/useFileSelection";
 import {
   ActiveShare,
   DisplayItem,
@@ -134,7 +150,7 @@ export default function Home() {
   const [shareGenerating, setShareGenerating] = useState(false);
 
   // Rename & pindah folder (khusus mode NAS)
-  const [moveItem, setMoveItem] = useState<DisplayItem | null>(null);
+  const [moveItems, setMoveItems] = useState<DisplayItem[]>([]);
   const [moveParentId, setMoveParentId] = useState<string | null>(null);
   const [moveCrumbs, setMoveCrumbs] = useState<{ id: string | null; name: string }[]>([
     { id: null, name: "Semua File" },
@@ -234,6 +250,16 @@ export default function Home() {
   const [bgDropShadow, setBgDropShadow] = useState(true);
   const [lastEnhanceResult, setLastEnhanceResult] = useState<EnhanceResult | null>(null);
 
+  // Menu aksi per berkas + seleksi banyak + smart foldering
+  const selection = useFileSelection();
+  const [actionMenuItem, setActionMenuItem] = useState<DisplayItem | null>(null);
+  const [actionMenuAnchor, setActionMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; label: string } | null>(null);
+  const [smartFolderOpen, setSmartFolderOpen] = useState(false);
+  const [smartFolderMode, setSmartFolderMode] = useState<GroupMode>("type");
+  const [libraryNotice, setLibraryNotice] = useState("");
+
   // Model hapus latar belakang cukup diunduh sekali per perangkat.
   const bgModelStored = React.useSyncExternalStore(
     () => () => {},
@@ -282,6 +308,7 @@ export default function Home() {
               hour: "2-digit",
               minute: "2-digit",
             }),
+            updatedAtISO: s.updatedAt,
             sha256: s.sha256 ? `${s.sha256.substring(0, 8)}...${s.sha256.substring(s.sha256.length - 8)}` : undefined,
             isFavorite: s.isFavorite,
             blob: s.blob,
@@ -416,6 +443,47 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTrash();
   }, [loadTrash]);
+
+  /** Segarkan daftar folder, galeri, dan trash setelah aksi yang mengubah data. */
+  const refreshLibrary = useCallback(async () => {
+    if (connectionMode !== "nas" || !currentUser) return;
+    await loadNasFiles(currentFolderId);
+    if (activeTab === "gallery") {
+      try {
+        setMediaItems((await listNasMedia()).map(nasNodeToDisplay));
+      } catch {
+        // Biarkan daftar lama; galeri memuat ulang saat tabnya dibuka lagi.
+      }
+    }
+    await loadTrash();
+  }, [connectionMode, currentUser, currentFolderId, activeTab, loadNasFiles, loadTrash]);
+
+  /**
+   * Unggah hasil olahan tanpa menimpa berkas lain. Bila nama sudah dipakai,
+   * coba lagi dengan akhiran " (2)", " (3)", dan seterusnya.
+   */
+  const uploadWithUniqueName = useCallback(async (file: File, parentId: string | null) => {
+    try {
+      return await uploadToNas(file, parentId, undefined, false);
+    } catch (err) {
+      if (!/sudah ada/i.test((err as Error).message)) throw err;
+
+      const dot = file.name.lastIndexOf(".");
+      const base = dot > 0 ? file.name.slice(0, dot) : file.name;
+      const extension = dot > 0 ? file.name.slice(dot) : "";
+
+      for (let attempt = 2; attempt <= 20; attempt += 1) {
+        const candidate = new File([file], `${base} (${attempt})${extension}`, { type: file.type });
+        try {
+          return await uploadToNas(candidate, parentId, undefined, false);
+        } catch (nextError) {
+          if (!/sudah ada/i.test((nextError as Error).message)) throw nextError;
+        }
+      }
+
+      throw new Error("Nama berkas hasil bentrok. Ganti nama berkas lalu coba lagi.");
+    }
+  }, []);
 
   // Kirim antrean upload begitu koneksi kembali, dan segarkan jumlah antrean.
   useEffect(() => {
@@ -769,6 +837,7 @@ export default function Home() {
       sizeStr: "0 item",
       sizeBytes: 0,
       updatedAt: "Baru saja",
+      updatedAtISO: new Date().toISOString(),
       parentId: currentFolderId,
     };
     setLocalItems((prev) => [newFolder, ...prev]);
@@ -786,13 +855,13 @@ export default function Home() {
 
     try {
       await renameNasFile(item.id, name);
-      await loadNasFiles(currentFolderId);
+      await refreshLibrary();
     } catch (err) {
       alert(`Gagal mengganti nama: ${(err as Error).message}`);
     }
   };
 
-  const loadMoveFolders = async (parentId: string | null, excludeId?: string) => {
+  const loadMoveFolders = async (parentId: string | null, excludeIds: string[] = []) => {
     setMoveLoading(true);
     try {
       const nodes = await listNasFiles(parentId);
@@ -800,7 +869,7 @@ export default function Home() {
         nodes
           .filter((n) => n.IsDirectory)
           .map(nasNodeToDisplay)
-          .filter((f) => f.id !== excludeId)
+          .filter((f) => !excludeIds.includes(f.id))
       );
     } catch (err) {
       alert(`Gagal memuat folder: ${(err as Error).message}`);
@@ -810,35 +879,52 @@ export default function Home() {
     }
   };
 
-  const openMoveModal = (item: DisplayItem) => {
+  const openMoveModal = (targets: DisplayItem | DisplayItem[]) => {
+    const items = Array.isArray(targets) ? targets : [targets];
+    if (items.length === 0) return;
     if (connectionMode !== "nas") {
       alert("Pindah folder hanya tersedia untuk berkas di server NAS.");
       return;
     }
-    setMoveItem(item);
+    setMoveItems(items);
     setMoveParentId(null);
     setMoveCrumbs([{ id: null, name: "Semua File" }]);
-    loadMoveFolders(null, item.id);
+    loadMoveFolders(
+      null,
+      items.filter((item) => item.type === "folder").map((item) => item.id)
+    );
   };
 
   const handleMoveNavigate = (id: string | null, name: string, crumbIndex?: number) => {
-    if (!moveItem) return;
+    if (moveItems.length === 0) return;
     setMoveParentId(id);
     setMoveCrumbs((prev) =>
       crumbIndex === undefined ? [...prev, { id, name }] : prev.slice(0, crumbIndex)
     );
-    loadMoveFolders(id, moveItem.id);
+    loadMoveFolders(
+      id,
+      moveItems.filter((item) => item.type === "folder").map((item) => item.id)
+    );
   };
 
   const handleConfirmMove = async () => {
-    if (!moveItem) return;
+    if (moveItems.length === 0) return;
     setMoveBusy(true);
+    let failed = 0;
     try {
-      await moveNasFile(moveItem.id, moveParentId);
-      setMoveItem(null);
-      await loadNasFiles(currentFolderId);
-    } catch (err) {
-      alert(`Gagal memindahkan: ${(err as Error).message}`);
+      for (const item of moveItems) {
+        try {
+          await moveNasFile(item.id, moveParentId);
+        } catch {
+          failed += 1;
+        }
+      }
+      setMoveItems([]);
+      selection.clear();
+      await refreshLibrary();
+      if (failed > 0) {
+        alert(`${moveItems.length - failed} item dipindahkan, ${failed} gagal.`);
+      }
     } finally {
       setMoveBusy(false);
     }
@@ -941,6 +1027,7 @@ export default function Home() {
         sizeStr: formatBytes(saved.size),
         sizeBytes: saved.size,
         updatedAt: "Baru saja",
+        updatedAtISO: saved.updatedAt,
         parentId: currentFolderId,
         sha256: saved.sha256 ? `${saved.sha256.substring(0, 8)}...${saved.sha256.substring(saved.sha256.length - 8)}` : undefined,
         isFavorite: false,
@@ -960,23 +1047,39 @@ export default function Home() {
     }
   };
 
-  // Unduh hasil olahan Studio lalu simpan ke pustaka lokal.
+  // Unduh hasil olahan Studio lalu simpan ke pustaka yang sedang aktif.
   //
-  // Unduhan dilakukan lebih dulu: kalau kuota IndexedDB penuh, berkas tetap
-  // sampai ke pengguna dan hanya pesan simpan yang muncul.
+  // Mode NAS: hasil diunggah balik ke folder asal. Mode standalone: disimpan ke
+  // IndexedDB. Unduhan dilakukan lebih dulu supaya berkas tetap sampai ke
+  // pengguna walau penyimpanan gagal.
   const commitStudioOutput = useCallback(
-    async (output: StudioOutput): Promise<{ saved: boolean }> => {
-      downloadBlob(output.blob, output.filename);
+    async (
+      output: StudioOutput,
+      options: { download?: boolean; parentId?: string | null } = {}
+    ): Promise<{ saved: boolean }> => {
+      const download = options.download ?? true;
+      const parentId = options.parentId ?? currentFolderId;
+
+      if (download) downloadBlob(output.blob, output.filename);
+
       try {
-        const item = await persistStudioOutput(output, currentFolderId);
-        setLocalItems((prev) => [item, ...prev]);
+        if (connectionMode === "nas") {
+          const file = new File([output.blob], output.filename, {
+            type: output.mimeType || "application/octet-stream",
+          });
+          await uploadWithUniqueName(file, parentId);
+          await refreshLibrary();
+        } else {
+          const item = await persistStudioOutput(output, parentId);
+          setLocalItems((prev) => [item, ...prev]);
+        }
         return { saved: true };
       } catch (err) {
         setStudioError(describeStudioError(err));
         return { saved: false };
       }
     },
-    [currentFolderId]
+    [currentFolderId, connectionMode, refreshLibrary, uploadWithUniqueName]
   );
 
   // Model hapus latar sudah ada di perangkat: simpan penandanya supaya kartu
@@ -1003,6 +1106,93 @@ export default function Home() {
     setStoragePickerOpen(true);
   };
 
+  /**
+   * Jalankan satu alat Studio atas berkas yang sudah ada di memori.
+   * Alat berpanel hanya dipindahkan ke tab Studio; alat one-shot langsung
+   * menghasilkan berkas lalu menyimpannya lewat commitStudioOutput.
+   */
+  const runStudioTool = async (
+    tool: StudioToolId,
+    files: File[],
+    options: { download?: boolean; parentId?: string | null } = {}
+  ) => {
+    const parentId = options.parentId ?? currentFolderId;
+    const download = options.download ?? true;
+
+    if (PANEL_TOOLS.includes(tool)) {
+      setStudioPickedFile(files[0]);
+      setActiveStudioTool(tool);
+      setActiveTab("studio");
+      return;
+    }
+
+    if (tool === "img2pdf") {
+      const pdfBytes = await imagesToPDF(files);
+      const filename = `Foto_Dokumen_${Date.now()}.pdf`;
+      await commitStudioOutput(makePdfOutput(pdfBytes, filename), { parentId, download });
+      setStudioSuccessMsg(`Berhasil! ${files.length} foto digabung menjadi ${filename}.`);
+      return;
+    }
+
+    if (tool === "mergepdf") {
+      if (files.length < 2) {
+        notifyIncompleteInput(
+          "Penggabungan butuh dua berkas PDF atau lebih.",
+          "Pilih minimal dua berkas PDF."
+        );
+        return;
+      }
+      const mergedBytes = await mergePDFs(files);
+      const filename = `Merged_Document_${Date.now()}.pdf`;
+      await commitStudioOutput(makePdfOutput(mergedBytes, filename), { parentId, download });
+      setStudioSuccessMsg(`Berhasil! ${files.length} berkas PDF digabung menjadi ${filename}.`);
+      return;
+    }
+
+    if (tool === "compress") {
+      const result = await compressAndResizeImage(files[0], 1920, compressQuality, "image/jpeg");
+      setLastCompressResult(result);
+      const filename = `Compressed_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
+      await commitStudioOutput(
+        makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`),
+        { parentId, download }
+      );
+      setStudioSuccessMsg(
+        `Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`
+      );
+      return;
+    }
+
+    if (tool === "removebg") {
+      const result = await removeImageBackground(files[0], setBgProgress, {
+        tolerance: bgTolerance,
+        dropShadow: bgDropShadow,
+      });
+      const filename = `TanpaLatar_${files[0].name.replace(/\.[^/.]+$/, "")}.png`;
+      await commitStudioOutput(
+        makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`),
+        { parentId, download }
+      );
+      markBgModelReady();
+      setStudioSuccessMsg(`Latar belakang ${files[0].name} berhasil dihapus sebagai ${filename}.`);
+      return;
+    }
+
+    if (tool === "enhance") {
+      const result = await enhancePhoto(files[0]);
+      setLastEnhanceResult(result);
+      const filename = `Diperjelas_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
+      await commitStudioOutput(
+        makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`),
+        { parentId, download }
+      );
+      setStudioSuccessMsg(`Foto diperjelas menjadi ${result.width} × ${result.height} px.`);
+      return;
+    }
+
+    throw new Error("Alat Studio tidak dikenal.");
+  };
+
   const handleExecuteStorageSelection = async () => {
     if (selectedStorageIds.length === 0) {
       notifyIncompleteInput("Pilih minimal satu berkas dari penyimpanan.");
@@ -1020,8 +1210,7 @@ export default function Home() {
 
       for (const item of selectedItems) {
         if (item.blob) {
-          const f = new File([item.blob], item.name, { type: item.blob.type || "application/octet-stream" });
-          files.push(f);
+          files.push(new File([item.blob], item.name, { type: item.blob.type || "application/octet-stream" }));
         }
       }
 
@@ -1036,59 +1225,7 @@ export default function Home() {
         return;
       }
 
-      // Alat berpanel mengolah berkasnya sendiri: cukup teruskan berkasnya,
-      // lalu panel yang mengurus pratinjau, opsi, dan penyimpanan.
-      if (PANEL_TOOLS.includes(storagePickerTool)) {
-        setStudioPickedFile(files[0]);
-        setActiveStudioTool(storagePickerTool);
-        return;
-      }
-
-      if (storagePickerTool === "img2pdf") {
-        const pdfBytes = await imagesToPDF(files);
-        const filename = `Foto_Dokumen_${Date.now()}.pdf`;
-        await commitStudioOutput(makePdfOutput(pdfBytes, filename));
-        setStudioSuccessMsg(`Berhasil! ${files.length} foto dari penyimpanan berhasil digabung menjadi ${filename}.`);
-      } else if (storagePickerTool === "mergepdf") {
-        if (files.length < 2) {
-          notifyIncompleteInput(
-            "Penggabungan butuh dua berkas PDF atau lebih.",
-            "Tandai beberapa berkas sekaligus di daftar penyimpanan."
-          );
-          return;
-        }
-        const mergedBytes = await mergePDFs(files);
-        const filename = `Merged_Document_${Date.now()}.pdf`;
-        await commitStudioOutput(makePdfOutput(mergedBytes, filename));
-        setStudioSuccessMsg(`Berhasil! ${files.length} berkas PDF dari penyimpanan digabung menjadi ${filename}.`);
-      } else if (storagePickerTool === "compress") {
-        const result = await compressAndResizeImage(files[0], 1920, compressQuality, "image/jpeg");
-        setLastCompressResult(result);
-        const filename = `Compressed_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
-        await commitStudioOutput(
-          makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
-        );
-        setStudioSuccessMsg(`Kompresi selesai! Ukuran berkurang ${result.savingsPercent}% (dari ${formatBytes(result.originalSize)} menjadi ${formatBytes(result.compressedSize)}).`);
-      } else if (storagePickerTool === "removebg") {
-        const result = await removeImageBackground(files[0], setBgProgress, {
-          tolerance: bgTolerance,
-          dropShadow: bgDropShadow,
-        });
-        const filename = `TanpaLatar_${files[0].name.replace(/\.[^/.]+$/, "")}.png`;
-        await commitStudioOutput(
-          makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
-        );
-        markBgModelReady();
-        setStudioSuccessMsg(`Latar belakang ${files[0].name} berhasil dihapus dan disimpan sebagai ${filename}.`);
-      } else if (storagePickerTool === "enhance") {
-        const result = await enhancePhoto(files[0]);
-        setLastEnhanceResult(result);
-        const filename = `Diperjelas_${files[0].name.replace(/\.[^/.]+$/, "")}.jpg`;
-        await commitStudioOutput(
-          makeImageOutput(result.blob, filename, `${result.width} × ${result.height}`)
-        );
-        setStudioSuccessMsg(`Foto diperjelas menjadi ${result.width} × ${result.height} px.`);
-      }
+      await runStudioTool(storagePickerTool, files);
     } catch (err) {
       console.error(err);
       setStudioError(describeStudioError(err));
@@ -1118,14 +1255,15 @@ export default function Home() {
   };
 
   // Real Delete
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
 
     if (connectionMode === "nas") {
       if (!confirm("Pindahkan item ini ke Trash? Kamu masih bisa memulihkannya nanti.")) return;
       try {
         await deleteNasFile(id);
         setNasItems((prev) => prev.filter((item) => item.id !== id));
+        setMediaItems((prev) => prev.filter((item) => item.id !== id));
         if (selectedMedia?.id === id) setSelectedMedia(null);
         loadTrash();
       } catch (err) {
@@ -1138,6 +1276,7 @@ export default function Home() {
     try {
       await deleteLocalFile(id);
       setLocalItems((prev) => prev.filter((item) => item.id !== id));
+      setMediaItems((prev) => prev.filter((item) => item.id !== id));
       if (selectedMedia?.id === id) setSelectedMedia(null);
     } catch (err) {
       console.error("Delete error:", err);
@@ -1363,6 +1502,313 @@ export default function Home() {
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // ---------------- Menu aksi berkas & seleksi banyak ----------------
+
+  const selectionSource = activeTab === "gallery" ? galleryItems : activeItems;
+  const selectedItems = selectionSource.filter((item) => selection.isSelected(item.id));
+  const visibleSelectionIds =
+    activeTab === "gallery"
+      ? galleryItems.map((item) => item.id)
+      : filteredFiles
+          .filter((item) => (item.parentId || null) === currentFolderId)
+          .map((item) => item.id);
+
+  const openFileActionMenu = (item: DisplayItem, anchor: { x: number; y: number }) => {
+    setActionMenuItem(item);
+    setActionMenuAnchor(anchor);
+  };
+
+  const closeFileActionMenu = () => {
+    setActionMenuItem(null);
+    setActionMenuAnchor(null);
+  };
+
+  const openShareModal = (item: DisplayItem) => {
+    setShareModalFile(item);
+    setShareLinkGenerated(false);
+    setCurrentGeneratedUrl("");
+    setSharePasswordInput("");
+  };
+
+  /** Jalankan alat Studio untuk item yang mungkin masih di server. */
+  const processItemsWithTool = async (
+    tool: StudioToolId,
+    items: DisplayItem[],
+    options: { download?: boolean; parentId?: string | null } = {}
+  ): Promise<boolean> => {
+    setStudioProcessing(true);
+    setStudioSuccessMsg("");
+    setStudioError(null);
+
+    try {
+      const files: File[] = [];
+      for (const item of items) {
+        files.push(await itemToFile(item, connectionMode));
+      }
+      await runStudioTool(tool, files, options);
+      return true;
+    } catch (err) {
+      if (err instanceof FileTooLargeError) {
+        setStudioError({
+          code: "UNKNOWN",
+          title: "Berkas terlalu besar",
+          message: `Batas pemrosesan di perangkat ini ${formatBytes(MAX_PROCESS_BYTES)} per berkas.`,
+          hint: "Kompres atau pecah berkasnya lebih dulu, lalu coba lagi.",
+          tone: "danger",
+        });
+      } else {
+        const info = describeStudioError(err);
+        setStudioError(
+          info.code === "UNKNOWN" && err instanceof Error
+            ? { ...info, message: err.message }
+            : info
+        );
+      }
+      return false;
+    } finally {
+      setStudioProcessing(false);
+      setBgProgress(null);
+    }
+  };
+
+  const handleFileAction = async (action: FileAction) => {
+    const item = actionMenuItem;
+    closeFileActionMenu();
+    if (!item) return;
+
+    if (action.id === "open") {
+      if (item.type === "folder") handleOpenFolder(item);
+      else setSelectedMedia(item);
+      return;
+    }
+    if (action.id === "download") {
+      handleDownload(item);
+      return;
+    }
+    if (action.id === "rename") {
+      await handleRename(item);
+      return;
+    }
+    if (action.id === "move") {
+      openMoveModal(item);
+      return;
+    }
+    if (action.id === "share") {
+      openShareModal(item);
+      return;
+    }
+    if (action.id === "delete") {
+      await handleDelete(item.id);
+      return;
+    }
+    if (action.tool) {
+      const ok = await processItemsWithTool(action.tool, [item], {
+        download: true,
+        parentId: item.parentId ?? currentFolderId,
+      });
+      if (ok) setLibraryNotice(`Selesai memproses “${item.name}”. Hasil tersimpan di folder asal.`);
+    }
+  };
+
+  const handleBulkDelete = async (items: DisplayItem[]) => {
+    if (!confirm(`Hapus ${items.length} item? Item akan masuk ke Trash.`)) return;
+
+    setBulkBusy(true);
+    let failed = 0;
+    try {
+      for (const item of items) {
+        try {
+          if (connectionMode === "nas") {
+            await deleteNasFile(item.id);
+          } else {
+            await deleteLocalFile(item.id);
+            setLocalItems((prev) => prev.filter((entry) => entry.id !== item.id));
+          }
+        } catch {
+          failed += 1;
+        }
+      }
+      selection.clear();
+      await refreshLibrary();
+      setLibraryNotice(
+        failed > 0
+          ? `${items.length - failed} item dihapus, ${failed} gagal.`
+          : `${items.length} item dihapus.`
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleCreateFolderFromSelection = async (items: DisplayItem[]) => {
+    const name = prompt("Nama folder baru:");
+    const folderName = name?.trim();
+    if (!folderName) return;
+
+    setBulkBusy(true);
+    try {
+      if (connectionMode === "nas") {
+        const folder = await createNasFolder(folderName, currentFolderId);
+        for (const item of items) {
+          await moveNasFile(item.id, folder.ID);
+        }
+        await refreshLibrary();
+      } else {
+        const folderId = crypto.randomUUID();
+        const folder: DisplayItem = {
+          id: folderId,
+          name: folderName,
+          type: "folder",
+          sizeStr: "0 item",
+          sizeBytes: 0,
+          updatedAt: "Baru saja",
+          updatedAtISO: new Date().toISOString(),
+          parentId: currentFolderId,
+        };
+        setLocalItems((prev) => [
+          folder,
+          ...prev.map((item) =>
+            items.some((selected) => selected.id === item.id) ? { ...item, parentId: folderId } : item
+          ),
+        ]);
+      }
+      selection.clear();
+      setLibraryNotice(`Folder “${folderName}” dibuat dan ${items.length} item dipindahkan.`);
+    } catch (err) {
+      alert(`Gagal membuat folder: ${(err as Error).message}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleConfirmAutoGroup = async () => {
+    const items = selectedItems;
+    if (items.length === 0) return;
+
+    const groups = groupItems(items, smartFolderMode);
+    setBulkBusy(true);
+
+    try {
+      if (connectionMode === "nas") {
+        for (const group of groups) {
+          const existing = activeItems.find(
+            (item) =>
+              item.type === "folder" &&
+              (item.parentId || null) === currentFolderId &&
+              item.name === group.name
+          );
+          const folderId = existing ? existing.id : (await createNasFolder(group.name, currentFolderId)).ID;
+          for (const item of group.items) {
+            await moveNasFile(item.id, folderId);
+          }
+        }
+        await refreshLibrary();
+      } else {
+        const created = groups.map<DisplayItem>((group) => ({
+          id: crypto.randomUUID(),
+          name: group.name,
+          type: "folder",
+          sizeStr: "0 item",
+          sizeBytes: 0,
+          updatedAt: "Baru saja",
+          updatedAtISO: new Date().toISOString(),
+          parentId: currentFolderId,
+        }));
+        const folderIdByGroup = new Map(groups.map((group, index) => [group.key, created[index].id]));
+
+        setLocalItems((prev) => {
+          const moved = prev.map((item) => {
+            const group = groups.find((candidate) =>
+              candidate.items.some((selected) => selected.id === item.id)
+            );
+            return group ? { ...item, parentId: folderIdByGroup.get(group.key) } : item;
+          });
+          return [...created, ...moved];
+        });
+      }
+
+      setSmartFolderOpen(false);
+      selection.clear();
+      setLibraryNotice(`${items.length} item dikelompokkan ke ${groups.length} folder.`);
+    } catch (err) {
+      alert(`Gagal mengelompokkan: ${(err as Error).message}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkAction = async (action: FileAction) => {
+    const items = selectedItems;
+    if (items.length === 0) return;
+
+    if (action.id === "delete") {
+      await handleBulkDelete(items);
+      return;
+    }
+    if (action.id === "move") {
+      openMoveModal(items);
+      return;
+    }
+    if (action.id === "download") {
+      items.forEach((item) => handleDownload(item));
+      selection.clear();
+      return;
+    }
+    if (action.id === "newfolder") {
+      await handleCreateFolderFromSelection(items);
+      return;
+    }
+    if (action.id === "group-type") {
+      setSmartFolderMode("type");
+      setSmartFolderOpen(true);
+      return;
+    }
+    if (action.id === "group-month") {
+      setSmartFolderMode("month");
+      setSmartFolderOpen(true);
+      return;
+    }
+
+    if (!action.tool) return;
+
+    setBulkBusy(true);
+    setLibraryNotice("");
+    try {
+      if (action.tool === "img2pdf" || action.tool === "mergepdf") {
+        setBulkProgress({ current: 1, total: 1, label: action.label });
+        await processItemsWithTool(action.tool, items, {
+          download: false,
+          parentId: currentFolderId,
+        });
+      } else {
+        let failed = 0;
+        for (let index = 0; index < items.length; index += 1) {
+          setBulkProgress({ current: index + 1, total: items.length, label: action.label });
+          const ok = await processItemsWithTool(action.tool, [items[index]], {
+            download: false,
+            parentId: items[index].parentId ?? currentFolderId,
+          });
+          if (!ok) failed += 1;
+        }
+        if (failed > 0) {
+          setLibraryNotice(`${items.length - failed} berhasil, ${failed} gagal.`);
+        } else {
+          setLibraryNotice(`${items.length} berkas selesai diproses.`);
+        }
+      }
+      selection.clear();
+    } finally {
+      setBulkBusy(false);
+      setBulkProgress(null);
+    }
+  };
+
+  // Seleksi tidak boleh terbawa saat pindah folder atau tab.
+  useEffect(() => {
+    selection.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentFolderId]);
+
   // Gerbang login: mode NAS wajib punya sesi; standalone tetap bebas.
   if (connectionMode === "nas" && authReady && !currentUser) {
     return (
@@ -1472,11 +1918,26 @@ export default function Home() {
               onDownload={handleDownload}
               onRename={handleRename}
               onMove={openMoveModal}
-              onShare={(item) => {
-                setShareModalFile(item);
-                setShareLinkGenerated(false);
-                setCurrentGeneratedUrl("");
-                setSharePasswordInput("");
+              onShare={openShareModal}
+              onOpenMenu={openFileActionMenu}
+              selectionMode={selection.mode}
+              selectedIds={selection.selectedIds}
+              onToggleSelect={(item, modifiers) => {
+                if (modifiers.shiftKey && selection.anchorId) {
+                  selection.selectRange(
+                    activeItems
+                      .filter((entry) => (entry.parentId || null) === currentFolderId)
+                      .map((entry) => entry.id),
+                    selection.anchorId,
+                    item.id
+                  );
+                  return;
+                }
+                selection.toggle(item.id);
+              }}
+              onToggleSelectionMode={() => {
+                if (selection.mode) selection.clear();
+                else selection.start();
               }}
             />
           )}
@@ -1503,6 +1964,24 @@ export default function Home() {
               onCategoryChange={setGalleryCategory}
               onOpen={setSelectedMedia}
               thumbnailUrl={thumbnailForItem}
+              onOpenMenu={openFileActionMenu}
+              selectionMode={selection.mode}
+              selectedIds={selection.selectedIds}
+              onToggleSelect={(item, modifiers) => {
+                if (modifiers.shiftKey && selection.anchorId) {
+                  selection.selectRange(
+                    galleryItems.map((entry) => entry.id),
+                    selection.anchorId,
+                    item.id
+                  );
+                  return;
+                }
+                selection.toggle(item.id);
+              }}
+              onToggleSelectionMode={() => {
+                if (selection.mode) selection.clear();
+                else selection.start();
+              }}
             />
           )}
 
@@ -1591,17 +2070,81 @@ export default function Home() {
       )}
 
       {/* 3b. MOVE ITEM MODAL */}
-      {moveItem && (
+      {moveItems.length > 0 && (
         <MoveItemModal
-          item={moveItem}
+          items={moveItems}
           crumbs={moveCrumbs}
           folders={moveFolders}
           loading={moveLoading}
           busy={moveBusy}
           onNavigate={handleMoveNavigate}
           onConfirm={handleConfirmMove}
-          onClose={() => setMoveItem(null)}
+          onClose={() => setMoveItems([])}
         />
+      )}
+
+      {/* 3c. MENU AKSI BERKAS */}
+      {actionMenuItem && actionMenuAnchor && (
+        <FileActionMenu
+          item={actionMenuItem}
+          actions={actionsForItem(actionMenuItem, isForeignItem(actionMenuItem))}
+          anchor={actionMenuAnchor}
+          onAction={handleFileAction}
+          onClose={closeFileActionMenu}
+        />
+      )}
+
+      {/* 3d. BAR AKSI SELEKSI BANYAK */}
+      <FileSelectionBar
+        count={selection.count}
+        actions={actionsForSelection(selectedItems, selectedItems.some(isForeignItem))}
+        busy={bulkBusy}
+        onAction={handleBulkAction}
+        onSelectAll={() => selection.selectAll(visibleSelectionIds)}
+        onClear={selection.clear}
+      />
+
+      {/* 3e. SMART FOLDER MODAL */}
+      {smartFolderOpen && (
+        <SmartFolderModal
+          mode={smartFolderMode}
+          groups={groupItems(selectedItems, smartFolderMode)}
+          busy={bulkBusy}
+          onModeChange={setSmartFolderMode}
+          onConfirm={handleConfirmAutoGroup}
+          onClose={() => setSmartFolderOpen(false)}
+        />
+      )}
+
+      {/* 3f. PROGRES & PEMBERITAHUAN AKSI BERKAS */}
+      {bulkProgress && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-32 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[12.5px] shadow-pop"
+        >
+          <span className="font-semibold text-fg">{bulkProgress.label}</span>{" "}
+          <span className="tabular-nums text-muted">
+            {bulkProgress.current}/{bulkProgress.total}
+          </span>
+        </div>
+      )}
+
+      {libraryNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 left-1/2 z-50 flex max-w-[92vw] -translate-x-1/2 items-center gap-3 rounded-xl border border-success-border bg-success-soft px-4 py-2.5 text-[12.5px] text-success shadow-pop lg:bottom-6"
+        >
+          <span className="min-w-0">{libraryNotice}</span>
+          <button
+            type="button"
+            onClick={() => setLibraryNotice("")}
+            className="shrink-0 font-semibold underline"
+          >
+            Tutup
+          </button>
+        </div>
       )}
 
       {/* 4. SHARE LINK MODAL */}

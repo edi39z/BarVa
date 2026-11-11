@@ -10,6 +10,8 @@ export interface DisplayItem {
   sizeStr: string;
   sizeBytes: number;
   updatedAt: string;
+  /** Waktu asli dalam ISO, dipakai untuk pengelompokan per bulan. */
+  updatedAtISO?: string;
   parentId?: string | null;
   ownerId?: string | null;
   sha256?: string;
@@ -89,6 +91,7 @@ export function nasNodeToDisplay(node: NasFileNode): DisplayItem {
           year: "numeric",
         })
       : "—",
+    updatedAtISO: timestamp || undefined,
     parentId: node.ParentID,
     ownerId: node.OwnerID,
   };
