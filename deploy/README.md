@@ -100,6 +100,110 @@ Setelah pulih, kembali ke jalur utama dengan `git switch main`.
 > maju, jadi rollback kode harus tetap kompatibel dengan skema terbaru. Untuk
 > perubahan yang mengubah skema, siapkan rencana data sebelum deploy.
 
+## Perawatan disk
+
+Docker menyimpan image, layer build, dan volume di satu direktori `data-root`.
+Kalau direktori itu berada di partisi sistem yang kecil, build bisa gagal dengan
+`no space left on device` walaupun data aplikasi ada di disk lain.
+
+### Cek pemakaian
+
+```bash
+docker system df          # ringkasan per jenis
+docker system df -v       # rincian per image dan volume
+df -h /var/lib/docker     # ruang nyata (sesuaikan dengan data-root)
+```
+
+Pada `docker system df`, kolom **RECLAIMABLE** adalah ruang yang bisa dibebaskan.
+Angka besar di **Images** dengan **ACTIVE** kecil berarti ada banyak versi lama
+yang masih ber-tag.
+
+### Urutan pembersihan yang aman
+
+**1. Build cache** — tidak menyentuh container, aman dijalankan saat jam pakai:
+
+```bash
+docker builder prune -f
+```
+
+Efek sampingnya hanya build berikutnya berjalan dari nol, lalu cache terisi lagi.
+
+**2. Image dangling** (tanpa tag):
+
+```bash
+docker image prune -f
+```
+
+Sering hanya membebaskan sedikit karena layer image dangling biasanya masih
+dipakai image lain.
+
+**3. Image versi lama yang ber-tag** — pilih manual, jangan borongan:
+
+```bash
+docker images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' | sort
+docker rmi <repo>:<tag-lama>
+```
+
+Sisakan tag yang sedang berjalan dan satu versi sebelumnya untuk rollback.
+
+### Yang jangan dijalankan
+
+- `docker volume prune` atau `docker system prune --volumes` — menghapus volume
+  yang tidak terpasang ke container. Bila container sedang mati, volume
+  `*_pgdata` (database) ikut terhapus dan datanya hilang permanen.
+- `docker compose down -v` — menghapus volume stack.
+- `docker image prune -a` — menghapus **semua** image yang tidak sedang dipakai
+  container, termasuk versi lama untuk rollback dan image dasar build
+  (`node:20-alpine`, `python:3.10-slim`).
+
+### Bila ruang tidak turun setelah image dihapus
+
+Layer yang sebelumnya dipakai image bisa masih dipegang build cache, sehingga
+`docker system df` menandainya reclaimable tetapi disk belum berubah. Jalankan
+`docker builder prune -f` sekali lagi; setelah itu ruangnya benar-benar bebas.
+
+### Memindahkan data-root ke disk lain
+
+Bila disk sistem terlalu kecil, arahkan Docker ke disk data lewat
+`/etc/docker/daemon.json`:
+
+```json
+{
+  "data-root": "/mnt/barva/docker"
+}
+```
+
+Lalu salin isinya dalam keadaan Docker berhenti:
+
+```bash
+systemctl stop docker.socket docker
+rsync -aHAX --numeric-ids /var/lib/docker/ /mnt/barva/docker/
+systemctl start docker
+```
+
+`-aHAX` mempertahankan hardlink, permission, dan xattr; tanpa itu image bisa
+gagal dibaca. Setelah Docker hidup dan semua container sehat, salinan lama di
+`/var/lib/docker` boleh dihapus.
+
+Tambahkan drop-in agar Docker tidak start dengan `data-root` kosong bila mount
+gagal:
+
+```bash
+mkdir -p /etc/systemd/system/docker.service.d
+printf '[Unit]\nRequiresMountsFor=/mnt/barva\n' \
+  > /etc/systemd/system/docker.service.d/10-mount.conf
+systemctl daemon-reload
+```
+
+Tanpa drop-in ini, mount yang gagal (misalnya `nofail` di `/etc/fstab`) membuat
+Docker membuat folder kosong di disk sistem dan seluruh container terlihat
+hilang.
+
+> Perawatan di atas berlaku untuk **seluruh Docker di server**, bukan hanya
+> Barva. Bila VM juga menjalankan stack lain, image dan cache mereka ikut
+> terpengaruh. `docker builder prune` tidak menghentikan container, tetapi
+> `systemctl stop docker` menghentikan semuanya.
+
 ## Catatan
 
 - Jangan menaruh `.env`, `docs/`, atau folder data di dalam repo.
