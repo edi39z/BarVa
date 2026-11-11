@@ -5,13 +5,17 @@ import {
   countQueuedUploads,
   enqueueUpload,
   saveLocalFile,
+  saveLocalText,
 } from "@/lib/storage/indexeddb";
 import { flushUploadQueue } from "@/lib/uploadQueue";
+import { extractFileText, indexLocalFileText } from "@/lib/storage/textIndex";
 import { fetchMe, uploadToNas, type NasUser } from "@/lib/api/nas";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
 import { formatBytes } from "@/lib/nasDisplay";
 import type { ConnectionMode } from "@/lib/types";
+
+const PLAIN_TEXT_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".csv", ".log", ".json", ".xml", ".html", ".htm"]);
 
 interface UseUploadsOptions {
   connectionMode: ConnectionMode;
@@ -185,6 +189,17 @@ export function useUploads({
         };
 
         setLocalItems((prev) => [newItem, ...prev]);
+
+        // Indeks teks untuk pencarian isi. Teks biasa diekstrak sekarang agar
+        // hasilnya langsung tersedia; PDF/DOCX di latar belakang.
+        const ext = saved.name.slice(saved.name.lastIndexOf(".")).toLowerCase();
+        if (PLAIN_TEXT_EXTENSIONS.has(ext)) {
+          const { text, supported } = await extractFileText(file);
+          if (supported) await saveLocalText(saved.id, text);
+        } else {
+          void indexLocalFileText(saved.id, file);
+        }
+
         setTimeout(() => {
           setIsUploading(false);
         }, 400);

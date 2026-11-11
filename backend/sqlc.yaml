@@ -4,6 +4,7 @@ sql:
     schema:
       - "../migrations/000001_init_schema.up.sql"
       - "../migrations/000002_user_quota.up.sql"
+      - "../migrations/000003_search_text.up.sql"
     queries: "db/queries"
     gen:
       go:

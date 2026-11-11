@@ -19,21 +19,23 @@ janji tanggal.
 | **Migrasi otomatis** | Runner di backend menerapkan `migrations/*.up.sql` saat start, mencatat di `schema_migrations`, baseline untuk DB lama |
 | **Deduplikasi** | SHA-256 per objek; berkas identik tidak menambah pemakaian disk |
 | **Share link** | Token acak, password opsional, masa berlaku, halaman publik yang mengunduh dari server; folder bisa diunduh sebagai zip streaming |
+| **Pencarian isi** | Ekstraksi teks PDF/DOCX/teks biasa di server (`internal/textextract`), indeks `file_texts` + GIN `pg_trgm`, endpoint `GET /search` lintas folder dengan snippet dan folder asal (min. 3 karakter), backfill 15 menit untuk berkas lama, serta indeks teks IndexedDB untuk mode standalone |
 | **Keluarga** | Undangan dengan token ter-hash, status undangan, penerima membuat akun nyata dengan role & kuota dari undangan |
 | **Kuota** | `users.quota_bytes` ditegakkan saat upload (`413 QUOTA_EXCEEDED`), dihitung per objek unik, dedup tidak dihitung dua kali; pemakaian tampil di sidebar; owner/admin dapat mengubah kuota anggota dari Family Hub (`PATCH /family/members/:id/quota`) dengan penjagaan `409 QUOTA_BELOW_USAGE`; rincian per jenis berkas dan per folder tersedia di modal pengaturan akun (`GET /auth/me/usage`) |
 | **Google Drive** | OAuth 2.0, refresh token di server, kuota, jelajah folder, unggah, unduh lewat server |
 | **Hardening** | CORS whitelist, admin key wajib di mode release, batas ukuran unggah, MIME dari isi berkas, validasi folder induk, rate limit login & password share |
 | **Deploy** | Dockerfile multi-stage, docker-compose, unit systemd, konfigurasi Nginx |
-| **Struktur frontend** | Seluruh tab, sidebar, header, dan modal ada di `src/components/*`; kelompok state besar di `src/hooks/*` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`, `useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useFileSelection`) sehingga `page.tsx` tinggal komposisi (±930 baris) |
+| **Struktur frontend** | Seluruh tab, sidebar, header, dan modal ada di `src/components/*`; kelompok state besar di `src/hooks/*` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`, `useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useContentSearch`, `useFileSelection`) sehingga `page.tsx` tinggal komposisi (±930 baris) |
 
 ---
 
 ## Berikutnya
 
-### 1. Pencarian isi dokumen
+### 1. Penyimpanan sekunder (S3-compatible)
 
-Pencarian saat ini hanya mencocokkan nama berkas di folder aktif. Pencarian isi
-dokumen membutuhkan ekstraksi teks di server dan indeks tambahan.
+Disk lokal adalah satu-satunya `StorageProvider`. Menambah backend S3-compatible
+memungkinkan objek CAS dipindah atau dicadangkan ke bucket tanpa mengubah
+handler.
 
 ---
 
@@ -42,7 +44,6 @@ dokumen membutuhkan ekstraksi teks di server dan indeks tambahan.
 - Aplikasi pendamping untuk sinkronisasi otomatis kamera
 - Transkode video di server (thumbnail gambar sudah ada)
 - Dukungan penyimpanan sekunder (S3-compatible)
-- Pencarian isi dokumen
 - Pemrosesan gambar di server (resize, konversi) selain yang sudah ada di browser
 
 ---

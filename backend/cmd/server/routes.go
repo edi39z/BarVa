@@ -155,6 +155,7 @@ func newRouter(cfg routerConfig) *gin.Engine {
 			// File manager & media streaming.
 			protected.GET("/files", cfg.files.List)
 			protected.GET("/media", cfg.files.ListMedia)
+			protected.GET("/search", cfg.files.SearchContent)
 			protected.POST("/files/folder", cfg.files.CreateFolder)
 			protected.POST("/files/upload", cfg.files.Upload)
 			protected.DELETE("/files/:id", cfg.files.SoftDelete)

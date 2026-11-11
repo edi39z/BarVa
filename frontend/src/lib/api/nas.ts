@@ -255,6 +255,20 @@ export async function listNasFiles(parentId?: string | null): Promise<NasFileNod
   return json.data ?? [];
 }
 
+/** Hasil pencarian isi dokumen; membawa potongan teks dan nama folder asal. */
+export interface NasSearchResult extends NasFileNode {
+  ParentName: string;
+  Snippet: string;
+}
+
+export async function searchNasContent(query: string, signal?: AbortSignal): Promise<NasSearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  const res = await nasFetch(`/api/v1/search?${params.toString()}`, { signal });
+  if (!res.ok) throw new Error(await parseError(res));
+  const json = (await res.json()) as { data: NasSearchResult[] | null };
+  return json.data ?? [];
+}
+
 /**
  * Seluruh foto & video lintas folder. Galeri memakai ini agar media di
  * subfolder tetap terlihat, bukan hanya isi folder yang sedang dibuka.

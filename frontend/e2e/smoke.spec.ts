@@ -284,6 +284,50 @@ test.describe("navigasi tab mode standalone", () => {
   });
 });
 
+test.describe("pencarian isi dokumen", () => {
+  // Isi berkas sengaja memuat kata yang tidak ada di namanya, supaya tes
+  // membuktikan pencarian menelusuri teks dan bukan nama berkas.
+  const NOTES = [
+    "Catatan belanja keluarga",
+    "",
+    "Beli makanan kucing oranye di pasar minggu pagi.",
+    "Jangan lupa vitamin dan pasir wangi.",
+  ].join("\n");
+
+  test("mode standalone menemukan kata di dalam berkas teks", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: SKIP_STANDALONE }).click();
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name: "catatan-belanja.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from(NOTES),
+    });
+
+    const card = page.locator("article").filter({ hasText: "catatan-belanja.txt" }).first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Isi", exact: true }).click();
+
+    const search = page.getByLabel("Cari berkas, foto, atau dokumen");
+    await search.fill("ku");
+    await expect(
+      page.getByText("Ketik minimal 3 karakter untuk mencari di isi dokumen.")
+    ).toBeVisible();
+
+    await search.fill("kucing oranye");
+    await expect(page.getByText("Hasil pencarian isi")).toBeVisible();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card).toContainText("Beli makanan kucing oranye di pasar minggu pagi.");
+    await expect(card.getByText("Semua File")).toBeVisible();
+
+    // Kata yang tidak ada di isi dokumen tidak menghasilkan apa pun.
+    await search.fill("dinosaurus");
+    await expect(page.getByText("Tidak ada dokumen yang cocok")).toBeVisible();
+  });
+});
+
 test.describe("tema terang & gelap", () => {
   test("tombol tema mengganti mode dan pilihan tersimpan setelah muat ulang", async ({ page }) => {
     await page.goto("/");

@@ -77,6 +77,10 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
   arsip zip yang dialirkan langsung tanpa file sementara
 - RBAC berbasis role: `member` hanya menyentuh berkasnya sendiri, `owner`/`admin`
   bisa melihat dan mengelola berkas semua anggota (ditandai di UI)
+- Pencarian isi dokumen lintas folder: teks PDF, DOCX, dan berkas teks diekstrak
+  di server lalu diindeks (`file_texts` + GIN trigram), hasil menampilkan
+  potongan kalimat dan folder asal. Mode standalone memakai indeks teks sendiri
+  di IndexedDB dengan ekstraksi di browser
 - PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
   profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
 - Studio foto & dokumen yang berjalan penuh di perangkat: foto→PDF, gabung PDF,
@@ -306,6 +310,7 @@ Base URL: `http://localhost:8080/api/v1`
 |---|---|---|
 | Auth | `/auth/*` | Publik (kecuali `/auth/me` dan `/auth/me/usage`) |
 | File manager | `/files/*` | Bearer token |
+| Pencarian isi | `/search` | Bearer token |
 | Shares | `/shares/*` | Bearer token |
 | Share publik | `/public/share/:token` | Publik |
 | Family | `/family/*` | Bearer token |
@@ -391,8 +396,8 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 - **Jangan edit `backend/internal/db/*.go`** — itu hasil generate sqlc. Ubah
   `backend/db/queries/*.sql`, lalu jalankan `sqlc generate`.
-- Tambahkan migrasi baru sebagai `migrations/000003_*.up.sql`. **Jangan** mengubah
-  migrasi yang sudah pernah dijalankan.
+- Tambahkan migrasi baru sebagai berkas `migrations/0000NN_*.up.sql` berikutnya.
+  **Jangan** mengubah migrasi yang sudah pernah dijalankan.
 - Setiap endpoint baru yang menyentuh data pengguna wajib lewat `AuthMiddleware`
   dan memakai helper otorisasi di `backend/internal/handler/access.go`.
   Endpoint admin wajib lewat `AdminKeyMiddleware`.
@@ -403,7 +408,7 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
+1. Dukungan penyimpanan sekunder (S3-compatible) di samping disk lokal.
 2. Merapikan `eslint-disable` yang tersisa dan menjalankan Prettier massal
    setelah struktur frontend stabil.
 

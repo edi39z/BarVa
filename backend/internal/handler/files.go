@@ -10,20 +10,29 @@ import (
 	"nas-backend/internal/storage"
 )
 
+// TextIndexer menjadwalkan ekstraksi teks untuk satu objek CAS. Dipisah
+// sebagai interface agar handler tidak bergantung pada paket worker.
+type TextIndexer interface {
+	EnqueueText(objectID pgtype.UUID, path, name string) bool
+}
+
 // FilesHandler melayani seluruh operasi berkas: daftar, unggah, unduh,
-// ganti nama, pindah, dan hapus. Handler dipecah per tanggung jawab:
+// ganti nama, pindah, hapus, dan pencarian isi. Handler dipecah per
+// tanggung jawab:
 //   - files.go          — struct, konstruktor, dan resolusi folder induk
 //   - files_query.go    — daftar, unduh, stream
 //   - files_upload.go   — unggah, kuota, pembersihan objek yatim
 //   - files_mutation.go — buat folder, ganti nama, pindah, hapus
+//   - files_search.go   — pencarian isi dokumen
 type FilesHandler struct {
 	queries  *db.Queries
 	storage  storage.StorageProvider
 	tempDir  string
 	thumbDir string
+	indexer  TextIndexer
 }
 
-func NewFilesHandler(queries *db.Queries, store storage.StorageProvider, tempDir, thumbDir string) *FilesHandler {
+func NewFilesHandler(queries *db.Queries, store storage.StorageProvider, tempDir, thumbDir string, indexer TextIndexer) *FilesHandler {
 	_ = os.MkdirAll(tempDir, 0755)
 	_ = os.MkdirAll(thumbDir, 0755)
 	return &FilesHandler{
@@ -31,6 +40,7 @@ func NewFilesHandler(queries *db.Queries, store storage.StorageProvider, tempDir
 		storage:  store,
 		tempDir:  tempDir,
 		thumbDir: thumbDir,
+		indexer:  indexer,
 	}
 }
 

@@ -21,6 +21,7 @@ import {
   MoreVertical,
   Pencil,
   RefreshCw,
+  Search,
   Share2,
   ShieldCheck,
   Trash2,
@@ -70,6 +71,18 @@ interface FileExplorerTabProps {
   selectedIds: string[];
   onToggleSelect: (item: DisplayItem, modifiers: SelectModifiers) => void;
   onToggleSelectionMode: () => void;
+  /** Cakupan pencarian: nama berkas di folder aktif, atau isi dokumen lintas folder. */
+  searchScope: "name" | "content";
+  onSearchScopeChange: (scope: "name" | "content") => void;
+  /** Saat true, `items` adalah hasil pencarian isi dan tidak difilter folder. */
+  resultsMode: boolean;
+  searching: boolean;
+  /** Potongan teks per id berkas, hanya di mode hasil. */
+  snippets: Record<string, string>;
+  /** Nama folder asal per id berkas, hanya di mode hasil. */
+  folderNames: Record<string, string>;
+  /** Petunjuk atau pesan error pencarian isi. */
+  searchNotice: string;
 }
 
 function FileTypeIcon({ type, className = "h-4 w-4" }: { type: DisplayItem["type"]; className?: string }) {
@@ -127,15 +140,25 @@ export default function FileExplorerTab({
   selectedIds,
   onToggleSelect,
   onToggleSelectionMode,
+  searchScope,
+  onSearchScopeChange,
+  resultsMode,
+  searching,
+  snippets,
+  folderNames,
+  searchNotice,
 }: FileExplorerTabProps) {
-  const currentItems = items.filter((f) => (f.parentId || null) === currentFolderId);
-  const currentFolders = currentItems.filter((f) => f.type === "folder");
+  const currentItems = resultsMode
+    ? items
+    : items.filter((f) => (f.parentId || null) === currentFolderId);
+  const currentFolders = resultsMode ? [] : currentItems.filter((f) => f.type === "folder");
   const currentFiles = currentItems.filter((f) => f.type !== "folder");
 
   const pressedItem = React.useRef<DisplayItem | null>(null);
   // Tekan lama memilih item dan menyalakan mode pilih, seperti galeri ponsel.
   // Menu aksi tetap terbuka lewat klik kanan atau tombol ⋮.
   const longPress = useLongPress(() => {
+    if (resultsMode) return;
     const item = pressedItem.current;
     if (!item || selectedIds.includes(item.id)) return;
     onToggleSelect(item, {});
@@ -208,6 +231,7 @@ export default function FileExplorerTab({
 
       {/* Sumber penyimpanan + pilihan tampilan */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
         <div
           className="flex w-fit items-center gap-1 rounded-xl border border-line bg-surface p-1 text-[12.5px]"
           role="group"
@@ -240,15 +264,44 @@ export default function FileExplorerTab({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 self-start">
+        <div
+          className="flex w-fit items-center gap-1 rounded-xl border border-line bg-surface p-1 text-[12.5px]"
+          role="group"
+          aria-label="Cakupan pencarian"
+        >
           <button
-            type="button"
-            onClick={onToggleSelectionMode}
-            aria-pressed={selectionMode}
-            className={`btn btn-sm ${selectionMode ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => onSearchScopeChange("name")}
+            aria-pressed={searchScope === "name"}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+              searchScope === "name" ? "bg-brand-soft text-brand" : "text-muted hover:text-fg"
+            }`}
           >
-            {selectionMode ? "Selesai" : "Pilih"}
+            Nama
           </button>
+          <button
+            onClick={() => onSearchScopeChange("content")}
+            aria-pressed={searchScope === "content"}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+              searchScope === "content" ? "bg-brand-soft text-brand" : "text-muted hover:text-fg"
+            }`}
+          >
+            <Search className="h-3.5 w-3.5" aria-hidden />
+            Isi
+          </button>
+        </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start">
+          {!resultsMode && (
+            <button
+              type="button"
+              onClick={onToggleSelectionMode}
+              aria-pressed={selectionMode}
+              className={`btn btn-sm ${selectionMode ? "btn-primary" : "btn-secondary"}`}
+            >
+              {selectionMode ? "Selesai" : "Pilih"}
+            </button>
+          )}
           <div className="flex items-center gap-1 rounded-xl border border-line bg-surface p-1">
             <button
               onClick={() => onViewModeChange("grid")}
@@ -272,7 +325,18 @@ export default function FileExplorerTab({
         </div>
       </div>
 
-      {/* Lokasi folder saat ini */}
+      {/* Lokasi folder atau ringkasan hasil pencarian isi */}
+      {resultsMode ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2.5">
+          <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-fg">
+            <Search className="h-4 w-4 text-brand" aria-hidden />
+            Hasil pencarian isi
+          </span>
+          <span className="text-[11.5px] text-subtle">
+            {searching ? "Mencari…" : `${currentFiles.length} dokumen cocok`}
+          </span>
+        </div>
+      ) : (
       <nav
         aria-label="Lokasi folder"
         className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2.5"
@@ -308,6 +372,16 @@ export default function FileExplorerTab({
           {currentItems.length} item di folder ini
         </span>
       </nav>
+      )}
+
+      {searchNotice && (
+        <p
+          role="status"
+          className="rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-[12.5px] text-muted"
+        >
+          {searchNotice}
+        </p>
+      )}
 
       {connectionMode === "nas" && (nasFilesLoading || nasFilesError) && (
         <div
@@ -444,13 +518,25 @@ export default function FileExplorerTab({
 
         {currentFiles.length === 0 && currentFolders.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line-strong bg-surface px-4 py-14 text-center">
-            <Folder className="h-10 w-10 text-subtle" aria-hidden />
-            <p className="text-[13.5px] font-semibold text-fg">Folder ini masih kosong</p>
-            <p className="max-w-sm text-[12px] leading-relaxed text-subtle">
-              Gunakan tombol <strong className="font-semibold text-muted">Unggah Berkas</strong> atau{" "}
-              <strong className="font-semibold text-muted">Folder Baru</strong> di kanan atas untuk
-              mulai mengisi.
-            </p>
+            {resultsMode ? (
+              <>
+                <Search className="h-10 w-10 text-subtle" aria-hidden />
+                <p className="text-[13.5px] font-semibold text-fg">Tidak ada dokumen yang cocok</p>
+                <p className="max-w-sm text-[12px] leading-relaxed text-subtle">
+                  Coba kata lain, atau pastikan dokumen sudah selesai diindeks.
+                </p>
+              </>
+            ) : (
+              <>
+                <Folder className="h-10 w-10 text-subtle" aria-hidden />
+                <p className="text-[13.5px] font-semibold text-fg">Folder ini masih kosong</p>
+                <p className="max-w-sm text-[12px] leading-relaxed text-subtle">
+                  Gunakan tombol <strong className="font-semibold text-muted">Unggah Berkas</strong> atau{" "}
+                  <strong className="font-semibold text-muted">Folder Baru</strong> di kanan atas untuk
+                  mulai mengisi.
+                </p>
+              </>
+            )}
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -575,7 +661,19 @@ export default function FileExplorerTab({
                     <p className="mt-0.5 text-[11.5px] text-subtle">
                       {file.sizeStr} · {file.updatedAt}
                     </p>
+                    {resultsMode && snippets[file.id] && (
+                      <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-muted">
+                        {snippets[file.id]}
+                      </p>
+                    )}
                   </button>
+
+                  {resultsMode && (
+                    <span className="chip chip-neutral mt-1.5 w-fit">
+                      <Folder className="h-2.5 w-2.5" aria-hidden />
+                      {folderNames[file.id] || "Semua File"}
+                    </span>
+                  )}
 
                   {isForeign(file) && (
                     <span className="chip chip-warn mt-1.5 w-fit">
@@ -639,7 +737,17 @@ export default function FileExplorerTab({
                         <button onClick={(event) => activate(file, event)} className="flex items-center gap-2 text-left">
                           {selectionMode && <SelectionBox checked={selected} />}
                           <FileTypeIcon type={file.type} />
-                          <span className="max-w-[14rem] truncate font-medium text-fg">{file.name}</span>
+                          <span className="min-w-0">
+                            <span className="block max-w-[14rem] truncate font-medium text-fg">{file.name}</span>
+                            {resultsMode && snippets[file.id] && (
+                              <span className="mt-0.5 block max-w-[20rem] truncate text-[11px] text-muted">
+                                {snippets[file.id]}
+                              </span>
+                            )}
+                          </span>
+                          {resultsMode && (
+                            <span className="chip chip-neutral">{folderNames[file.id] || "Semua File"}</span>
+                          )}
                           {isForeign(file) && <span className="chip chip-warn">Milik anggota lain</span>}
                         </button>
                       </td>

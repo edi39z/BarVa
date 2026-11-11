@@ -29,6 +29,14 @@ type FileObject struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type FileText struct {
+	ObjectID    pgtype.UUID
+	Content     string
+	Supported   bool
+	SourceName  string
+	ExtractedAt pgtype.Timestamptz
+}
+
 type Session struct {
 	ID        pgtype.UUID
 	UserID    pgtype.UUID

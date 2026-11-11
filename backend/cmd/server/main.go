@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"nas-backend/internal/db"
 	"nas-backend/internal/handler"
+	"nas-backend/internal/indexer"
 	"nas-backend/internal/migrate"
 	"nas-backend/internal/storage"
 )
@@ -128,6 +129,13 @@ func main() {
 	var queries *db.Queries
 	dbAvailable := false
 
+	// Worker latar belakang; dibatalkan eksplisit sebelum pool ditutup.
+	var (
+		textIndexer *indexer.Indexer
+		indexCancel context.CancelFunc
+		pruneCancel context.CancelFunc
+	)
+
 	if err != nil {
 		log.Printf("[Barva] Peringatan: Tidak dapat terhubung ke PostgreSQL (%v). Menjalankan mode storage-only.", err)
 	} else if pingErr := pool.Ping(ctx); pingErr != nil {
@@ -155,9 +163,16 @@ func main() {
 
 		// Pembersihan sesi berjalan di latar belakang; kegagalannya tidak
 		// boleh menahan atau mematikan server.
-		pruneCtx, pruneCancel := context.WithCancel(context.Background())
-		defer pruneCancel()
+		pruneCtx, stopPrune := context.WithCancel(context.Background())
+		pruneCancel = stopPrune
 		go pruneExpiredSessions(pruneCtx, queries)
+
+		// Indeks teks dokumen: mengekstrak berkas baru dan menyapu objek lama
+		// secara berkala. Dibatalkan sebelum pool ditutup.
+		indexCtx, stopIndex := context.WithCancel(context.Background())
+		indexCancel = stopIndex
+		textIndexer = indexer.New(queries, 2)
+		textIndexer.Start(indexCtx)
 	}
 
 	// 3. Fitur yang TIDAK bergantung pada PostgreSQL: Google Drive OAuth dan
@@ -185,7 +200,7 @@ func main() {
 	}
 	if dbAvailable && queries != nil {
 		cfg.auth = handler.NewAuthHandler(queries, inviteHandler)
-		cfg.files = handler.NewFilesHandler(queries, store, tempDir, thumbDir)
+		cfg.files = handler.NewFilesHandler(queries, store, tempDir, thumbDir, textIndexer)
 		cfg.shares = handler.NewSharesHandler(queries)
 		cfg.family = handler.NewFamilyHandler(queries)
 		cfg.usage = handler.NewUsageHandler(queries)
@@ -227,6 +242,19 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Server shutdown terpaksa: %v", err)
+	}
+
+	// Hentikan worker sebelum pool ditutup supaya tidak ada query ke pool
+	// yang sudah tertutup. Backfill akan menyelesaikan sisa pekerjaan saat
+	// start berikutnya.
+	if indexCancel != nil {
+		indexCancel()
+	}
+	if textIndexer != nil && !textIndexer.Wait(10*time.Second) {
+		log.Println("[indexer] masih menyelesaikan satu berkas; sisanya diambil backfill saat start berikutnya.")
+	}
+	if pruneCancel != nil {
+		pruneCancel()
 	}
 
 	if pool != nil {
