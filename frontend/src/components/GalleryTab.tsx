@@ -1,9 +1,11 @@
 "use client";
 
 import React from "react";
-import { Heart, Image as ImageIcon, Play } from "lucide-react";
+import { Check, Heart, Image as ImageIcon, Play } from "lucide-react";
 import type { DisplayItem } from "@/lib/nasDisplay";
 import ThumbnailImage from "@/components/ThumbnailImage";
+import { useLongPress, type LongPressPoint } from "@/hooks/useLongPress";
+import type { SelectModifiers } from "@/hooks/useFileSelection";
 
 export type GalleryCategory = "all" | "image" | "video" | "favorite";
 
@@ -14,6 +16,11 @@ interface GalleryTabProps {
   onOpen: (item: DisplayItem) => void;
   /** URL pratinjau server; null bila item tidak punya pratinjau. */
   thumbnailUrl: (item: DisplayItem) => string | null;
+  onOpenMenu: (item: DisplayItem, anchor: LongPressPoint) => void;
+  selectionMode: boolean;
+  selectedIds: string[];
+  onToggleSelect: (item: DisplayItem, modifiers: SelectModifiers) => void;
+  onToggleSelectionMode: () => void;
 }
 
 const CATEGORY_FILTERS: Record<GalleryCategory, (item: DisplayItem) => boolean> = {
@@ -36,8 +43,43 @@ export default function GalleryTab({
   onCategoryChange,
   onOpen,
   thumbnailUrl,
+  onOpenMenu,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectionMode,
 }: GalleryTabProps) {
   const visible = items.filter(CATEGORY_FILTERS[category]);
+
+  const pressedItem = React.useRef<DisplayItem | null>(null);
+  const longPress = useLongPress((point) => {
+    const item = pressedItem.current;
+    if (item) onOpenMenu(item, point);
+  });
+
+  const pressProps = (item: DisplayItem) => ({
+    onPointerDown: (event: React.PointerEvent) => {
+      pressedItem.current = item;
+      longPress.onPointerDown(event);
+    },
+    onPointerMove: longPress.onPointerMove,
+    onPointerUp: longPress.onPointerUp,
+    onPointerLeave: longPress.onPointerLeave,
+    onPointerCancel: longPress.onPointerCancel,
+  });
+
+  const activate = (item: DisplayItem, event: React.MouseEvent) => {
+    if (longPress.consumeLongPress()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (selectionMode) {
+      onToggleSelect(item, event);
+      return;
+    }
+    onOpen(item);
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 pb-24 lg:pb-6">
@@ -45,35 +87,45 @@ export default function GalleryTab({
         <div>
           <h1 className="text-[17px] font-bold text-fg">Galeri Foto & Video</h1>
           <p className="mt-0.5 text-[12.5px] text-subtle">
-            {visible.length} media · ketuk salah satu untuk melihat ukuran penuh
+            {visible.length} media · ketuk untuk melihat, klik kanan atau tekan lama untuk aksi
           </p>
         </div>
 
-        <div
-          className="flex w-fit items-center gap-1 rounded-xl border border-line bg-surface p-1 text-[12.5px]"
-          role="group"
-          aria-label="Saring galeri"
-        >
-          {FILTERS.map(({ id, label, icon: Icon }) => {
-            const active = category === id;
-            return (
-              <button
-                key={id}
-                onClick={() => onCategoryChange(id)}
-                aria-pressed={active}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-                  active
-                    ? id === "favorite"
-                      ? "bg-danger-soft text-danger"
-                      : "bg-brand-soft text-brand"
-                    : "text-muted hover:text-fg"
-                }`}
-              >
-                {Icon && <Icon className="h-3.5 w-3.5" aria-hidden />}
-                {label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleSelectionMode}
+            aria-pressed={selectionMode}
+            className={`btn btn-sm ${selectionMode ? "btn-primary" : "btn-secondary"}`}
+          >
+            {selectionMode ? "Selesai" : "Pilih"}
+          </button>
+          <div
+            className="flex w-fit items-center gap-1 rounded-xl border border-line bg-surface p-1 text-[12.5px]"
+            role="group"
+            aria-label="Saring galeri"
+          >
+            {FILTERS.map(({ id, label, icon: Icon }) => {
+              const active = category === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => onCategoryChange(id)}
+                  aria-pressed={active}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+                    active
+                      ? id === "favorite"
+                        ? "bg-danger-soft text-danger"
+                        : "bg-brand-soft text-brand"
+                      : "text-muted hover:text-fg"
+                  }`}
+                >
+                  {Icon && <Icon className="h-3.5 w-3.5" aria-hidden />}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -91,50 +143,93 @@ export default function GalleryTab({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {visible.map((photo) => (
-            <button
-              key={photo.id}
-              onClick={() => onOpen(photo)}
-              className="group relative aspect-square overflow-hidden rounded-xl border border-line bg-surface-2 text-left"
-              aria-label={`Buka ${photo.name}`}
-            >
-              <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-surface-2 to-surface-3 p-3 text-center">
-                {photo.type === "video" ? (
-                  <Play className="h-7 w-7 text-brand" aria-hidden />
-                ) : (
-                  <ImageIcon className="h-7 w-7 text-subtle" aria-hidden />
-                )}
-                <span className="line-clamp-1 text-[11.5px] font-medium text-muted">{photo.name}</span>
-                <span className="text-[10.5px] text-subtle">{photo.sizeStr}</span>
-              </span>
-
-              <ThumbnailImage
-                blob={photo.blob}
-                src={thumbnailUrl(photo)}
-                alt={photo.name}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-
-              {photo.type === "video" && (
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm">
-                    <Play className="ml-0.5 h-5 w-5" aria-hidden />
-                  </span>
+          {visible.map((photo) => {
+            const selected = selectedIds.includes(photo.id);
+            return (
+              <div
+                key={photo.id}
+                role="button"
+                tabIndex={0}
+                {...pressProps(photo)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onOpenMenu(photo, { x: event.clientX, y: event.clientY });
+                }}
+                onClick={(event) => activate(photo, event)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    if (selectionMode) {
+                      onToggleSelect(photo, event);
+                    } else {
+                      onOpen(photo);
+                    }
+                  }
+                }}
+                className={`group relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-surface-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${
+                  selected ? "border-brand-border ring-2 ring-brand/40" : "border-line"
+                }`}
+                aria-label={`Buka ${photo.name}`}
+                aria-pressed={selectionMode ? selected : undefined}
+              >
+                <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-surface-2 to-surface-3 p-3 text-center">
+                  {photo.type === "video" ? (
+                    <Play className="h-7 w-7 text-brand" aria-hidden />
+                  ) : (
+                    <ImageIcon className="h-7 w-7 text-subtle" aria-hidden />
+                  )}
+                  <span className="line-clamp-1 text-[11.5px] font-medium text-muted">{photo.name}</span>
+                  <span className="text-[10.5px] text-subtle">{photo.sizeStr}</span>
                 </span>
-              )}
 
-              <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-2 pb-1.5 pt-6">
-                <span className="line-clamp-1 text-[11px] font-medium text-white">{photo.name}</span>
-              </span>
-
-              {photo.isFavorite && (
-                <Heart
-                  className="absolute right-2 top-2 h-4 w-4 fill-white text-white drop-shadow"
-                  aria-label="Favorit"
+                <ThumbnailImage
+                  blob={photo.blob}
+                  src={thumbnailUrl(photo)}
+                  alt={photo.name}
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
-              )}
-            </button>
-          ))}
+
+                {photo.type === "video" && (
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm">
+                      <Play className="ml-0.5 h-5 w-5" aria-hidden />
+                    </span>
+                  </span>
+                )}
+
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-2 pb-1.5 pt-6">
+                  <span className="line-clamp-1 text-[11px] font-medium text-white">{photo.name}</span>
+                </span>
+
+                {photo.isFavorite && (
+                  <Heart
+                    className="pointer-events-none absolute right-2 top-2 h-4 w-4 fill-white text-white drop-shadow"
+                    aria-label="Favorit"
+                  />
+                )}
+
+                {selectionMode && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onToggleSelect(photo, event);
+                    }}
+                    className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border-2 transition-colors ${
+                      selected
+                        ? "border-brand bg-brand text-white"
+                        : "border-white/80 bg-black/30 text-transparent"
+                    }`}
+                    aria-pressed={selected}
+                    aria-label={selected ? `Batalkan pilihan ${photo.name}` : `Pilih ${photo.name}`}
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

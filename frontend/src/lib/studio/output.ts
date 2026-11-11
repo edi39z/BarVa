@@ -76,6 +76,7 @@ export async function persistStudioOutput(
     sizeBytes: output.blob.size,
     dimensions: output.dimensions,
     updatedAt: "Baru saja (Studio)",
+    updatedAtISO: new Date().toISOString(),
     parentId,
     blob: output.blob,
   };

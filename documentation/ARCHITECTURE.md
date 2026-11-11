@@ -347,9 +347,12 @@ menyusun komponen. Semua tampilan besar sudah dipisah ke `src/components/`.
 | `Sidebar` | Indikator mode/server, navigasi tab, penghitung item, ringkasan penyimpanan, kartu pengguna, logout |
 | `WorkspaceHeader` | Pencarian, aksi unggah/folder baru, banner offline dan progres unggah |
 | `HomeDashboard` | Hero, pintasan kategori, memori, aksi cepat, berkas terbaru, ringkasan penyimpanan, feed status |
-| `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, banner antrean offline |
+| `FileExplorerTab` | Breadcrumb, daftar folder, grid/list berkas, aksi per item, menu klik kanan/long-press, mode pilih, banner antrean offline |
 | `TrashTab` | Tabel item terhapus, pulihkan, hapus permanen |
-| `GalleryTab` | Filter kategori dan grid media |
+| `GalleryTab` | Filter kategori, grid media, menu aksi, dan mode pilih |
+| `FileActionMenu` | Popover aksi di desktop dan bottom sheet di layar sentuh |
+| `FileSelectionBar` | Bar melayang untuk aksi banyak item saat mode pilih aktif |
+| `SmartFolderModal` | Pratinjau pengelompokan otomatis per tipe atau per bulan |
 | `StudioTab` | Delapan alat client-side (hapus latar, naikkan kualitas, kompres, pasfoto, foto→PDF, gabung PDF, PDF→Word, editor PDF) |
 | `FamilySharingTab` | Anggota, undangan pending, tautan publik, akses jarak jauh |
 | `MediaLightbox` | Pratinjau media dan metadata |
@@ -368,7 +371,31 @@ Aturan yang dipegang:
   `StoragePickerModal`, serta `page.tsx` — menambah alat baru cukup diubah di
   satu tempat itu.
 
-### 8.1 Modul Studio
+### 8.1 Menu aksi berkas
+
+Berkas dan media di galeri memakai satu menu aksi yang sama:
+
+- **Pemicu:** klik kanan (desktop), tekan lama 450 ms (sentuh), atau tombol ⋮.
+  Klik sekali tetap membuka pratinjau. Saat mode pilih aktif, klik menandai item.
+- **Definisi aksi:** `lib/files/actions.ts` — `actionsForItem` untuk satu item dan
+  `actionsForSelection` untuk banyak item. Aksi tipe-spesifik hanya muncul bila
+  semua item sejenis dan tidak ada folder di pilihan.
+- **Seleksi:** `hooks/useFileSelection.ts` menyimpan `selectedIds`, `anchorId`,
+  dan `mode`; Shift+klik memilih rentang, Ctrl/Cmd+klik menandai tanpa membuka.
+- **Tekan lama:** `hooks/useLongPress.ts` membatalkan timer bila jari bergerak
+  lebih dari 10 px, lalu menekan klik berikutnya agar item tidak ikut terbuka.
+- **Berkas NAS:** `lib/files/materialize.ts` mengunduh isi berkas lewat
+  `getDownloadUrl` dengan batas 200 MB (`MAX_PROCESS_BYTES`). Hasil olahan
+  diunggah balik ke folder asal memakai `uploadWithUniqueName` yang menambah
+  akhiran ` (2)`, ` (3)`, … bila nama bentrok.
+- **Hasil:** mode NAS diunggah ke server; mode standalone disimpan ke IndexedDB
+  lewat `persistStudioOutput`. Aksi tunggal tetap mengunduh hasilnya, aksi banyak
+  tidak (hanya menyimpan dan menampilkan ringkasan).
+- **Smart foldering:** `groupItems` mengelompokkan per tipe (Foto, Video, PDF,
+  Dokumen, Arsip) atau per bulan dari `updatedAtISO`. Folder dengan nama sama di
+  lokasi tujuan dipakai ulang, bukan dibuat ganda.
+
+### 8.2 Modul Studio
 
 | Berkas | Isi |
 |---|---|
