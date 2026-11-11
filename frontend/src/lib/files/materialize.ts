@@ -48,11 +48,12 @@ export async function itemToFile(
     });
   }
 
-  if (mode !== "nas") {
+  const targetUrl = item.downloadUrl || (mode === "nas" ? getDownloadUrl(item.id) : "");
+  if (!targetUrl) {
     throw new Error("Isi berkas ini tidak tersedia di perangkat.");
   }
 
-  const response = await fetch(getDownloadUrl(item.id));
+  const response = await fetch(targetUrl);
   if (!response.ok) {
     throw new Error("Gagal mengunduh berkas dari server.");
   }

@@ -39,7 +39,9 @@ export function getServerUrl(): string {
   migrateLegacyServerUrl();
   const saved = localStorage.getItem(STORAGE_KEY_SERVER_URL);
   if (saved) return saved;
-  const host = window.location.hostname || "localhost";
+  const { protocol, hostname, origin } = window.location;
+  if (protocol === "https:") return origin;
+  const host = hostname || "localhost";
   return `http://${host}:8080`;
 }
 

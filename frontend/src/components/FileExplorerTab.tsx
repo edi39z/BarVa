@@ -30,6 +30,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { DisplayItem } from "@/lib/displayItem";
+import ExternalHddPanel from "@/components/ExternalHddPanel";
+import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 import ThumbnailImage from "@/components/ThumbnailImage";
 import { useLongPress, type LongPressPoint } from "@/hooks/useLongPress";
 import type { SelectModifiers } from "@/hooks/useFileSelection";
@@ -43,8 +45,8 @@ interface FileExplorerTabProps {
   isGdriveConnected: boolean;
   viewMode: "grid" | "list";
   onViewModeChange: (mode: "grid" | "list") => void;
-  storageFilter: "local" | "gdrive";
-  onStorageFilterChange: (filter: "local" | "gdrive") => void;
+  storageFilter: "local" | "gdrive" | "hdd";
+  onStorageFilterChange: (filter: "local" | "gdrive" | "hdd") => void;
   pendingUploads: number;
   isOnline: boolean;
   flushingQueue: boolean;
@@ -83,6 +85,12 @@ interface FileExplorerTabProps {
   folderNames: Record<string, string>;
   /** Petunjuk atau pesan error pencarian isi. */
   searchNotice: string;
+  /** Callback saat berkas di-drag dari komputer ke halaman ini. */
+  onDropUploadFiles?: (files: FileList | File[]) => void;
+  /** Callback saat item dari HDD/GDrive/Lokal di-drop ke tab penyimpanan lain. */
+  onDropCopyItems?: (items: DisplayItem[], target: "local" | "gdrive") => void;
+  /** Callback saat daftar item eksternal (HDD/GDrive) selesai dimuat agar seleksi banyak sinkron. */
+  onExternalItemsLoaded?: (items: DisplayItem[]) => void;
 }
 
 function FileTypeIcon({ type, className = "h-4 w-4" }: { type: DisplayItem["type"]; className?: string }) {
@@ -147,7 +155,13 @@ export default function FileExplorerTab({
   snippets,
   folderNames,
   searchNotice,
+  onDropUploadFiles,
+  onDropCopyItems,
+  onExternalItemsLoaded,
 }: FileExplorerTabProps) {
+  const [dragOverZone, setDragOverZone] = React.useState(false);
+  const [dragOverTab, setDragOverTab] = React.useState<"local" | "gdrive" | null>(null);
+
   const currentItems = resultsMode
     ? items
     : items.filter((f) => (f.parentId || null) === currentFolderId);
@@ -207,8 +221,65 @@ export default function FileExplorerTab({
 
   const isSelected = (id: string) => selectedIds.includes(id);
 
+  const handleTabDragOver = (target: "local" | "gdrive", e: React.DragEvent) => {
+    if (
+      e.dataTransfer.types.includes("application/x-barva-items") ||
+      e.dataTransfer.types.includes("Files")
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverTab(target);
+    }
+  };
+
+  const handleTabDrop = (target: "local" | "gdrive", e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTab(null);
+    setDragOverZone(false);
+    const raw = e.dataTransfer.getData("application/x-barva-items");
+    if (raw && onDropCopyItems) {
+      try {
+        const parsed = JSON.parse(raw) as DisplayItem[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          onDropCopyItems(parsed, target);
+          return;
+        }
+      } catch {
+        // ignore invalid json
+      }
+    }
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0 && onDropUploadFiles) {
+      onDropUploadFiles(e.dataTransfer.files);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-7xl space-y-4 pb-24 lg:pb-6">
+    <div
+      onDragOver={(e) => {
+        if (storageFilter === "local" && e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDragOverZone(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOverZone(false);
+      }}
+      onDrop={(e) => {
+        if (storageFilter === "local" && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          setDragOverZone(false);
+          onDropUploadFiles?.(e.dataTransfer.files);
+        }
+      }}
+      className="relative mx-auto max-w-7xl space-y-4 pb-24 lg:pb-6"
+    >
+      {dragOverZone && storageFilter === "local" && (
+        <div className="pointer-events-none fixed inset-4 z-40 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand bg-brand-soft/85 text-brand backdrop-blur-sm">
+          <Upload className="h-10 w-10 animate-bounce" aria-hidden />
+          <p className="text-[15px] font-bold">Lepaskan berkas di sini untuk mengunggah ke Perangkat ini</p>
+        </div>
+      )}
       {pendingUploads > 0 && (
         <div
           role="status"
@@ -239,9 +310,14 @@ export default function FileExplorerTab({
         >
           <button
             onClick={() => onStorageFilterChange("local")}
+            onDragOver={(e) => handleTabDragOver("local", e)}
+            onDragLeave={() => setDragOverTab(null)}
+            onDrop={(e) => handleTabDrop("local", e)}
             aria-pressed={storageFilter === "local"}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-              storageFilter === "local"
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all ${
+              dragOverTab === "local"
+                ? "ring-2 ring-brand bg-brand-soft text-brand scale-105"
+                : storageFilter === "local"
                 ? "bg-brand-soft text-brand"
                 : "text-muted hover:text-fg"
             }`}
@@ -251,9 +327,14 @@ export default function FileExplorerTab({
           </button>
           <button
             onClick={() => onStorageFilterChange("gdrive")}
+            onDragOver={(e) => handleTabDragOver("gdrive", e)}
+            onDragLeave={() => setDragOverTab(null)}
+            onDrop={(e) => handleTabDrop("gdrive", e)}
             aria-pressed={storageFilter === "gdrive"}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-              storageFilter === "gdrive"
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all ${
+              dragOverTab === "gdrive"
+                ? "ring-2 ring-brand bg-brand-soft text-brand scale-105"
+                : storageFilter === "gdrive"
                 ? "bg-brand-soft text-brand"
                 : "text-muted hover:text-fg"
             }`}
@@ -261,6 +342,18 @@ export default function FileExplorerTab({
             <Cloud className="h-3.5 w-3.5" aria-hidden />
             Google Drive
             {!isGdriveConnected && <span className="chip chip-warn">nonaktif</span>}
+          </button>
+          <button
+            onClick={() => onStorageFilterChange("hdd")}
+            aria-pressed={storageFilter === "hdd"}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-colors ${
+              storageFilter === "hdd"
+                ? "bg-brand-soft text-brand"
+                : "text-muted hover:text-fg"
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+            HDD 500GB (Data Lama)
           </button>
         </div>
 
@@ -326,6 +419,29 @@ export default function FileExplorerTab({
       </div>
 
       {/* Lokasi folder atau ringkasan hasil pencarian isi */}
+      {storageFilter === "hdd" ? (
+        <ExternalHddPanel
+          viewMode={viewMode}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          onToggleSelect={onToggleSelect}
+          onOpenFile={onOpenFile}
+          onDownload={onDownload}
+          onOpenMenu={onOpenMenu}
+          onItemsLoaded={onExternalItemsLoaded}
+        />
+      ) : storageFilter === "gdrive" ? (
+        <GoogleDrivePanel
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          onToggleSelect={onToggleSelect}
+          onOpenFile={onOpenFile}
+          onDownload={onDownload}
+          onOpenMenu={onOpenMenu}
+          onItemsLoaded={onExternalItemsLoaded}
+        />
+      ) : (
+      <>
       {resultsMode ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2.5">
           <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-fg">
@@ -545,6 +661,15 @@ export default function FileExplorerTab({
               return (
                 <article
                   key={file.id}
+                  draggable
+                  onDragStart={(e) => {
+                    const toDrag =
+                      selected && selectedIds.length > 1
+                        ? currentFiles.filter((f) => selectedIds.includes(f.id))
+                        : [file];
+                    e.dataTransfer.setData("application/x-barva-items", JSON.stringify(toDrag));
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
                   {...pressProps(file)}
                   onContextMenu={(event) => openMenuAt(file, event)}
                   onClick={(event) => {
@@ -727,6 +852,15 @@ export default function FileExplorerTab({
                   return (
                     <tr
                       key={file.id}
+                      draggable
+                      onDragStart={(e) => {
+                        const toDrag =
+                          selected && selectedIds.length > 1
+                            ? currentFiles.filter((f) => selectedIds.includes(f.id))
+                            : [file];
+                        e.dataTransfer.setData("application/x-barva-items", JSON.stringify(toDrag));
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
                       {...pressProps(file)}
                       onContextMenu={(event) => openMenuAt(file, event)}
                       className={`transition-colors hover:bg-surface-2 ${
@@ -797,6 +931,8 @@ export default function FileExplorerTab({
           </div>
         )}
       </section>
+      </>
+      )}
     </div>
   );
 }

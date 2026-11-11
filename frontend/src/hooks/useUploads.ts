@@ -115,12 +115,8 @@ export function useUploads({
     }
   }, []);
 
-  const handleFileInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const picked = e.target.files;
-      if (!picked || picked.length === 0) return;
-
-      const file = picked[0];
+  const uploadSingleFile = useCallback(
+    async (file: File) => {
       setUploadFileName(file.name);
       setIsUploading(true);
       setUploadProgress(10);
@@ -207,11 +203,32 @@ export function useUploads({
         console.error("Upload error:", err);
         alert(`Gagal menyimpan file: ${(err as Error).message}`);
         setIsUploading(false);
+      }
+    },
+    [connectionMode, currentFolderId, queueOfflineUpload, setCurrentUser, setLocalItems]
+  );
+
+  const uploadFiles = useCallback(
+    async (fileList: FileList | File[]) => {
+      const arr = Array.from(fileList);
+      for (const file of arr) {
+        await uploadSingleFile(file);
+      }
+    },
+    [uploadSingleFile]
+  );
+
+  const handleFileInputChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const picked = e.target.files;
+      if (!picked || picked.length === 0) return;
+      try {
+        await uploadFiles(picked);
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [connectionMode, currentFolderId, queueOfflineUpload, setCurrentUser, setLocalItems]
+    [uploadFiles]
   );
 
   // Kirim antrean upload begitu koneksi kembali, dan segarkan jumlah antrean.
@@ -256,6 +273,7 @@ export function useUploads({
       fileInputRef,
       uploadWithUniqueName,
       flushQueue,
+      uploadFiles,
       handleFileInputChange,
     }),
     [
@@ -266,6 +284,7 @@ export function useUploads({
       flushingQueue,
       uploadWithUniqueName,
       flushQueue,
+      uploadFiles,
       handleFileInputChange,
     ]
   );
