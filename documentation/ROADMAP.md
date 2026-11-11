@@ -1,6 +1,6 @@
 # Roadmap
 
-Status per **10 November 2026**. Urutan di bawah mencerminkan prioritas, bukan
+Status per **11 November 2026**. Urutan di bawah mencerminkan prioritas, bukan
 janji tanggal.
 
 ---
@@ -31,7 +31,7 @@ janji tanggal.
 
 ### 1. Memecah state `page.tsx` menjadi hook
 
-`page.tsx` sudah turun dari 4257 ke ~1510 baris setelah seluruh tab, sidebar,
+`page.tsx` sudah turun dari 4257 ke ±2.200 baris setelah seluruh tab, sidebar,
 header, dan modal diekstrak ke `src/components/*`. Sisa isinya adalah state,
 efek, dan handler yang menyambungkan komponen-komponen tersebut. Langkah
 berikutnya memindahkan kelompok state ke custom hook

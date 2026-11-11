@@ -53,7 +53,7 @@ postgres://postgres:postgres@localhost:5432/nas_db?sslmode=disable
 
 Kalau berbeda, set `DATABASE_URL`.
 
-> Untuk perubahan skema, buat `migrations/000002_*.up.sql` lalu restart
+> Untuk perubahan skema, buat `migrations/000003_*.up.sql` lalu restart
 > backend. Jangan mengubah migrasi yang sudah pernah dijalankan — runner hanya
 > menambah, tidak pernah mengulang. Database lama yang skemanya dibuat manual
 > akan di-baseline otomatis (migrasi pertama ditandai sudah diterapkan).
