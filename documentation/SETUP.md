@@ -1,6 +1,6 @@
 # Setup
 
-Panduan menjalankan NAS Project dari nol. Dua jalur: **development lokal** dan
+Panduan menjalankan Barva dari nol. Dua jalur: **development lokal** dan
 **Docker**. Untuk gambaran arsitektur, lihat [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---

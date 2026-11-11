@@ -1,4 +1,4 @@
-// Service worker NAS Cloud.
+// Service worker Barva.
 //
 // Aturan penting:
 // - Hanya request GET same-origin yang disentuh. Backend NAS berjalan di port

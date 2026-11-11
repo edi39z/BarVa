@@ -117,8 +117,8 @@ func main() {
 	tempDir := getEnv("TEMP_DIR", "./data/tmp")
 	thumbDir := getEnv("THUMBNAIL_DIR", "./data/thumbnails")
 
-	log.Printf("[NAS Backend] Starting daemon on port %s...", port)
-	log.Printf("[NAS Backend] Storage directory: %s", storageDir)
+	log.Printf("[Barva] Starting daemon on port %s...", port)
+	log.Printf("[Barva] Storage directory: %s", storageDir)
 
 	if err := validateAdminKey(gin.Mode(), os.Getenv("NAS_ADMIN_KEY")); err != nil {
 		log.Fatalf("Fatal: %v", err)
@@ -139,24 +139,24 @@ func main() {
 	dbAvailable := false
 
 	if err != nil {
-		log.Printf("[NAS Backend] Peringatan: Tidak dapat terhubung ke PostgreSQL (%v). Menjalankan mode storage-only.", err)
+		log.Printf("[Barva] Peringatan: Tidak dapat terhubung ke PostgreSQL (%v). Menjalankan mode storage-only.", err)
 	} else if pingErr := pool.Ping(ctx); pingErr != nil {
-		log.Printf("[NAS Backend] Peringatan: Ping ke PostgreSQL gagal (%v). Menjalankan mode storage-only.", pingErr)
+		log.Printf("[Barva] Peringatan: Ping ke PostgreSQL gagal (%v). Menjalankan mode storage-only.", pingErr)
 	} else {
-		log.Println("[NAS Backend] Koneksi PostgreSQL berhasil terhubung.")
+		log.Println("[Barva] Koneksi PostgreSQL berhasil terhubung.")
 
 		// Terapkan migrasi sebelum handler melayani request.
 		migrateCtx, migrateCancel := context.WithTimeout(context.Background(), 60*time.Second)
 		migrationsDir := migrate.ResolveDir()
 		switch {
 		case migrationsDir == "":
-			log.Println("[NAS Backend] Peringatan: folder migrasi tidak ditemukan; migrasi dilewati.")
+			log.Println("[Barva] Peringatan: folder migrasi tidak ditemukan; migrasi dilewati.")
 		default:
 			if mErr := migrate.Run(migrateCtx, pool, migrationsDir); mErr != nil {
 				migrateCancel()
 				log.Fatalf("Fatal: migrasi database gagal: %v", mErr)
 			}
-			log.Printf("[NAS Backend] Migrasi database siap (dir: %s)", migrationsDir)
+			log.Printf("[Barva] Migrasi database siap (dir: %s)", migrationsDir)
 		}
 		migrateCancel()
 
@@ -227,7 +227,7 @@ func main() {
 	r.GET("/api/v1/public/invites/:token", inviteHandler.Peek)
 	r.POST("/api/v1/public/invites/:token/accept", inviteHandler.Accept)
 
-	log.Printf("[NAS Backend] Google Drive & undangan aktif (data: %s)", dataDir)
+	log.Printf("[Barva] Google Drive & undangan aktif (data: %s)", dataDir)
 
 	if dbAvailable && queries != nil {
 		authHandler := handler.NewAuthHandler(queries, inviteHandler)
@@ -293,7 +293,7 @@ func main() {
 			}
 		}
 	} else {
-		log.Println("[NAS Backend] Mode storage-only: endpoint yang butuh PostgreSQL dinonaktifkan.")
+		log.Println("[Barva] Mode storage-only: endpoint yang butuh PostgreSQL dinonaktifkan.")
 	}
 
 	// 4. Server with Graceful Shutdown
@@ -308,13 +308,13 @@ func main() {
 		}
 	}()
 
-	log.Printf("[NAS Backend] Server berjalan di http://localhost:%s", port)
+	log.Printf("[Barva] Server berjalan di http://localhost:%s", port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("[NAS Backend] Mematikan server secara graceful...")
+	log.Println("[Barva] Mematikan server secara graceful...")
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
@@ -326,5 +326,5 @@ func main() {
 		pool.Close()
 	}
 
-	log.Println("[NAS Backend] Server telah berhenti bersih.")
+	log.Println("[Barva] Server telah berhenti bersih.")
 }

@@ -127,7 +127,7 @@ export default function InviteAccept({ token }: { token?: string }) {
             N
           </div>
           <div className="text-left">
-            <span className="block text-[13.5px] font-bold tracking-tight text-fg">NAS Project</span>
+            <span className="block text-[13.5px] font-bold tracking-tight text-fg">Barva</span>
             <span className="block text-[10.5px] font-medium text-success">Penyimpanan keluarga</span>
           </div>
         </div>

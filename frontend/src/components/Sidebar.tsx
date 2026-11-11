@@ -133,7 +133,7 @@ export default function Sidebar({
               N
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-bold tracking-tight text-fg">NAS Project</h1>
+              <h1 className="truncate text-sm font-bold tracking-tight text-fg">Barva</h1>
               <p className="truncate text-[11.5px] text-subtle">Penyimpanan keluarga</p>
             </div>
             <div className="ml-auto flex items-center gap-0.5">

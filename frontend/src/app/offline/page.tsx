@@ -2,7 +2,7 @@ import Link from "next/link";
 import { WifiOff, HardDrive, RefreshCw } from "lucide-react";
 
 export const metadata = {
-  title: "Offline — NAS Project",
+  title: "Offline — Barva",
 };
 
 export default function OfflinePage() {

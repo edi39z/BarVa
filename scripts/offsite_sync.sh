@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# NAS Project - 3-2-1 Offsite Storage Synchronization
+# Barva - 3-2-1 Offsite Storage Synchronization
 # ==============================================================================
 # Aturan 3-2-1:
 # - 3 salinan data (1 primer, 2 cadangan)
