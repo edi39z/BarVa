@@ -361,6 +361,7 @@ tinggal menyusun:
 | `useShares` | Modal link berbagi, opsi masa berlaku/password/izin, daftar link aktif |
 | `useStudio` | Alat Studio aktif, status proses, hasil kompresi/AI, pemilih berkas, penyimpanan hasil olahan |
 | `useUploads` | Unggahan dua mode, progres, nama berkas yang sedang diunggah, antrean offline (jumlah dan pengiriman ulang) |
+| `useBulkActions` | Menu aksi per berkas, operasi massal (hapus, pindah, unduh, folder baru), pengelompokan otomatis, dan pemrosesan Studio banyak berkas |
 | `useFileSelection` | Seleksi banyak item, rentang Shift+klik |
 | `useLongPress` | Tekan lama untuk menyalakan mode pilih |
 

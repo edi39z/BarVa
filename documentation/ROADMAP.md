@@ -24,21 +24,13 @@ janji tanggal.
 | **Google Drive** | OAuth 2.0, refresh token di server, kuota, jelajah folder, unggah, unduh lewat server |
 | **Hardening** | CORS whitelist, admin key wajib di mode release, batas ukuran unggah, MIME dari isi berkas, validasi folder induk, rate limit login & password share |
 | **Deploy** | Dockerfile multi-stage, docker-compose, unit systemd, konfigurasi Nginx |
+| **Struktur frontend** | Seluruh tab, sidebar, header, dan modal ada di `src/components/*`; kelompok state besar di `src/hooks/*` (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`, `useStudio`, `useUploads`, `useFamily`, `useBulkActions`, `useFileSelection`) sehingga `page.tsx` tinggal komposisi (±930 baris) |
 
 ---
 
 ## Berikutnya
 
-### 1. Memindahkan sisa state `page.tsx` ke hook
-
-`page.tsx` sudah turun dari 4257 ke ±1.110 baris setelah seluruh tab, sidebar,
-header, dan modal diekstrak ke `src/components/*`, lalu tujuh kelompok state
-besar pindah ke `src/hooks/` (`useNasSession`, `useNasFiles`, `useTrash`,
-`useShares`, `useStudio`, `useUploads`, `useFamily`). Sisa isinya adalah aksi
-massal dan komposisi komponen. Langkah berikutnya memindahkan kelompok terakhir
-(`useBulkActions`) supaya container hanya mengurus komposisi.
-
-### 2. Sisa kuota di pengaturan akun
+### 1. Sisa kuota di pengaturan akun
 
 Penegakan kuota sudah jalan saat upload. Yang belum: halaman pengaturan akun
 yang menampilkan rincian per folder dan per jenis berkas. Sementara ini angka
