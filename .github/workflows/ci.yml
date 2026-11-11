@@ -196,6 +196,12 @@ jobs:
         working-directory: deploy/docker
         run: docker compose -f docker-compose.dev.yml config --quiet
 
+      # Build sungguhan, bukan sekadar parse: Dockerfile memakai multi-stage,
+      # CGO_ENABLED=0, dan apk add ffmpeg, jadi kesalahan di sana baru terlihat
+      # saat deploy. Image hanya dipakai untuk validasi lalu dibuang.
+      - name: Build image backend (Dockerfile)
+        run: docker build --quiet -t nas-backend:ci backend/
+
       # Unit asli menunjuk /opt/nas/backend/bin/server dan /etc/nas/backend.env
       # yang tidak ada di runner. Keduanya diganti ke berkas sementara supaya
       # yang diperiksa sintaks unitnya, bukan isi server. User=nas dibuat agar
