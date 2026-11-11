@@ -148,6 +148,13 @@ kosong:
 docker compose up -d --build
 ```
 
+Compose menaikkan empat service: `nas-postgres`, `nas-backend`, `nas-frontend`
+(Next.js standalone), dan `nas-nginx` yang menjadi satu-satunya pintu masuk
+untuk domain publik. Port host diatur lewat `.env`
+(`BACKEND_BIND_PORT`, `FRONTEND_BIND_PORT`, `NGINX_BIND_PORT`); backend dan
+frontend sengaja terbuka ke LAN supaya bisa dipakai tanpa proxy saat mengunggah
+berkas besar.
+
 Migrasi dijalankan oleh backend saat start (`MIGRATIONS_DIR=/app/migrations`).
 Compose me-mount `migrations/` ke container backend, bukan ke initdb PostgreSQL,
 supaya hanya ada satu sumber kebenaran.
@@ -155,10 +162,12 @@ supaya hanya ada satu sumber kebenaran.
 Untuk produksi:
 
 - jangan ekspos port `5432` ke publik (default sudah `127.0.0.1`)
-- port backend juga dibatasi ke loopback; akses masuk lewat nginx
+- `NAS_ADMIN_KEY` wajib diisi karena backend terbuka ke LAN
 - isi `ALLOWED_ORIGINS` dengan domain frontend
-- ikutkan volume `nas_data` dalam backup: isinya `gdrive.json`, `invites.json`,
-  dan cache thumbnail
+- ikutkan folder data (`nas_data`) dalam backup: isinya `gdrive.json`,
+  `invites.json`, dan cache thumbnail
+- alur deploy dari git (clone, update, rollback) ada di
+  [`deploy/README.md`](../deploy/README.md)
 
 `GIN_MODE=release` membuat backend **menolak start** bila `NAS_ADMIN_KEY`
 kosong, masih berupa nilai contoh, atau kurang dari 32 karakter. Alasannya: di
