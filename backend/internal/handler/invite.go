@@ -2,10 +2,6 @@ package handler
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"net/http"
 	"sort"
 	"strings"
@@ -13,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"nas-backend/internal/auth"
 	"nas-backend/internal/store"
 )
 
@@ -68,15 +65,12 @@ func NewInviteHandler(dbPath, appURL string) (*InviteHandler, error) {
 	return &InviteHandler{store: st, appURL: strings.TrimRight(appURL, "/")}, nil
 }
 
-func newID(prefix string) string {
-	b := make([]byte, 9)
-	rand.Read(b)
-	return prefix + base64.RawURLEncoding.EncodeToString(b)
-}
-
-func hashToken(t string) string {
-	sum := sha256.Sum256([]byte(t))
-	return hex.EncodeToString(sum[:])
+func newID(prefix string) (string, error) {
+	token, err := auth.NewURLToken(9)
+	if err != nil {
+		return "", err
+	}
+	return prefix + token, nil
 }
 
 // SetUserResolver memasang pencari akun PostgreSQL berdasarkan email. Dipakai
@@ -123,7 +117,7 @@ func (h *InviteHandler) Grant(token string) (inviteGrant, error) {
 		return inviteGrant{}, err
 	}
 
-	hash := hashToken(token)
+	hash := auth.HashToken(token)
 	for _, inv := range db.Invites {
 		if inv.TokenHash != hash {
 			continue
@@ -151,7 +145,7 @@ func (h *InviteHandler) Grant(token string) (inviteGrant, error) {
 // user PostgreSQL. Dipanggil setelah akun benar-benar dibuat, sehingga satu
 // anggota tidak lagi punya dua identitas (user DB dan member JSON).
 func (h *InviteHandler) MarkAccepted(token, userID string) error {
-	hash := hashToken(token)
+	hash := auth.HashToken(token)
 
 	var db inviteDB
 	return h.store.Update(&db, func() error {
@@ -217,16 +211,25 @@ func (h *InviteHandler) Create(c *gin.Context) {
 		in.ExpiresInHours = 24 * 7
 	}
 
-	raw := base64.RawURLEncoding.EncodeToString(mustRand(32))
+	raw, err := auth.NewURLToken(auth.SessionTokenBytes)
+	if err != nil {
+		failInternal(c, err, "RANDOM_ERROR", "Gagal menghasilkan token undangan.")
+		return
+	}
+	id, err := newID("inv_")
+	if err != nil {
+		failInternal(c, err, "RANDOM_ERROR", "Gagal membuat ID undangan.")
+		return
+	}
 	now := time.Now()
 
 	rec := inviteRecord{
-		ID:        newID("inv_"),
+		ID:        id,
 		Name:      in.Name,
 		Email:     in.Email,
 		Role:      in.Role,
 		QuotaGB:   in.QuotaGB,
-		TokenHash: hashToken(raw),
+		TokenHash: auth.HashToken(raw),
 		TokenHint: raw[:8],
 		Status:    "pending",
 		CreatedAt: now.Format(time.RFC3339),
@@ -349,7 +352,7 @@ func (h *InviteHandler) Peek(c *gin.Context) {
 		failInternal(c, err, "STORAGE_ERROR", "Gagal memuat undangan.")
 		return
 	}
-	hash := hashToken(token)
+	hash := auth.HashToken(token)
 	for _, inv := range db.Invites {
 		if inv.TokenHash == hash {
 			if inv.Status == "revoked" {
@@ -374,7 +377,7 @@ func (h *InviteHandler) Peek(c *gin.Context) {
 // Accept -> POST /api/v1/public/invites/:token/accept
 func (h *InviteHandler) Accept(c *gin.Context) {
 	token := c.Param("token")
-	hash := hashToken(token)
+	hash := auth.HashToken(token)
 	ctx := c.Request.Context()
 	var db inviteDB
 	var result *memberRecord
@@ -408,9 +411,13 @@ func (h *InviteHandler) Accept(c *gin.Context) {
 
 			// Bila email sudah punya akun di PostgreSQL, pakai UUID itu agar
 			// daftar anggota tidak berisi identitas kedua yang tidak nyata.
-			memberID := newID("usr_")
-			if userID, ok := h.resolveUserID(ctx, inv.Email); ok {
-				memberID = userID
+			memberID, ok := h.resolveUserID(ctx, inv.Email)
+			if !ok {
+				generated, genErr := newID("usr_")
+				if genErr != nil {
+					return genErr
+				}
+				memberID = generated
 			}
 
 			m := memberRecord{
@@ -438,14 +445,6 @@ func (h *InviteHandler) Accept(c *gin.Context) {
 	default:
 		failInternal(c, err, "STORAGE_ERROR", "Gagal menerima undangan.")
 	}
-}
-
-func mustRand(n int) []byte {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return b
 }
 
 var (

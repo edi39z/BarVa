@@ -1,9 +1,6 @@
 package handler
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
@@ -57,15 +54,12 @@ func (h *SharesHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Generate 32 bytes random token
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "RANDOM_ERROR", "message": "Gagal menghasilkan token."}})
+	rawToken, err := auth.NewToken(auth.SessionTokenBytes)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "RANDOM_ERROR", "Gagal menghasilkan token.")
 		return
 	}
-	rawToken := hex.EncodeToString(tokenBytes)
-	hSum := sha256.Sum256([]byte(rawToken))
-	tokenHash := hex.EncodeToString(hSum[:])
+	tokenHash := auth.HashToken(rawToken)
 
 	var passHash pgtype.Text
 	if req.Password != nil && *req.Password != "" {
@@ -173,8 +167,7 @@ func (h *SharesHandler) Delete(c *gin.Context) {
 
 func (h *SharesHandler) PublicGet(c *gin.Context) {
 	rawToken := c.Param("token")
-	hSum := sha256.Sum256([]byte(rawToken))
-	tokenHash := hex.EncodeToString(hSum[:])
+	tokenHash := auth.HashToken(rawToken)
 
 	var tokenHashPg pgtype.Text
 	_ = tokenHashPg.Scan(tokenHash)
