@@ -14,11 +14,13 @@ Base URL pengembangan: `http://localhost:8080`. Semua endpoint di bawah
 | Sesi pengguna | `Authorization: Bearer <token>` | `/auth/me`, `/files/*`, `/search`, `/shares`, `/family/*` |
 | Sesi lewat cookie | `nas_session` (HttpOnly) | Otomatis untuk `<img>`/`<video>` dan endpoint yang sama |
 | Sesi lewat query | `?token=<token>` | `/files/:id/download`, `/files/:id/archive`, `/files/:id/stream` **hanya bila** backend di host berbeda dari halaman |
-| Admin key | `X-Admin-Key: <kunci>` | `/gdrive/*`, `/invites/*` |
+| Admin key | `X-Admin-Key: <kunci>` | `/gdrive/*`, `/invites/*`, `/hdd/*` |
+| Sesi owner/admin | `Authorization: Bearer <token>` atau cookie `nas_session` | Endpoint admin yang sama, agar pemilik NAS yang sudah login tidak perlu menyalin kunci |
 | Tanpa autentikasi | — | `/health`, `/auth/register`, `/auth/login`, `/public/*`, `/gdrive/callback` |
 
-Bila `NAS_ADMIN_KEY` tidak diset di server, endpoint admin hanya menerima
-permintaan dari IP lokal/privat. Saat `GIN_MODE=release` (Docker), backend
+Endpoint admin menerima **salah satu** dari: sesi milik pengguna ber-role
+`owner`/`admin`, header `X-Admin-Key`, atau — bila `NAS_ADMIN_KEY` tidak diset
+— permintaan dari IP lokal/privat. Saat `GIN_MODE=release` (Docker), backend
 menolak start tanpa kunci ini karena di balik proxy semua request tampak
 berasal dari IP privat.
 
@@ -673,3 +675,45 @@ Contoh `GET /gdrive/status`:
   "server_time": "2026-11-10T00:00:00+07:00"
 }
 ```
+
+---
+
+## Disk eksternal (admin key)
+
+Menyajikan disk yang di-mount di server (mis. HDD data lama) sebagai
+**baca-saja**. Aktif hanya bila `EXTERNAL_HDD_DIR` diisi; bila kosong, kedua
+endpoint tidak didaftarkan sama sekali.
+
+| Endpoint | Fungsi |
+|---|---|
+| `GET /hdd/list?path=&q=` | Daftar isi satu folder (`path` relatif terhadap `EXTERNAL_HDD_DIR`, `q` menyaring nama) |
+| `GET /hdd/download?path=&inline=1` | Alirkan berkas (`inline=1` untuk pratinjau, selain itu `attachment`) |
+
+```json
+{
+  "path": "Foto/2024",
+  "read_only": true,
+  "items": [
+    {
+      "name": "liburan.jpg",
+      "path": "Foto/2024/liburan.jpg",
+      "is_dir": false,
+      "size_bytes": 2451200,
+      "modified_time": "2024-06-01T09:12:00Z",
+      "mime_type": "image/jpeg"
+    }
+  ]
+}
+```
+
+Jaminan yang dijaga handler ini:
+
+- Hanya operasi baca (`os.ReadDir`, `os.Stat`, `os.Open`) — tidak ada fungsi
+  yang menulis, mengganti nama, atau menghapus isi disk.
+- `..` dan path di luar `EXTERNAL_HDD_DIR` ditolak dengan `INVALID_PATH`.
+- Folder internal `barva` (storage CAS) dan folder sistem Windows
+  (`$RECYCLE.BIN`, `System Volume Information`, dst.) disembunyikan di akar.
+- `download` mendukung `Range` (206) sehingga video/audio bisa di-seek.
+
+Karena dipanggil lewat `<img>`/`<video>`/`window.open`, tautan unduhan menerima
+token sesi lewat query (`?token=`), sama seperti endpoint berkas biasa.
