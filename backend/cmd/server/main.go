@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -71,15 +72,46 @@ func originAllowed(origin string) bool {
 	return false
 }
 
-// validateAdminKey menolak start di mode release tanpa NAS_ADMIN_KEY.
+// minAdminKeyLength adalah panjang minimum NAS_ADMIN_KEY. `openssl rand -hex 32`
+// menghasilkan 64 karakter, jadi 32 sudah cukup longgar untuk kunci acak.
+const minAdminKeyLength = 32
+
+// placeholderAdminKeyPrefixes menolak nilai contoh yang ikut tersalin dari
+// .env.example. Kunci yang diketahui publik sama berbahayanya dengan kunci kosong.
+var placeholderAdminKeyPrefixes = []string{
+	"ganti_dengan",
+	"ganti-",
+	"changeme",
+	"change_me",
+	"example",
+	"contoh",
+}
+
+// validateAdminKey menolak start di mode release tanpa kunci yang layak.
 //
 // Di Docker, backend berada di belakang reverse proxy sehingga ClientIP
 // adalah IP container (privat). Tanpa kunci, AdminKeyMiddleware akan
 // mengizinkan semua request yang lewat proxy — persis bypass yang ingin
 // ditutup. Mode debug dibiarkan longgar agar `go run` tetap praktis.
 func validateAdminKey(ginMode, adminKey string) error {
-	if ginMode == gin.ReleaseMode && strings.TrimSpace(adminKey) == "" {
+	if ginMode != gin.ReleaseMode {
+		return nil
+	}
+
+	key := strings.TrimSpace(adminKey)
+	if key == "" {
 		return errors.New("NAS_ADMIN_KEY wajib diisi saat GIN_MODE=release (buat dengan: openssl rand -hex 32)")
+	}
+
+	lower := strings.ToLower(key)
+	for _, prefix := range placeholderAdminKeyPrefixes {
+		if strings.HasPrefix(lower, prefix) {
+			return errors.New("NAS_ADMIN_KEY masih memakai nilai contoh; buat kunci acak dengan: openssl rand -hex 32")
+		}
+	}
+
+	if len(key) < minAdminKeyLength {
+		return fmt.Errorf("NAS_ADMIN_KEY terlalu pendek (%d karakter, minimal %d); buat dengan: openssl rand -hex 32", len(key), minAdminKeyLength)
 	}
 	return nil
 }

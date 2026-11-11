@@ -34,7 +34,13 @@ services:
       DATABASE_URL: "postgres://nas_admin:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di deploy/docker/.env}@postgres:5432/nas_db?sslmode=disable"
       STORAGE_DIR: "/data/storage"
       TEMP_DIR: "/data/tmp"
+      # Metadata Google Drive & undangan, plus cache thumbnail. Tanpa ini
+      # backend memakai ./data di dalam container dan isinya hilang saat
+      # container dibuat ulang.
+      DATA_DIR: "/app/data"
+      THUMBNAIL_DIR: "/app/data/thumbnails"
       MIGRATIONS_DIR: "/app/migrations"
+      APP_URL: "${APP_URL:?APP_URL wajib diisi di deploy/docker/.env}"
       GIN_MODE: "release"
       # WAJIB. Di mode release backend menolak start tanpa kunci ini, karena
       # di balik reverse proxy semua request tampak berasal dari IP privat.
@@ -44,10 +50,13 @@ services:
     volumes:
       - nas_storage:/data/storage
       - nas_tmp:/data/tmp
+      - nas_data:/app/data
       # Migrasi dijalankan backend saat start; jangan mount ke initdb postgres.
       - ../../migrations:/app/migrations:ro
     ports:
-      - "8080:8080"
+      # Hanya loopback: nginx adalah pintu masuk, port backend tidak boleh
+      # terjangkau langsung dari jaringan.
+      - "127.0.0.1:8080:8080"
     networks:
       - nas-network
 
@@ -55,6 +64,7 @@ volumes:
   nas_pgdata:
   nas_storage:
   nas_tmp:
+  nas_data:
 
 networks:
   nas-network:

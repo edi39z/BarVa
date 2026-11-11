@@ -129,8 +129,14 @@ cd deploy/docker
 cp .env.example .env
 ```
 
-Isi `POSTGRES_PASSWORD` di `.env` — wajib, compose menolak start bila kosong.
-Gunakan huruf dan angka saja, karena nilainya dirangkai menjadi `DATABASE_URL`.
+Isi tiga variabel wajib di `.env` — compose menolak start bila salah satunya
+kosong:
+
+| Variabel | Isi |
+|---|---|
+| `POSTGRES_PASSWORD` | Password user `nas_admin`. Huruf dan angka saja, karena nilainya dirangkai menjadi `DATABASE_URL` |
+| `NAS_ADMIN_KEY` | Hasil `openssl rand -hex 32` (minimal 32 karakter). Nilai contoh ditolak saat start |
+| `APP_URL` | Alamat aplikasi yang dibuka pengguna, mis. `http://192.168.1.10:3000`. Dipakai redirect OAuth dan link undangan |
 
 ```bash
 docker compose up -d --build
@@ -143,14 +149,36 @@ supaya hanya ada satu sumber kebenaran.
 Untuk produksi:
 
 - jangan ekspos port `5432` ke publik (default sudah `127.0.0.1`)
-- isi `NAS_ADMIN_KEY` (wajib — lihat catatan di bawah)
+- port backend juga dibatasi ke loopback; akses masuk lewat nginx
 - isi `ALLOWED_ORIGINS` dengan domain frontend
+- ikutkan volume `nas_data` dalam backup: isinya `gdrive.json`, `invites.json`,
+  dan cache thumbnail
 
 `GIN_MODE=release` membuat backend **menolak start** bila `NAS_ADMIN_KEY`
-kosong. Alasannya: di dalam Docker semua request datang dari IP container
-proxy yang privat, sehingga izin "hanya IP lokal" akan membuka `/gdrive/*` dan
-`/invites/*` bagi siapa pun yang bisa menjangkau port 8080. Compose juga
-menolak `up` bila variabel ini belum diisi di `deploy/docker/.env`.
+kosong, masih berupa nilai contoh, atau kurang dari 32 karakter. Alasannya: di
+dalam Docker semua request datang dari IP container proxy yang privat, sehingga
+izin "hanya IP lokal" akan membuka `/gdrive/*` dan `/invites/*` bagi siapa pun
+yang bisa menjangkau port 8080. Compose juga menolak `up` bila variabel ini
+belum diisi di `deploy/docker/.env`.
+
+### Catatan upgrade
+
+Stack lama yang belum punya volume `nas_data` akan membuat container backend
+memakai direktori kosong, sehingga koneksi Google Drive dan undangan lama tidak
+terbaca. Sebelum `up -d`:
+
+```bash
+docker compose cp nas-backend:/app/data ./data-lama   # bila container lama masih ada
+```
+
+Setelah stack baru hidup, salin isinya ke volume:
+
+```bash
+docker compose cp ./data-lama/. nas-backend:/app/data/
+```
+
+`APP_URL` juga wajib diisi ulang; tanpa itu link undangan dan redirect OAuth
+akan menunjuk `localhost:3000`.
 
 ---
 
