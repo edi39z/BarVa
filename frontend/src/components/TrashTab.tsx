@@ -12,6 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { TrashedNode } from "@/lib/api/nas";
+import { detectFileType } from "@/lib/fileTypes";
 import { formatBytes } from "@/lib/nasDisplay";
 
 interface TrashTabProps {
@@ -73,17 +74,21 @@ export default function TrashTab({
       ) : (
         <ul className="space-y-2">
           {items.map((node) => {
-            const mime = (node.MimeType || "").toLowerCase();
+            const fileType = detectFileType({
+              mime: node.MimeType,
+              name: node.Name,
+              isDirectory: node.IsDirectory,
+            });
             const busy = busyId === node.ID;
             return (
               <li key={node.ID} className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2">
-                    {node.IsDirectory ? (
+                    {fileType === "folder" ? (
                       <Folder className="h-5 w-5 text-[var(--tile-blue-fg)]" aria-hidden />
-                    ) : mime.startsWith("image/") ? (
+                    ) : fileType === "image" ? (
                       <ImageIcon className="h-5 w-5 text-[var(--tile-purple-fg)]" aria-hidden />
-                    ) : mime.startsWith("video/") || mime.startsWith("audio/") ? (
+                    ) : fileType === "video" ? (
                       <Film className="h-5 w-5 text-[var(--tile-green-fg)]" aria-hidden />
                     ) : (
                       <FileText className="h-5 w-5 text-muted" aria-hidden />

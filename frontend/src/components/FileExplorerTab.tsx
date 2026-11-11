@@ -28,7 +28,7 @@ import {
   Users,
   WifiOff,
 } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import ThumbnailImage from "@/components/ThumbnailImage";
 import { useLongPress, type LongPressPoint } from "@/hooks/useLongPress";
 import type { SelectModifiers } from "@/hooks/useFileSelection";

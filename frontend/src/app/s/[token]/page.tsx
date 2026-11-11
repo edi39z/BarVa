@@ -16,6 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { backendBase } from "@/lib/api/cloud";
+import { detectFileType } from "@/lib/fileTypes";
 import ThemeToggle from "@/components/ThemeToggle";
 
 type ShareInfo = {
@@ -36,14 +37,16 @@ function fmtBytes(n: number | null | undefined): string {
 }
 
 function iconFor(mime: string | null) {
-  const m = (mime || "").toLowerCase();
-  if (m.startsWith("image/"))
-    return <ImageIcon className="h-6 w-6 text-[var(--tile-purple-fg)]" aria-hidden />;
-  if (m.startsWith("video/") || m.startsWith("audio/"))
-    return <Film className="h-6 w-6 text-[var(--tile-green-fg)]" aria-hidden />;
-  if (m.includes("zip") || m.includes("rar") || m.includes("7z") || m.includes("gzip"))
-    return <FileArchive className="h-6 w-6 text-[var(--tile-amber-fg)]" aria-hidden />;
-  return <FileText className="h-6 w-6 text-[var(--tile-blue-fg)]" aria-hidden />;
+  switch (detectFileType({ mime })) {
+    case "image":
+      return <ImageIcon className="h-6 w-6 text-[var(--tile-purple-fg)]" aria-hidden />;
+    case "video":
+      return <Film className="h-6 w-6 text-[var(--tile-green-fg)]" aria-hidden />;
+    case "archive":
+      return <FileArchive className="h-6 w-6 text-[var(--tile-amber-fg)]" aria-hidden />;
+    default:
+      return <FileText className="h-6 w-6 text-[var(--tile-blue-fg)]" aria-hidden />;
+  }
 }
 
 function PublicShareContent() {

@@ -8,7 +8,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { getStreamUrl } from "@/lib/api/nas";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import Modal from "@/components/Modal";
 
 interface MediaLightboxProps {

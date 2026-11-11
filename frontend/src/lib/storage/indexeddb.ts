@@ -1,9 +1,10 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
+import type { FileType } from "@/lib/fileTypes";
 
 export interface StoredFile {
   id: string;
   name: string;
-  type: "image" | "video" | "document" | "archive" | "folder";
+  type: FileType;
   size: number;
   mimeType: string;
   blob?: Blob;

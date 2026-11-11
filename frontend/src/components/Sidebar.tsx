@@ -15,15 +15,21 @@ import {
   Wand2,
 } from "lucide-react";
 import type { NasUser } from "@/lib/api/nas";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import { mergeDisplayItems, type DisplayItem } from "@/lib/displayItem";
 import { formatBytes } from "@/lib/nasDisplay";
+import { computeStorageStats, usagePercent } from "@/lib/storageStats";
 import type { AppTab } from "@/components/HomeDashboard";
 import ThemeToggle from "@/components/ThemeToggle";
+
+// Kuota cadangan bila server belum menetapkan batas (quota_bytes = 0).
+const DEFAULT_QUOTA_BYTES = 50 * 1024 * 1024 * 1024;
 
 interface SidebarProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
   activeItems: DisplayItem[];
+  /** Berkas lokal di perangkat; digabung agar angka sama dengan Beranda. */
+  localItems: DisplayItem[];
   trashCount: number;
   connectionMode: "standalone" | "nas";
   nasStatus: "online" | "offline" | "checking";
@@ -49,6 +55,7 @@ export default function Sidebar({
   activeTab,
   onTabChange,
   activeItems,
+  localItems,
   trashCount,
   connectionMode,
   nasStatus,
@@ -60,8 +67,14 @@ export default function Sidebar({
   onInstallPwa,
   onLogout,
 }: SidebarProps) {
-  const mediaCount = activeItems.filter((i) => i.type === "image" || i.type === "video").length;
-  const totalBytes = activeItems.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0);
+  const mergedItems = mergeDisplayItems(activeItems, localItems);
+  const stats = computeStorageStats(mergedItems);
+  const mediaCount = stats.imageCount + stats.videoCount;
+  const quotaBytes =
+    currentUser?.quota_bytes && currentUser.quota_bytes > 0
+      ? currentUser.quota_bytes
+      : DEFAULT_QUOTA_BYTES;
+  const usedPercent = usagePercent(stats.totalBytes, quotaBytes);
 
   const mainNav: NavItem[] = [
     { id: "home", label: "Beranda", icon: HomeIcon, tone: "text-brand" },
@@ -192,33 +205,27 @@ export default function Sidebar({
               <HardDrive className="h-3.5 w-3.5 text-brand" aria-hidden />
               Ruang terpakai
             </span>
-            <span className="font-semibold tabular-nums text-fg">{formatBytes(totalBytes)}</span>
+            <span className="font-semibold tabular-nums text-fg">{formatBytes(stats.totalBytes)}</span>
           </div>
           <div
             className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-3"
             role="progressbar"
             aria-label="Pemakaian penyimpanan"
-            aria-valuenow={Math.min(
-              100,
-              Math.round((totalBytes / (50 * 1024 * 1024 * 1024)) * 100)
-            )}
+            aria-valuenow={usedPercent}
             aria-valuemin={0}
             aria-valuemax={100}
           >
             <div
               className="h-full rounded-full bg-brand-solid transition-all duration-300"
               style={{
-                width: `${Math.min(
-                  100,
-                  Math.max(totalBytes > 0 ? 4 : 0, Math.round((totalBytes / (50 * 1024 * 1024 * 1024)) * 100))
-                )}%`,
+                width: `${Math.max(stats.totalBytes > 0 ? 4 : 0, usedPercent)}%`,
               }}
             />
           </div>
           <p className="mt-1.5 text-[11.5px] text-subtle">
             {connectionMode === "nas"
-              ? `${activeItems.length} item di folder ini`
-              : `${activeItems.length} berkas di perangkat ini`}
+              ? `${stats.fileCount} berkas dari ${formatBytes(quotaBytes)}`
+              : `${stats.fileCount} berkas di perangkat ini`}
           </p>
         </div>
 

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Copy, Share2 } from "lucide-react";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 import Modal from "@/components/Modal";
 
 export type ShareExpiry = "24h" | "7d" | "30d" | "never";

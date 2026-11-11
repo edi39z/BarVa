@@ -8,7 +8,6 @@ import {
   toggleFavorite,
   enqueueUpload,
   countQueuedUploads,
-  StoredFile,
 } from "@/lib/storage/indexeddb";
 import { flushUploadQueue } from "@/lib/uploadQueue";
 import { imagesToPDF, mergePDFs } from "@/lib/studio/pdf";
@@ -104,13 +103,9 @@ import {
   itemToFile,
 } from "@/lib/files/materialize";
 import { useFileSelection } from "@/hooks/useFileSelection";
-import {
-  ActiveShare,
-  DisplayItem,
-  FamilyMember,
-  formatBytes,
-  nasNodeToDisplay,
-} from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
+import { detectFileType } from "@/lib/fileTypes";
+import { ActiveShare, FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
@@ -715,11 +710,11 @@ export default function Home() {
       const rows = await listShares();
       setActiveShares(
         rows.map((r) => {
-          const mime = (r.MimeType || "").toLowerCase();
-          let fileType: DisplayItem["type"] = "document";
-          if (r.IsDirectory) fileType = "folder";
-          else if (mime.startsWith("image/")) fileType = "image";
-          else if (mime.startsWith("video/") || mime.startsWith("audio/")) fileType = "video";
+          const fileType = detectFileType({
+            mime: r.MimeType,
+            name: r.NodeName,
+            isDirectory: r.IsDirectory,
+          });
 
           return {
             id: r.ID,
@@ -966,10 +961,7 @@ export default function Home() {
     setUploadProgress(10);
 
     try {
-      let type: StoredFile["type"] = "document";
-      if (file.type.startsWith("image/")) type = "image";
-      else if (file.type.startsWith("video/")) type = "video";
-      else if (file.name.endsWith(".zip") || file.name.endsWith(".tar.gz") || file.name.endsWith(".rar")) type = "archive";
+      const type = detectFileType({ mime: file.type, name: file.name });
 
       // Mode NAS: unggah ke server, lalu ambil ulang daftar dari server
       // supaya yang tampil adalah data nyata, bukan salinan lokal.
@@ -1831,6 +1823,7 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         activeItems={activeItems}
+        localItems={localItems}
         trashCount={trashItems.length}
         connectionMode={connectionMode}
         nasStatus={nasStatus}

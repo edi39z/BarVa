@@ -5,7 +5,7 @@
  * isi berkas lebih dulu; ukurannya dibatasi supaya tab tidak kehabisan memori.
  */
 import { getDownloadUrl } from "@/lib/api/nas";
-import type { DisplayItem } from "@/lib/nasDisplay";
+import type { DisplayItem } from "@/lib/displayItem";
 
 /** Batas aman berkas yang diproses di perangkat. */
 export const MAX_PROCESS_BYTES = 200 * 1024 * 1024;
