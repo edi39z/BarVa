@@ -41,6 +41,30 @@ docker compose ps          # semua service "healthy"/"running"
 curl http://127.0.0.1:8088/health
 ```
 
+### Bila direktori sudah berisi kode lama (bukan clone)
+
+Server yang sebelumnya diisi dengan salin berkas bisa diubah jadi clone tanpa
+kehilangan data:
+
+```bash
+cd /opt/docker/compose
+tar czf "barva-backup-$(date +%F).tar.gz" barva      # cadangan dulu
+cd barva
+git init -q
+git remote add origin <url-repo>
+git fetch origin
+git reset --hard origin/main        # atau branch fitur yang sedang dipakai
+```
+
+`git reset --hard` hanya menimpa berkas yang dilacak. `.env` dan berkas lain
+yang masuk `.gitignore` tidak tersentuh, jadi konfigurasi server tetap. Setelah
+ini alur update kembali normal (`./deploy/deploy.sh`).
+
+Selama repo masih **privat**, `git fetch`/`git pull` dari server butuh
+kredensial: deploy key read-only (Settings → Deploy keys) atau personal access
+token. Setelah repo dijadikan publik, tidak ada kredensial yang perlu disimpan
+di server.
+
 ## Update
 
 ```bash
