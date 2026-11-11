@@ -204,30 +204,35 @@ jobs:
       - name: Build image backend (Dockerfile)
         run: docker build --quiet -t nas-backend:ci backend/
 
-      # Unit asli menunjuk /opt/nas/backend/bin/server dan /etc/nas/backend.env
-      # yang tidak ada di runner. Keduanya diganti ke berkas sementara supaya
-      # yang diperiksa sintaks unitnya, bukan isi server. User=nas dibuat agar
-      # verifikasi tidak mengeluh soal akun yang tidak ada.
+      # Unit asli menunjuk /opt/nas/... dan /etc/nas/... yang tidak ada di
+      # runner. Path tersebut diganti ke berkas sementara supaya yang diperiksa
+      # sintaks unitnya, bukan isi server. User=nas dibuat agar verifikasi tidak
+      # mengeluh soal akun yang tidak ada.
       - name: Validasi unit systemd
         run: |
           set -euo pipefail
           sudo useradd --system --no-create-home nas 2>/dev/null || true
           work=$(mktemp -d)
-          sed -e 's#^ExecStart=.*#ExecStart=/bin/true#' \
-              -e 's#^WorkingDirectory=.*#WorkingDirectory=/tmp#' \
-              -e "s#^EnvironmentFile=.*#EnvironmentFile=$work/backend.env#" \
-              deploy/systemd/nas-backend.service > "$work/nas-backend.service"
           : > "$work/backend.env"
-          systemd-analyze verify "$work/nas-backend.service"
+          for unit in deploy/systemd/*.service; do
+            name=$(basename "$unit")
+            sed -e 's#^ExecStart=.*#ExecStart=/bin/true#' \
+                -e 's#^WorkingDirectory=.*#WorkingDirectory=/tmp#' \
+                -e "s#^EnvironmentFile=.*#EnvironmentFile=$work/backend.env#" \
+                "$unit" > "$work/$name"
+            systemd-analyze verify "$work/$name"
+          done
 
       # Regresi yang pernah lolos: kredensial ditulis langsung di unit.
       - name: Pastikan rahasia tidak ditulis di unit
         run: |
           set -euo pipefail
-          if grep -Eq '^Environment="(DATABASE_URL|NAS_ADMIN_KEY)=' deploy/systemd/nas-backend.service; then
-            echo "DATABASE_URL dan NAS_ADMIN_KEY harus lewat EnvironmentFile, bukan Environment= di unit." >&2
-            exit 1
-          fi
+          for unit in deploy/systemd/*.service; do
+            if grep -Eq '^Environment="(DATABASE_URL|NAS_ADMIN_KEY)=' "$unit"; then
+              echo "$unit: DATABASE_URL dan NAS_ADMIN_KEY harus lewat EnvironmentFile, bukan Environment= di unit." >&2
+              exit 1
+            fi
+          done
 
       # nas.conf hanya berisi blok server, jadi dibungkus http{} minimal.
       - name: Validasi konfigurasi nginx
