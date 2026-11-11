@@ -9,6 +9,7 @@ import {
   type TrashedNode,
 } from "@/lib/api/nas";
 import type { ConnectionMode } from "@/lib/types";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface UseTrashOptions {
   connectionMode: ConnectionMode;
@@ -25,6 +26,7 @@ interface UseTrashOptions {
  * sedang dibuka.
  */
 export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOptions) {
+  const { confirm, notify } = useConfirm();
   const [items, setItems] = useState<TrashedNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -69,31 +71,45 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
         await restoreNasFile(node.ID);
         await Promise.all([reload(), onRestoredRef.current()]);
       } catch (err) {
-        alert(`Gagal memulihkan: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal memulihkan",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       } finally {
         setBusyId(null);
       }
     },
-    [reload]
+    [reload, notify]
   );
 
   /** Hapus permanen. Tidak ada undo, jadi minta konfirmasi eksplisit. */
   const purge = useCallback(
     async (node: TrashedNode) => {
       const kind = node.IsDirectory ? "folder ini beserta seluruh isinya" : `"${node.Name}"`;
-      if (!confirm(`Hapus permanen ${kind}?\n\nTindakan ini tidak bisa dibatalkan.`)) return;
+      const lanjut = await confirm({
+        title: "Hapus permanen?",
+        message: `Hapus permanen ${kind}?\n\nTindakan ini tidak bisa dibatalkan.`,
+        tone: "danger",
+        confirmLabel: "Hapus permanen",
+      });
+      if (!lanjut) return;
 
       setBusyId(node.ID);
       try {
         await purgeNasFile(node.ID);
         await reload();
       } catch (err) {
-        alert(`Gagal menghapus permanen: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal menghapus permanen",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       } finally {
         setBusyId(null);
       }
     },
-    [reload]
+    [reload, confirm, notify]
   );
 
   return useMemo(

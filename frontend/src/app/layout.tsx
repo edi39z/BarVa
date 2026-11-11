@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import ThemeProvider from "@/components/ThemeProvider";
+import { ConfirmProvider } from "@/components/ConfirmProvider";
 
 export const metadata: Metadata = {
   title: "Barva — Penyimpanan Keluarga",
@@ -49,7 +50,9 @@ export default function RootLayout({
         >
           Lewati ke konten utama
         </a>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ThemeProvider>
         <ServiceWorkerRegistrar />
       </body>
     </html>

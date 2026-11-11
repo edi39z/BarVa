@@ -162,6 +162,12 @@ Checklist yang sudah diterapkan:
 - Dialog memakai `role="dialog"`, `aria-modal`, judul terhubung lewat
   `aria-labelledby`, fokus awal di panel, dan bisa ditutup dengan `Escape`
   (lihat `components/Modal.tsx`).
+- Dialog keputusan dan pemberitahuan memakai `useConfirm()`
+  (`components/ConfirmProvider.tsx`), **bukan** `confirm()`, `alert()`, atau
+  `prompt()` bawaan browser. Ketiganya berbasis promise — `confirm` mengembalikan
+  boolean, `ask` mengembalikan teks atau `null`, `notify` hanya menutup — jadi
+  bisa dipanggil dari hook. Pada dialog konfirmasi, fokus awal ada di tombol
+  batal agar tindakan destruktif tidak terpicu oleh Enter.
 - Status penting memakai `role="status"` / `aria-live`, galat memakai
   `role="alert"`.
 - Semua input memiliki `<label>` eksplisit; ikon dekoratif memakai
@@ -185,6 +191,9 @@ frontend/src/
     ├── ThemeProvider.tsx    # sumber kebenaran tema
     ├── ThemeToggle.tsx      # tombol ganti mode
     ├── Modal.tsx            # kerangka dialog bersama
+    ├── ConfirmProvider.tsx  # confirm/notify/ask berbasis promise
+    ├── ConfirmDialog.tsx    # dialog keputusan dan pemberitahuan
+    ├── PromptDialog.tsx     # dialog satu isian teks
     ├── Sidebar.tsx          # navigasi desktop
     ├── WorkspaceHeader.tsx  # pencarian + aksi utama
     ├── MobileNav.tsx        # navigasi bawah + panel "Lainnya"

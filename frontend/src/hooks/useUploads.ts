@@ -10,6 +10,7 @@ import {
 import { flushUploadQueue } from "@/lib/uploadQueue";
 import { extractFileText, indexLocalFileText } from "@/lib/storage/textIndex";
 import { fetchMe, uploadToNas, type NasUser } from "@/lib/api/nas";
+import { useConfirm } from "@/components/ConfirmProvider";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
 import { formatBytes } from "@/lib/nasDisplay";
@@ -42,6 +43,7 @@ export function useUploads({
   setLocalItems,
   onUploaded,
 }: UseUploadsOptions) {
+  const { confirm, notify } = useConfirm();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadFileName, setUploadFileName] = useState("");
@@ -90,17 +92,23 @@ export function useUploads({
       try {
         await enqueueUpload(file.name, file, currentFolderId, false, file.type);
         setPendingUploads(await countQueuedUploads());
-        alert(
-          `"${file.name}" disimpan di antrean dan akan diunggah otomatis saat koneksi ke server kembali.`
-        );
+        await notify({
+          title: "Disimpan ke antrean",
+          message: `"${file.name}" akan diunggah otomatis saat koneksi ke server kembali.`,
+          tone: "info",
+        });
       } catch (err) {
-        alert(`Gagal menyimpan ke antrean offline: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal menyimpan ke antrean offline",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       } finally {
         setIsUploading(false);
         setUploadProgress(0);
       }
     },
-    [currentFolderId]
+    [currentFolderId, notify]
   );
 
   /** Kirim seluruh antrean offline secara manual dari panel folder. */
@@ -144,7 +152,13 @@ export function useUploads({
             }
             // Backend menolak nama duplikat; tawarkan ganti, jangan langsung gagal.
             if (!/sudah ada/i.test(msg)) throw err;
-            if (!confirm(`"${file.name}" sudah ada di folder ini. Ganti dengan versi baru?`)) {
+            const ganti = await confirm({
+              title: "Berkas sudah ada",
+              message: `"${file.name}" sudah ada di folder ini. Ganti dengan versi baru?`,
+              tone: "warning",
+              confirmLabel: "Ganti berkas",
+            });
+            if (!ganti) {
               setIsUploading(false);
               return;
             }
@@ -201,11 +215,15 @@ export function useUploads({
         }, 400);
       } catch (err) {
         console.error("Upload error:", err);
-        alert(`Gagal menyimpan file: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal menyimpan berkas",
+          message: (err as Error).message,
+          tone: "danger",
+        });
         setIsUploading(false);
       }
     },
-    [connectionMode, currentFolderId, queueOfflineUpload, setCurrentUser, setLocalItems]
+    [connectionMode, currentFolderId, queueOfflineUpload, setCurrentUser, setLocalItems, confirm, notify]
   );
 
   const uploadFiles = useCallback(

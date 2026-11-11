@@ -36,6 +36,7 @@ import StoragePickerModal from "@/components/StoragePickerModal";
 import StudioTab from "@/components/StudioTab";
 import TrashTab from "@/components/TrashTab";
 import WorkspaceHeader from "@/components/WorkspaceHeader";
+import { useConfirm } from "@/components/ConfirmProvider";
 import {
   actionsForItem,
   actionsForSelection,
@@ -60,6 +61,7 @@ import { gdriveUploadFile } from "@/lib/api/cloud";
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
 
 export default function Home() {
+  const { confirm, notify, ask } = useConfirm();
   const [activeTab, setActiveTab] = useState<"home" | "files" | "trash" | "gallery" | "studio" | "gdrive" | "shares">("home");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [storageFilter, setStorageFilter] = useState<"local" | "gdrive" | "hdd">("local");
@@ -216,8 +218,14 @@ export default function Home() {
   });
 
   // Phase 5: PWA Install & 3-2-1 Offsite Backup Handlers
-  const handleInstallPwa = () => {
-    alert("Untuk memasang Barva di HP/Laptop:\n1. Buka menu browser (titik tiga ⋮ di Chrome/Edge atau tombol Share di Safari iOS)\n2. Pilih 'Tambahkan ke Layar Utama' (Add to Home Screen / Install App).\n\nAplikasi akan terpasang sebagai aplikasi PWA berkecepatan native.");
+  const handleInstallPwa = async () => {
+    await notify({
+      title: "Pasang Barva",
+      message:
+        "Untuk memasang Barva di HP/Laptop:\n1. Buka menu browser (titik tiga ⋮ di Chrome/Edge atau tombol Share di Safari iOS)\n2. Pilih “Tambahkan ke Layar Utama” (Add to Home Screen / Install App).\n\nAplikasi akan terpasang seperti aplikasi biasa.",
+      tone: "info",
+      confirmLabel: "Mengerti",
+    });
   };
 
   // Navigasi folder memakai aksi dari hook daftar berkas.
@@ -226,7 +234,12 @@ export default function Home() {
   const handleGoBackFolder = files.goBack;
 
   const handleCreateFolder = async () => {
-    const folderName = prompt("Masukkan nama folder baru:");
+    const folderName = await ask({
+      title: "Folder baru",
+      label: "Nama folder",
+      placeholder: "mis. Dokumen 2026",
+      confirmLabel: "Buat folder",
+    });
     if (!folderName) return;
 
     if (connectionMode === "nas") {
@@ -234,7 +247,11 @@ export default function Home() {
         await createNasFolder(folderName, currentFolderId);
         await files.reload();
       } catch (err) {
-        alert(`Gagal membuat folder: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal membuat folder",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       }
       return;
     }
@@ -254,10 +271,19 @@ export default function Home() {
 
   const handleRename = async (item: DisplayItem) => {
     if (connectionMode !== "nas") {
-      alert("Ganti nama hanya tersedia untuk berkas di server NAS.");
+      await notify({
+        title: "Belum tersedia",
+        message: "Ganti nama hanya tersedia untuk berkas di server NAS.",
+        tone: "info",
+      });
       return;
     }
-    const next = prompt("Nama baru:", item.name);
+    const next = await ask({
+      title: "Ganti nama",
+      label: "Nama baru",
+      defaultValue: item.name,
+      confirmLabel: "Simpan",
+    });
     if (next === null) return;
     const name = next.trim();
     if (!name || name === item.name) return;
@@ -266,7 +292,11 @@ export default function Home() {
       await renameNasFile(item.id, name);
       await refreshLibrary();
     } catch (err) {
-      alert(`Gagal mengganti nama: ${(err as Error).message}`);
+      await notify({
+        title: "Gagal mengganti nama",
+        message: (err as Error).message,
+        tone: "danger",
+      });
     }
   };
 
@@ -281,7 +311,11 @@ export default function Home() {
           .filter((f) => !excludeIds.includes(f.id))
       );
     } catch (err) {
-      alert(`Gagal memuat folder: ${(err as Error).message}`);
+      await notify({
+        title: "Gagal memuat folder",
+        message: (err as Error).message,
+        tone: "danger",
+      });
       setMoveFolders([]);
     } finally {
       setMoveLoading(false);
@@ -292,7 +326,11 @@ export default function Home() {
     const items = Array.isArray(targets) ? targets : [targets];
     if (items.length === 0) return;
     if (connectionMode !== "nas") {
-      alert("Pindah folder hanya tersedia untuk berkas di server NAS.");
+      void notify({
+        title: "Belum tersedia",
+        message: "Pindah folder hanya tersedia untuk berkas di server NAS.",
+        tone: "info",
+      });
       return;
     }
     setMoveItems(items);
@@ -332,7 +370,11 @@ export default function Home() {
       selection.clear();
       await refreshLibrary();
       if (failed > 0) {
-        alert(`${moveItems.length - failed} item dipindahkan, ${failed} gagal.`);
+        await notify({
+          title: "Sebagian item gagal dipindahkan",
+          message: `${moveItems.length - failed} item dipindahkan, ${failed} gagal.`,
+          tone: "warning",
+        });
       }
     } finally {
       setMoveBusy(false);
@@ -369,7 +411,11 @@ export default function Home() {
       a.click();
       URL.revokeObjectURL(url);
     } else {
-      alert(`Mengunduh stream: ${item.name}`);
+      void notify({
+        title: "Berkas belum bisa diunduh",
+        message: `"${item.name}" hanya tersedia sebagai stream di mode ini.`,
+        tone: "info",
+      });
     }
   };
 
@@ -378,19 +424,35 @@ export default function Home() {
     e?.stopPropagation();
 
     if (connectionMode === "nas") {
-      if (!confirm("Pindahkan item ini ke Trash? Kamu masih bisa memulihkannya nanti.")) return;
+      const lanjut = await confirm({
+        title: "Pindahkan ke Trash?",
+        message: "Item ini akan masuk ke Trash. Kamu masih bisa memulihkannya nanti.",
+        tone: "warning",
+        confirmLabel: "Pindahkan",
+      });
+      if (!lanjut) return;
       try {
         await deleteNasFile(id);
         files.removeLocally(id);
         if (selectedMedia?.id === id) setSelectedMedia(null);
         trash.reload();
       } catch (err) {
-        alert(`Gagal menghapus: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal menghapus",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       }
       return;
     }
 
-    if (!confirm("Hapus file ini dari penyimpanan lokal?")) return;
+    const hapusLokal = await confirm({
+      title: "Hapus dari perangkat?",
+      message: "Berkas ini akan dihapus dari penyimpanan lokal browser dan tidak bisa dipulihkan.",
+      tone: "danger",
+      confirmLabel: "Hapus",
+    });
+    if (!hapusLokal) return;
     try {
       await deleteLocalFile(id);
       setLocalItems((prev) => prev.filter((item) => item.id !== id));
@@ -406,7 +468,11 @@ export default function Home() {
     e.stopPropagation();
 
     if (connectionMode === "nas") {
-      alert("Favorit belum tersedia untuk file di server NAS.");
+      await notify({
+        title: "Belum tersedia",
+        message: "Favorit belum tersedia untuk berkas di server NAS.",
+        tone: "info",
+      });
       return;
     }
 
@@ -523,10 +589,14 @@ export default function Home() {
           );
         }
       } catch (err) {
-        alert(`Gagal menyalin berkas: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal menyalin berkas",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       }
     },
-    [connectionMode, uploadFiles, setLibraryNotice]
+    [connectionMode, uploadFiles, setLibraryNotice, notify]
   );
 
   // Menu aksi berkas dan operasi massal dikelola hook sendiri.
@@ -586,7 +656,11 @@ export default function Home() {
       if (connectionMode === "nas") {
         window.open(getArchiveUrl(item.id), "_blank", "noopener");
       } else {
-        alert("Unduh folder sebagai ZIP baru tersedia di mode NAS.");
+        await notify({
+          title: "Belum tersedia",
+          message: "Unduh folder sebagai ZIP baru tersedia di mode NAS.",
+          tone: "info",
+        });
       }
       return;
     }

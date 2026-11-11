@@ -7,6 +7,7 @@ import { groupItems, type FileAction, type GroupMode } from "@/lib/files/actions
 import type { DisplayItem } from "@/lib/displayItem";
 import type { StudioToolId } from "@/lib/studio/tools";
 import type { ConnectionMode } from "@/lib/types";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface UseBulkActionsOptions {
   connectionMode: ConnectionMode;
@@ -56,6 +57,7 @@ export function useBulkActions({
   setLibraryNotice,
   processItemsWithTool,
 }: UseBulkActionsOptions) {
+  const { confirm, notify, ask } = useConfirm();
   // Menu aksi satu berkas (klik kanan / tombol titik tiga).
   const [actionMenuItem, setActionMenuItem] = useState<DisplayItem | null>(null);
   const [actionMenuAnchor, setActionMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -83,7 +85,13 @@ export function useBulkActions({
 
   const bulkDelete = useCallback(
     async (items: DisplayItem[]) => {
-      if (!confirm(`Hapus ${items.length} item? Item akan masuk ke Trash.`)) return;
+      const lanjut = await confirm({
+        title: "Pindahkan ke Trash?",
+        message: `${items.length} item akan dipindahkan ke Trash. Kamu masih bisa memulihkannya nanti.`,
+        tone: "warning",
+        confirmLabel: "Pindahkan",
+      });
+      if (!lanjut) return;
 
       setBulkBusy(true);
       let failed = 0;
@@ -111,13 +119,20 @@ export function useBulkActions({
         setBulkBusy(false);
       }
     },
-    [connectionMode, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice]
+    [connectionMode, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice, confirm]
   );
 
   const createFolderFromSelection = useCallback(
     async (items: DisplayItem[]) => {
-      const name = prompt("Nama folder baru:");
-      const folderName = name?.trim();
+      const name = await ask({
+        title: "Folder baru",
+        message: `${items.length} item terpilih akan dipindahkan ke folder ini.`,
+        label: "Nama folder",
+        placeholder: "mis. Arsip Keluarga",
+        confirmLabel: "Buat dan pindahkan",
+      });
+      if (!name) return;
+      const folderName = name.trim();
       if (!folderName) return;
 
       setBulkBusy(true);
@@ -150,12 +165,16 @@ export function useBulkActions({
         clearSelection();
         setLibraryNotice(`Folder “${folderName}” dibuat dan ${items.length} item dipindahkan.`);
       } catch (err) {
-        alert(`Gagal membuat folder: ${(err as Error).message}`);
+        await notify({
+          title: "Gagal membuat folder",
+          message: (err as Error).message,
+          tone: "danger",
+        });
       } finally {
         setBulkBusy(false);
       }
     },
-    [connectionMode, currentFolderId, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice]
+    [connectionMode, currentFolderId, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice, notify, ask]
   );
 
   const confirmAutoGroup = useCallback(async () => {
@@ -208,7 +227,11 @@ export function useBulkActions({
       clearSelection();
       setLibraryNotice(`${items.length} item dikelompokkan ke ${groups.length} folder.`);
     } catch (err) {
-      alert(`Gagal mengelompokkan: ${(err as Error).message}`);
+      await notify({
+        title: "Gagal mengelompokkan",
+        message: (err as Error).message,
+        tone: "danger",
+      });
     } finally {
       setBulkBusy(false);
     }
@@ -222,6 +245,7 @@ export function useBulkActions({
     setLocalItems,
     setLibraryNotice,
     smartFolderMode,
+    notify,
   ]);
 
   const bulkAction = useCallback(
