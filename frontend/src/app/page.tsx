@@ -18,9 +18,6 @@ import {
   getAdminKey,
   setAdminKey,
   gdriveStatus,
-  createShare,
-  listShares,
-  deleteShare,
   Invite as ServerInvite,
   Member as ServerMember,
 } from "@/lib/api/cloud";
@@ -99,10 +96,11 @@ import {
   itemToFile,
 } from "@/lib/files/materialize";
 import { useFileSelection } from "@/hooks/useFileSelection";
+import { useShares } from "@/hooks/useShares";
 import { useTrash } from "@/hooks/useTrash";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
-import { ActiveShare, FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
+import { FamilyMember, formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
 import type { ConnectionMode } from "@/lib/types";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
@@ -138,9 +136,6 @@ export default function Home() {
   const [uploadFileName, setUploadFileName] = useState("");
   const [isGdriveConnected, setIsGdriveConnected] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<DisplayItem | null>(null);
-  const [shareModalFile, setShareModalFile] = useState<DisplayItem | null>(null);
-  const [shareLinkGenerated, setShareLinkGenerated] = useState(false);
-  const [shareGenerating, setShareGenerating] = useState(false);
 
   // Rename & pindah folder (khusus mode NAS)
   const [moveItems, setMoveItems] = useState<DisplayItem[]>([]);
@@ -175,14 +170,7 @@ export default function Home() {
   const [newMemberRole, setNewMemberRole] = useState<"member" | "admin">("member");
   const [newMemberQuotaGB, setNewMemberQuotaGB] = useState<number>(100);
 
-  const [shareExpiryOption, setShareExpiryOption] = useState<"24h" | "7d" | "30d" | "never">("7d");
-  const [sharePasswordInput, setSharePasswordInput] = useState("");
-  const [sharePermission, setSharePermission] = useState<"viewer" | "uploader">("viewer");
-  const [currentGeneratedUrl, setCurrentGeneratedUrl] = useState("");
-
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
-
-  const [activeShares, setActiveShares] = useState<ActiveShare[]>([]);
 
   // Folder Drill-down & Breadcrumbs State
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -411,6 +399,9 @@ export default function Home() {
     currentUser,
     onRestored: () => loadNasFiles(currentFolderId),
   });
+
+  // Link berbagi: modal, opsi, dan daftar link aktif dikelola hook sendiri.
+  const shares = useShares({ connectionMode, currentUser });
 
   /** Segarkan daftar folder, galeri, dan trash setelah aksi yang mengubah data. */
   const refreshLibrary = useCallback(async () => {
@@ -675,85 +666,6 @@ export default function Home() {
       await refreshInvites();
     } catch (err) {
       alert(`Gagal mencabut undangan: ${(err as Error).message}`);
-    }
-  };
-
-  const refreshShares = useCallback(async () => {
-    try {
-      const rows = await listShares();
-      setActiveShares(
-        rows.map((r) => {
-          const fileType = detectFileType({
-            mime: r.MimeType,
-            name: r.NodeName,
-            isDirectory: r.IsDirectory,
-          });
-
-          return {
-            id: r.ID,
-            fileName: r.NodeName,
-            fileType,
-            rawToken: "",
-            shareUrl: "",
-            permission: r.Permission === "uploader" ? "uploader" : "viewer",
-            expiresAtStr: r.ExpiresAt
-              ? new Date(r.ExpiresAt).toLocaleDateString("id-ID", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "Tanpa batas",
-            hasPassword: Boolean(r.HasPassword),
-          };
-        })
-      );
-    } catch {
-      setActiveShares([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    // `refreshShares` mengisi state dari API saat mode NAS aktif; pemicunya
-    // perubahan koneksi/pengguna, bukan render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (connectionMode === "nas" && currentUser) refreshShares();
-  }, [connectionMode, currentUser, refreshShares]);
-
-  const handleGenerateShare = async () => {
-    if (!shareModalFile) return;
-
-    if (connectionMode !== "nas") {
-      alert("Link berbagi hanya tersedia untuk berkas di server NAS.");
-      return;
-    }
-
-    setShareGenerating(true);
-    try {
-      const created = await createShare({
-        node_id: shareModalFile.id,
-        permission: sharePermission === "uploader" ? "uploader" : "viewer",
-        password: sharePasswordInput || undefined,
-        expires_in: shareExpiryOption === "never" ? undefined : shareExpiryOption,
-      });
-
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      setCurrentGeneratedUrl(`${origin}/s/${created.raw_token}`);
-      setShareLinkGenerated(true);
-      await refreshShares();
-    } catch (err) {
-      alert(`Gagal membuat link berbagi: ${(err as Error).message}`);
-    } finally {
-      setShareGenerating(false);
-    }
-  };
-
-  const handleRevokeShare = async (id: string) => {
-    if (!confirm("Cabut link berbagi ini? Pengguna yang memegang link tidak akan bisa mengakses file lagi.")) return;
-    try {
-      await deleteShare(id);
-      await refreshShares();
-    } catch (err) {
-      alert(`Gagal mencabut link: ${(err as Error).message}`);
     }
   };
 
@@ -1456,13 +1368,6 @@ export default function Home() {
     setActionMenuAnchor(null);
   };
 
-  const openShareModal = (item: DisplayItem) => {
-    setShareModalFile(item);
-    setShareLinkGenerated(false);
-    setCurrentGeneratedUrl("");
-    setSharePasswordInput("");
-  };
-
   /** Jalankan alat Studio untuk item yang mungkin masih di server. */
   const processItemsWithTool = async (
     tool: StudioToolId,
@@ -1527,7 +1432,7 @@ export default function Home() {
       return;
     }
     if (action.id === "share") {
-      openShareModal(item);
+      shares.open(item);
       return;
     }
     if (action.id === "delete") {
@@ -1852,7 +1757,7 @@ export default function Home() {
               onDownload={handleDownload}
               onRename={handleRename}
               onMove={openMoveModal}
-              onShare={openShareModal}
+              onShare={shares.open}
               onOpenMenu={openFileActionMenu}
               selectionMode={selection.mode}
               selectedIds={selection.selectedIds}
@@ -1969,11 +1874,11 @@ export default function Home() {
               onSubTabChange={setFamilySubTab}
               members={familyMembers}
               invites={serverInvites}
-              shares={activeShares}
+              shares={shares.activeShares}
               onAddMember={() => setAddMemberModalOpen(true)}
               onRefreshInvites={refreshInvites}
               onRevokeInvite={handleRevokeInvite}
-              onRevokeShare={handleRevokeShare}
+              onRevokeShare={shares.revoke}
               onOpenFiles={() => setActiveTab("files")}
               canManageQuota={currentUser?.role === "owner" || currentUser?.role === "admin"}
               viewerRole={currentUser?.role || "member"}
@@ -2082,23 +1987,20 @@ export default function Home() {
       )}
 
       {/* 4. SHARE LINK MODAL */}
-      {shareModalFile && (
+      {shares.modalFile && (
         <ShareLinkModal
-          item={shareModalFile}
-          expiry={shareExpiryOption}
-          onExpiryChange={setShareExpiryOption}
-          permission={sharePermission}
-          onPermissionChange={setSharePermission}
-          password={sharePasswordInput}
-          onPasswordChange={setSharePasswordInput}
-          generatedUrl={currentGeneratedUrl}
-          generated={shareLinkGenerated}
-          generating={shareGenerating}
-          onGenerate={handleGenerateShare}
-          onClose={() => {
-            setShareModalFile(null);
-            setShareLinkGenerated(false);
-          }}
+          item={shares.modalFile}
+          expiry={shares.expiryOption}
+          onExpiryChange={shares.setExpiryOption}
+          permission={shares.permission}
+          onPermissionChange={shares.setPermission}
+          password={shares.passwordInput}
+          onPasswordChange={shares.setPasswordInput}
+          generatedUrl={shares.generatedUrl}
+          generated={shares.linkGenerated}
+          generating={shares.generating}
+          onGenerate={shares.generate}
+          onClose={shares.close}
         />
       )}
 

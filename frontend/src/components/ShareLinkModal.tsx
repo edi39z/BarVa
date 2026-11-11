@@ -3,10 +3,8 @@
 import React from "react";
 import { Copy, Share2 } from "lucide-react";
 import type { DisplayItem } from "@/lib/displayItem";
+import type { ShareExpiry, SharePermission } from "@/lib/types";
 import Modal from "@/components/Modal";
-
-export type ShareExpiry = "24h" | "7d" | "30d" | "never";
-export type SharePermission = "viewer" | "uploader";
 
 interface ShareLinkModalProps {
   item: DisplayItem;
