@@ -249,7 +249,7 @@ Ada dua berkas di `deploy/docker/`:
 | Berkas | Isi |
 |---|---|
 | `docker-compose.dev.yml` | PostgreSQL saja, untuk pengembangan lokal (lihat [Database](#1-database)) |
-| `docker-compose.yml` | Seluruh stack (PostgreSQL + backend) dalam mode release |
+| `docker-compose.yml` | Seluruh stack (PostgreSQL + backend + frontend Next.js + nginx) dalam mode release |
 
 Bagian ini menjelaskan yang kedua.
 
@@ -272,14 +272,24 @@ kosong:
 docker compose up -d --build
 ```
 
+Empat service yang naik: `nas-postgres`, `nas-backend`, `nas-frontend`
+(Next.js standalone), dan `nas-nginx` sebagai satu-satunya pintu masuk. Port
+host bisa diatur lewat `.env` (`BACKEND_BIND_PORT`, `FRONTEND_BIND_PORT`,
+`NGINX_BIND_PORT`), dan folder data bisa diarahkan ke disk lain lewat
+`BARVA_STORAGE_DIR` / `BARVA_TMP_DIR` / `BARVA_DATA_DIR`.
+
 Migrasi otomatis dijalankan oleh backend saat start (`MIGRATIONS_DIR`), dengan
 `migrations/` di-mount ke container backend — bukan ke initdb PostgreSQL.
 
 > ⚠️ Sebelum produksi: jangan ekspos port `5432` ke publik (default sudah
-> `127.0.0.1`), port backend juga sudah dibatasi ke loopback, isi
-> `ALLOWED_ORIGINS` dengan domain frontend Anda, dan pastikan volume
-> `nas_data` ikut di-backup (`gdrive.json`, `invites.json`, thumbnail).
-> File `.env` tidak boleh di-commit.
+> `127.0.0.1`). Port backend dan frontend sengaja dibuka ke LAN agar bisa
+> dipakai tanpa proxy (mis. upload besar yang terpotong batas Cloudflare) —
+> karena itu `NAS_ADMIN_KEY` wajib diisi. Isi `ALLOWED_ORIGINS` dengan domain
+> frontend Anda, dan pastikan folder `nas_data` ikut di-backup (`gdrive.json`,
+> `invites.json`, thumbnail). File `.env` tidak boleh di-commit.
+
+Alur deploy dari git (clone di server, tarik perubahan, rollback) ada di
+[`deploy/README.md`](deploy/README.md).
 
 ---
 
@@ -297,7 +307,8 @@ bekerja untuk localhost.
 | `THUMBNAIL_DIR` | `./data/thumbnails` | Cache pratinjau gambar (`<sha256>_<sisi>.jpg`) |
 | `DATA_DIR` | `./data` | Lokasi `gdrive.json` dan `invites.json` |
 | `APP_URL` | `http://localhost:3000` | Base URL untuk redirect OAuth dan link undangan |
-| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*` dan `/invites/*`. Kosong = hanya boleh dari IP lokal/privat; **wajib** bila `GIN_MODE=release` |
+| `NAS_ADMIN_KEY` | *(kosong)* | Kunci `X-Admin-Key` untuk `/gdrive/*`, `/invites/*`, `/hdd/*`. Kosong = hanya boleh dari IP lokal/privat; **wajib** bila `GIN_MODE=release` |
+| `EXTERNAL_HDD_DIR` | *(kosong)* | Akar disk eksternal yang disajikan baca-saja lewat `/hdd/*`. Kosong = endpoint tidak didaftarkan |
 | `ALLOWED_ORIGINS` | *(kosong)* | Origin CORS tambahan, dipisah koma |
 | `MAX_UPLOAD_BYTES` | `10737418240` (10 GiB) | Batas ukuran satu upload |
 | `MIGRATIONS_DIR` | *(kosong: `./migrations`, lalu `../migrations`)* | Folder migrasi SQL yang diterapkan saat start |
