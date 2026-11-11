@@ -18,6 +18,11 @@ docker compose build
 echo "==> Menaikkan stack"
 docker compose up -d --remove-orphans
 
+# nginx menyimpan IP upstream saat start. Bila hanya backend/frontend yang
+# di-recreate, alamat lamanya bisa dipakai terus dan menghasilkan 502.
+echo "==> Memuat ulang nginx"
+docker compose exec -T nas-nginx nginx -s reload
+
 echo "==> Menunggu backend sehat"
 for _ in $(seq 1 30); do
   status="$(docker inspect --format '{{.State.Health.Status}}' nas-backend 2>/dev/null || echo unknown)"
