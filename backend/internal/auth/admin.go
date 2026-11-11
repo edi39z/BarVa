@@ -12,7 +12,11 @@ import (
 
 const AdminKeyHeader = "X-Admin-Key"
 
-func isLocalOrPrivateIP(raw string) bool {
+// IsLocalIP melaporkan apakah raw adalah alamat loopback, privat, link-local,
+// atau CGNAT Tailscale (100.64.0.0/10, yang tidak dianggap privat oleh Go).
+// Dipakai untuk membatasi endpoint admin dan origin CORS: keduanya harus
+// memakai definisi "lokal" yang sama.
+func IsLocalIP(raw string) bool {
 	ip := net.ParseIP(raw)
 	if ip == nil {
 		return false
@@ -20,7 +24,6 @@ func isLocalOrPrivateIP(raw string) bool {
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
 		return true
 	}
-	// Tailscale memakai CGNAT 100.64.0.0/10 yang tidak dianggap private oleh Go.
 	if v4 := ip.To4(); v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127 {
 		return true
 	}
@@ -38,7 +41,7 @@ func AdminKeyMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		if key == "" {
-			if isLocalOrPrivateIP(c.ClientIP()) {
+			if IsLocalIP(c.ClientIP()) {
 				c.Next()
 				return
 			}
