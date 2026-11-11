@@ -92,8 +92,9 @@ ke executable Chrome/Chromium lain.
 ### Apa yang dijalankan CI
 
 `.github/workflows/ci.yml` berjalan pada push ke `main` dan Pull Request, tetapi
-hanya bila yang berubah salah satu dari: `backend/**`, `frontend/**`, atau
-`.github/workflows/**`. Tiga job paralel di runner `ubuntu-24.04`:
+hanya bila yang berubah salah satu dari: `backend/**`, `frontend/**`,
+`deploy/**`, atau `.github/workflows/**`. Tiga job paralel di runner
+`ubuntu-24.04`:
 
 | Job | Isi |
 |---|---|

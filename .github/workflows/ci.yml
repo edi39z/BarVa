@@ -20,10 +20,12 @@
 # - Semua job diberi timeout-minutes supaya proses yang menggantung tidak
 #   memakan kuota 360 menit bawaan GitHub.
 # - Workflow hanya dipicu oleh perubahan yang benar-benar dibangun: `backend/`,
-#   `frontend/`, dan berkas workflow ini sendiri. Perubahan dokumentasi murni
-#   tidak menjalankan apa pun. Daftarnya berupa whitelist, bukan blacklist,
-#   supaya berkas baru di root tidak diam-diam melewatkan CI — kalau suatu saat
-#   ada direktori kode baru di root, tambahkan di sini.
+#   `frontend/`, `deploy/`, dan berkas workflow ini sendiri. Perubahan
+#   dokumentasi murni tidak menjalankan apa pun. `deploy/` ikut dipantau supaya
+#   perubahan unit systemd, compose, atau konfigurasi nginx tidak lolos tanpa
+#   gate sama sekali. Daftarnya berupa whitelist, bukan blacklist, supaya berkas
+#   baru di root tidak diam-diam melewatkan CI — kalau suatu saat ada direktori
+#   kode baru di root, tambahkan di sini.
 
 name: CI
 
@@ -33,12 +35,14 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "deploy/**"
       - ".github/workflows/**"
   pull_request:
     branches: ["main"]
     paths:
       - "backend/**"
       - "frontend/**"
+      - "deploy/**"
       - ".github/workflows/**"
   workflow_dispatch:
 
