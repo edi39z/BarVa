@@ -53,7 +53,10 @@ export async function itemToFile(
     throw new Error("Isi berkas ini tidak tersedia di perangkat.");
   }
 
-  const response = await fetch(targetUrl);
+  // credentials "include" wajib: di dev frontend dan backend beda port, jadi
+  // cookie nas_session tidak ikut pada fetch cross-origin biasa dan unduhan
+  // berakhir 401. Di produksi satu origin, opsi ini tidak mengubah apa pun.
+  const response = await fetch(targetUrl, { credentials: "include" });
   if (!response.ok) {
     throw new Error("Gagal mengunduh berkas dari server.");
   }
