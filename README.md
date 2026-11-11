@@ -248,9 +248,15 @@ cd deploy/docker
 cp .env.example .env
 ```
 
-Buka `.env` dan isi **`POSTGRES_PASSWORD`** — nilainya wajib, compose akan
-menolak start jika kosong. Gunakan huruf dan angka saja, karena nilai ini
-diambil sebagai bagian dari `DATABASE_URL`.
+Buka `.env` dan isi tiga nilai wajib — compose menolak start bila salah satunya
+kosong:
+
+- `POSTGRES_PASSWORD` — gunakan huruf dan angka saja, karena nilainya diambil
+  sebagai bagian dari `DATABASE_URL`.
+- `NAS_ADMIN_KEY` — buat dengan `openssl rand -hex 32` (minimal 32 karakter).
+  Nilai contoh dari `.env.example` ditolak saat start.
+- `APP_URL` — alamat aplikasi yang dibuka pengguna (mis.
+  `http://192.168.1.10:3000`), dipakai untuk redirect OAuth dan link undangan.
 
 ```bash
 docker compose up -d --build
@@ -260,8 +266,9 @@ Migrasi otomatis dijalankan oleh backend saat start (`MIGRATIONS_DIR`), dengan
 `migrations/` di-mount ke container backend — bukan ke initdb PostgreSQL.
 
 > ⚠️ Sebelum produksi: jangan ekspos port `5432` ke publik (default sudah
-> `127.0.0.1`), isi `NAS_ADMIN_KEY` (wajib di mode `release`), dan isi
-> `ALLOWED_ORIGINS` dengan domain frontend Anda.
+> `127.0.0.1`), port backend juga sudah dibatasi ke loopback, isi
+> `ALLOWED_ORIGINS` dengan domain frontend Anda, dan pastikan volume
+> `nas_data` ikut di-backup (`gdrive.json`, `invites.json`, thumbnail).
 > File `.env` tidak boleh di-commit.
 
 ---
