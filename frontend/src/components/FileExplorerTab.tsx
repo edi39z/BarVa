@@ -133,9 +133,12 @@ export default function FileExplorerTab({
   const currentFiles = currentItems.filter((f) => f.type !== "folder");
 
   const pressedItem = React.useRef<DisplayItem | null>(null);
-  const longPress = useLongPress((point) => {
+  // Tekan lama memilih item dan menyalakan mode pilih, seperti galeri ponsel.
+  // Menu aksi tetap terbuka lewat klik kanan atau tombol ⋮.
+  const longPress = useLongPress(() => {
     const item = pressedItem.current;
-    if (item) onOpenMenu(item, point);
+    if (!item || selectedIds.includes(item.id)) return;
+    onToggleSelect(item, {});
   });
 
   const pressProps = (item: DisplayItem) => ({

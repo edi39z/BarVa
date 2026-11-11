@@ -375,8 +375,11 @@ Aturan yang dipegang:
 
 Berkas dan media di galeri memakai satu menu aksi yang sama:
 
-- **Pemicu:** klik kanan (desktop), tekan lama 450 ms (sentuh), atau tombol ⋮.
-  Klik sekali tetap membuka pratinjau. Saat mode pilih aktif, klik menandai item.
+- **Pemicu menu:** klik kanan (desktop) atau tombol ⋮. Klik sekali tetap membuka
+  pratinjau. Saat mode pilih aktif, klik menandai item.
+- **Pemicu seleksi:** tekan lama 450 ms pada layar sentuh langsung menyalakan mode
+  pilih dan menandai item itu, sama seperti galeri ponsel. Menekan lama item yang
+  sudah terpilih tidak mengubah apa pun; untuk membatalkan pilihan ketuk sekali.
 - **Definisi aksi:** `lib/files/actions.ts` — `actionsForItem` untuk satu item dan
   `actionsForSelection` untuk banyak item. Aksi tipe-spesifik hanya muncul bila
   semua item sejenis dan tidak ada folder di pilihan.
@@ -384,6 +387,7 @@ Berkas dan media di galeri memakai satu menu aksi yang sama:
   dan `mode`; Shift+klik memilih rentang, Ctrl/Cmd+klik menandai tanpa membuka.
 - **Tekan lama:** `hooks/useLongPress.ts` membatalkan timer bila jari bergerak
   lebih dari 10 px, lalu menekan klik berikutnya agar item tidak ikut terbuka.
+  Aksi yang dijalankan adalah menandai item, bukan membuka menu.
 - **Berkas NAS:** `lib/files/materialize.ts` mengunduh isi berkas lewat
   `getDownloadUrl` dengan batas 200 MB (`MAX_PROCESS_BYTES`). Hasil olahan
   diunggah balik ke folder asal memakai `uploadWithUniqueName` yang menambah
