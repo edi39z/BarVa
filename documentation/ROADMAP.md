@@ -29,14 +29,15 @@ janji tanggal.
 
 ## Berikutnya
 
-### 1. Memecah state `page.tsx` menjadi hook
+### 1. Memindahkan sisa state `page.tsx` ke hook
 
-`page.tsx` sudah turun dari 4257 ke ±2.200 baris setelah seluruh tab, sidebar,
-header, dan modal diekstrak ke `src/components/*`. Sisa isinya adalah state,
-efek, dan handler yang menyambungkan komponen-komponen tersebut. Langkah
-berikutnya memindahkan kelompok state ke custom hook
-(`useNasFiles`, `useTrash`, `useShares`, `useStudio`) supaya container hanya
-mengurus komposisi.
+`page.tsx` sudah turun dari 4257 ke ±1.550 baris setelah seluruh tab, sidebar,
+header, dan modal diekstrak ke `src/components/*`, lalu empat kelompok state
+besar pindah ke `src/hooks/` (`useNasFiles`, `useTrash`, `useShares`,
+`useStudio`). Sisa isinya adalah sesi/koneksi server, keluarga & undangan,
+unggahan, aksi massal, dan komposisi komponen. Langkah berikutnya memindahkan
+kelompok yang tersisa (`useNasSession`, `useFamily`, `useBulkActions`) supaya
+container hanya mengurus komposisi.
 
 ### 2. Sisa kuota di pengaturan akun
 
