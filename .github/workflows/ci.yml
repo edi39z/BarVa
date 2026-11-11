@@ -25,12 +25,13 @@
 # - Semua job diberi timeout-minutes supaya proses yang menggantung tidak
 #   memakan kuota 360 menit bawaan GitHub.
 # - Workflow hanya dipicu oleh perubahan yang benar-benar dibangun: `backend/`,
-#   `frontend/`, `deploy/`, dan berkas workflow ini sendiri. Perubahan
-#   dokumentasi murni tidak menjalankan apa pun. `deploy/` ikut dipantau supaya
-#   perubahan unit systemd, compose, atau konfigurasi nginx tidak lolos tanpa
-#   gate sama sekali. Daftarnya berupa whitelist, bukan blacklist, supaya berkas
-#   baru di root tidak diam-diam melewatkan CI — kalau suatu saat ada direktori
-#   kode baru di root, tambahkan di sini.
+#   `frontend/`, `deploy/`, `migrations/`, `scripts/`, dan berkas workflow ini
+#   sendiri. Perubahan dokumentasi murni tidak menjalankan apa pun. `deploy/`
+#   ikut dipantau supaya perubahan unit systemd, compose, atau konfigurasi nginx
+#   tidak lolos tanpa gate sama sekali; `migrations/` dan `scripts/` ikut karena
+#   keduanya hanya dieksekusi di server. Daftarnya berupa whitelist, bukan
+#   blacklist, supaya berkas baru di root tidak diam-diam melewatkan CI — kalau
+#   suatu saat ada direktori kode baru di root, tambahkan di sini.
 
 name: CI
 
@@ -41,6 +42,8 @@ on:
       - "backend/**"
       - "frontend/**"
       - "deploy/**"
+      - "migrations/**"
+      - "scripts/**"
       - ".github/workflows/**"
   pull_request:
     branches: ["main"]
@@ -48,6 +51,8 @@ on:
       - "backend/**"
       - "frontend/**"
       - "deploy/**"
+      - "migrations/**"
+      - "scripts/**"
       - ".github/workflows/**"
   workflow_dispatch:
 
@@ -198,11 +203,17 @@ jobs:
         working-directory: deploy/docker
         run: docker compose -f docker-compose.dev.yml config --quiet
 
-      # Build sungguhan, bukan sekadar parse: Dockerfile memakai multi-stage,
-      # CGO_ENABLED=0, dan apk add ffmpeg, jadi kesalahan di sana baru terlihat
-      # saat deploy. Image hanya dipakai untuk validasi lalu dibuang.
+      # Build sungguhan, bukan sekadar parse: Dockerfile memakai multi-stage dan
+      # CGO_ENABLED=0, jadi kesalahan di sana baru terlihat saat deploy. Image
+      # hanya dipakai untuk validasi lalu dibuang.
       - name: Build image backend (Dockerfile)
         run: docker build --quiet -t nas-backend:ci backend/
+
+      # Skrip backup/restore/offsite hanya berjalan di server. shellcheck
+      # menangkap kesalahan quoting dan pipeline yang baru terlihat saat
+      # insiden, ketika skrip justru paling dibutuhkan.
+      - name: Shellcheck skrip operasional
+        run: shellcheck scripts/*.sh
 
       # Unit asli menunjuk /opt/nas/... dan /etc/nas/... yang tidak ada di
       # runner. Path tersebut diganti ke berkas sementara supaya yang diperiksa
