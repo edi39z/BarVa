@@ -17,8 +17,9 @@
 # - Job e2e menjalankan `e2e/smoke.spec.ts` saja. Suite lain (nas-mode,
 #   offline-upload, public-share) butuh backend hidup dan akun uji, jadi
 #   sengaja dilewati di sini.
-# - Job deploy memvalidasi artefak di `deploy/` tanpa menyalakan apa pun:
-#   compose di-parse, unit systemd diverifikasi, konfigurasi nginx diuji.
+# - Job deploy memvalidasi artefak di `deploy/` tanpa menyalakan service:
+#   compose di-parse, image backend di-build, unit systemd diverifikasi, dan
+#   konfigurasi nginx diuji.
 #   Tanpa job ini, unit systemd yang tidak bisa start bisa lolos ke `main`
 #   karena job lain hanya menyentuh `backend/` dan `frontend/`.
 # - Semua job diberi timeout-minutes supaya proses yang menggantung tidak
