@@ -1,20 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  saveLocalFile,
   getAllLocalFiles,
   deleteLocalFile,
   toggleFavorite,
-  enqueueUpload,
-  countQueuedUploads,
 } from "@/lib/storage/indexeddb";
-import { flushUploadQueue } from "@/lib/uploadQueue";
 import {
-  uploadToNas,
   getDownloadUrl,
   getThumbnailUrl,
-  fetchMe,
   listNasFiles,
   createNasFolder,
   deleteNasFile,
@@ -54,8 +48,8 @@ import { useNasSession } from "@/hooks/useNasSession";
 import { useShares } from "@/hooks/useShares";
 import { useStudio } from "@/hooks/useStudio";
 import { useTrash } from "@/hooks/useTrash";
+import { useUploads } from "@/hooks/useUploads";
 import type { DisplayItem } from "@/lib/displayItem";
-import { detectFileType } from "@/lib/fileTypes";
 import { formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
 
 import GoogleDrivePanel from "@/components/GoogleDrivePanel";
@@ -66,9 +60,6 @@ export default function Home() {
   const [storageFilter, setStorageFilter] = useState<"local" | "gdrive">("local");
   const [galleryCategory, setGalleryCategory] = useState<"all" | "image" | "video" | "favorite">("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadFileName, setUploadFileName] = useState("");
   const [selectedMedia, setSelectedMedia] = useState<DisplayItem | null>(null);
 
   // Rename & pindah folder (khusus mode NAS)
@@ -134,10 +125,6 @@ export default function Home() {
   // Local storage items from IndexedDB
   const [localItems, setLocalItems] = useState<DisplayItem[]>([]);
 
-  // Antrean upload offline
-  const [pendingUploads, setPendingUploads] = useState(0);
-  const [flushingQueue, setFlushingQueue] = useState(false);
-
   // Menu aksi per berkas + seleksi banyak + smart foldering
   const selection = useFileSelection();
   const [actionMenuItem, setActionMenuItem] = useState<DisplayItem | null>(null);
@@ -147,8 +134,6 @@ export default function Home() {
   const [smartFolderOpen, setSmartFolderOpen] = useState(false);
   const [smartFolderMode, setSmartFolderMode] = useState<GroupMode>("type");
   const [libraryNotice, setLibraryNotice] = useState("");
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Isi IndexedDB tidak menyentuh jaringan, jadi tetap dimuat di mode apa pun.
   useEffect(() => {
@@ -204,64 +189,25 @@ export default function Home() {
     await trash.reload();
   }, [connectionMode, currentUser, activeTab, files, trash]);
 
-  /**
-   * Unggah hasil olahan tanpa menimpa berkas lain. Bila nama sudah dipakai,
-   * coba lagi dengan akhiran " (2)", " (3)", dan seterusnya.
-   */
-  const uploadWithUniqueName = useCallback(async (file: File, parentId: string | null) => {
-    try {
-      return await uploadToNas(file, parentId, undefined, false);
-    } catch (err) {
-      if (!/sudah ada/i.test((err as Error).message)) throw err;
-
-      const dot = file.name.lastIndexOf(".");
-      const base = dot > 0 ? file.name.slice(0, dot) : file.name;
-      const extension = dot > 0 ? file.name.slice(dot) : "";
-
-      for (let attempt = 2; attempt <= 20; attempt += 1) {
-        const candidate = new File([file], `${base} (${attempt})${extension}`, { type: file.type });
-        try {
-          return await uploadToNas(candidate, parentId, undefined, false);
-        } catch (nextError) {
-          if (!/sudah ada/i.test((nextError as Error).message)) throw nextError;
-        }
-      }
-
-      throw new Error("Nama berkas hasil bentrok. Ganti nama berkas lalu coba lagi.");
-    }
-  }, []);
-
-  // Kirim antrean upload begitu koneksi kembali, dan segarkan jumlah antrean.
-  useEffect(() => {
-    if (connectionMode !== "nas" || !currentUser) return;
-
-    let alive = true;
-    const syncCount = () =>
-      countQueuedUploads()
-        .then((n) => {
-          if (alive) setPendingUploads(n);
-        })
-        .catch(() => undefined);
-
-    const run = async () => {
-      if (!navigator.onLine) {
-        syncCount();
-        return;
-      }
-      const result = await flushUploadQueue();
-      if (!alive) return;
-      setPendingUploads(result.pending);
-      if (result.uploaded > 0) files.reload();
-    };
-
-    syncCount();
-    run();
-    window.addEventListener("online", run);
-    return () => {
-      alive = false;
-      window.removeEventListener("online", run);
-    };
-  }, [connectionMode, currentUser, files]);
+  // Unggahan, antrean offline, dan progres unggah dikelola hook sendiri.
+  const {
+    isUploading,
+    uploadProgress,
+    uploadFileName,
+    pendingUploads,
+    flushingQueue,
+    fileInputRef,
+    uploadWithUniqueName,
+    flushQueue: handleFlushQueue,
+    handleFileInputChange: handleRealFileUpload,
+  } = useUploads({
+    connectionMode,
+    currentUser,
+    currentFolderId,
+    setCurrentUser,
+    setLocalItems,
+    onUploaded: () => files.reload(),
+  });
 
   // Phase 5: PWA Install & 3-2-1 Offsite Backup Handlers
   const handleInstallPwa = () => {
@@ -384,120 +330,6 @@ export default function Home() {
       }
     } finally {
       setMoveBusy(false);
-    }
-  };
-
-  // Handle Real Upload (Dual-Mode: NAS Streaming + IndexedDB Fallback)
-  // Simpan upload ke IndexedDB saat server tidak terjangkau, lalu kirim
-  // otomatis lewat flushUploadQueue ketika online.
-  const queueOfflineUpload = async (file: File) => {
-    try {
-      await enqueueUpload(file.name, file, currentFolderId, false, file.type);
-      setPendingUploads(await countQueuedUploads());
-      alert(
-        `"${file.name}" disimpan di antrean dan akan diunggah otomatis saat koneksi ke server kembali.`
-      );
-    } catch (err) {
-      alert(`Gagal menyimpan ke antrean offline: ${(err as Error).message}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
-  const handleFlushQueue = async () => {
-    setFlushingQueue(true);
-    try {
-      const result = await flushUploadQueue();
-      setPendingUploads(result.pending);
-      if (result.uploaded > 0) await files.reload();
-    } finally {
-      setFlushingQueue(false);
-    }
-  };
-
-  const handleRealFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = e.target.files;
-    if (!picked || picked.length === 0) return;
-
-    const file = picked[0];
-    setUploadFileName(file.name);
-    setIsUploading(true);
-    setUploadProgress(10);
-
-    try {
-      const type = detectFileType({ mime: file.type, name: file.name });
-
-      // Mode NAS: unggah ke server, lalu ambil ulang daftar dari server
-      // supaya yang tampil adalah data nyata, bukan salinan lokal.
-      if (connectionMode === "nas") {
-        if (!navigator.onLine) {
-          await queueOfflineUpload(file);
-          return;
-        }
-
-        const report = (percent: number) => setUploadProgress(Math.max(10, percent));
-        try {
-          await uploadToNas(file, currentFolderId, report);
-        } catch (err) {
-          const msg = (err as Error).message || "";
-          // Server tidak terjangkau (bukan penolakan validasi): antrekan.
-          if (!/sudah ada/i.test(msg) && (err instanceof TypeError || /fetch|network|jaringan/i.test(msg))) {
-            await queueOfflineUpload(file);
-            return;
-          }
-          // Backend menolak nama duplikat; tawarkan ganti, jangan langsung gagal.
-          if (!/sudah ada/i.test(msg)) throw err;
-          if (!confirm(`"${file.name}" sudah ada di folder ini. Ganti dengan versi baru?`)) {
-            setIsUploading(false);
-            return;
-          }
-          await uploadToNas(file, currentFolderId, report, true);
-        }
-        setUploadProgress(100);
-        await files.reload();
-        // Segarkan pemakaian kuota yang tampil di sidebar.
-        try {
-          const me = await fetchMe();
-          if (me) setCurrentUser(me);
-        } catch {
-          // Diabaikan: angka kuota boleh tertinggal, unggahan sudah berhasil.
-        }
-        setTimeout(() => {
-          setIsUploading(false);
-        }, 400);
-        return;
-      }
-
-      // Mode standalone: simpan di IndexedDB browser.
-      setUploadProgress(85);
-      const saved = await saveLocalFile(file.name, file, type, file.type);
-      setUploadProgress(100);
-
-      const newItem: DisplayItem = {
-        id: saved.id,
-        name: saved.name,
-        type: saved.type,
-        sizeStr: formatBytes(saved.size),
-        sizeBytes: saved.size,
-        updatedAt: "Baru saja",
-        updatedAtISO: saved.updatedAt,
-        parentId: currentFolderId,
-        sha256: saved.sha256 ? `${saved.sha256.substring(0, 8)}...${saved.sha256.substring(saved.sha256.length - 8)}` : undefined,
-        isFavorite: false,
-        blob: file,
-      };
-
-      setLocalItems((prev) => [newItem, ...prev]);
-      setTimeout(() => {
-        setIsUploading(false);
-      }, 400);
-    } catch (err) {
-      console.error("Upload error:", err);
-      alert(`Gagal menyimpan file: ${(err as Error).message}`);
-      setIsUploading(false);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 

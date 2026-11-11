@@ -403,10 +403,9 @@ Kontribusi diterima, terutama untuk item di [Status Fitur](#status-fitur).
 
 ### Yang paling dibutuhkan sekarang
 
-1. Memindahkan sisa state `frontend/src/app/page.tsx` (±1.280 baris) ke hook:
-   unggahan/antrean offline dan aksi massal. Enam kelompok besar
-   (`useNasSession`, `useNasFiles`, `useTrash`, `useShares`, `useStudio`,
-   `useFamily`) sudah diekstrak.
+1. Memindahkan sisa state `frontend/src/app/page.tsx` (±1.110 baris) ke hook:
+   aksi massal. Tujuh kelompok besar (`useNasSession`, `useNasFiles`, `useTrash`,
+   `useShares`, `useStudio`, `useUploads`, `useFamily`) sudah diekstrak.
 2. Halaman pengaturan akun yang menampilkan rincian pemakaian kuota per folder
    dan per jenis berkas.
 3. Pencarian isi dokumen dan dukungan penyimpanan sekunder (S3-compatible).
