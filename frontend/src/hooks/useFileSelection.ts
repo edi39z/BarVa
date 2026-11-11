@@ -56,8 +56,6 @@ export function useFileSelection() {
     setMode(true);
   }, []);
 
-  const replace = useCallback((ids: string[]) => setSelectedIds(ids), []);
-
   return {
     selectedIds,
     selected,
@@ -69,7 +67,6 @@ export function useFileSelection() {
     toggle,
     selectRange,
     selectAll,
-    replace,
     count: selectedIds.length,
   };
 }

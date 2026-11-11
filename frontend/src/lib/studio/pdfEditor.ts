@@ -68,7 +68,7 @@ export async function readPdfSource(file: File): Promise<LoadedSource> {
 }
 
 /** Halaman awal sebuah sumber, dipakai saat berkas disisipkan. */
-export function pagesForSource(source: EditorSource): EditorPage[] {
+function pagesForSource(source: EditorSource): EditorPage[] {
   return Array.from({ length: source.pageCount }, (_, pageIndex) => ({
     id: crypto.randomUUID(),
     sourceId: source.id,
