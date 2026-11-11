@@ -17,13 +17,20 @@
 # - Job e2e menjalankan `e2e/smoke.spec.ts` saja. Suite lain (nas-mode,
 #   offline-upload, public-share) butuh backend hidup dan akun uji, jadi
 #   sengaja dilewati di sini.
+# - Job deploy memvalidasi artefak di `deploy/` tanpa menyalakan service:
+#   compose di-parse, image backend di-build, unit systemd diverifikasi, dan
+#   konfigurasi nginx diuji.
+#   Tanpa job ini, unit systemd yang tidak bisa start bisa lolos ke `main`
+#   karena job lain hanya menyentuh `backend/` dan `frontend/`.
 # - Semua job diberi timeout-minutes supaya proses yang menggantung tidak
 #   memakan kuota 360 menit bawaan GitHub.
 # - Workflow hanya dipicu oleh perubahan yang benar-benar dibangun: `backend/`,
-#   `frontend/`, dan berkas workflow ini sendiri. Perubahan dokumentasi murni
-#   tidak menjalankan apa pun. Daftarnya berupa whitelist, bukan blacklist,
-#   supaya berkas baru di root tidak diam-diam melewatkan CI — kalau suatu saat
-#   ada direktori kode baru di root, tambahkan di sini.
+#   `frontend/`, `deploy/`, dan berkas workflow ini sendiri. Perubahan
+#   dokumentasi murni tidak menjalankan apa pun. `deploy/` ikut dipantau supaya
+#   perubahan unit systemd, compose, atau konfigurasi nginx tidak lolos tanpa
+#   gate sama sekali. Daftarnya berupa whitelist, bukan blacklist, supaya berkas
+#   baru di root tidak diam-diam melewatkan CI — kalau suatu saat ada direktori
+#   kode baru di root, tambahkan di sini.
 
 name: CI
 
@@ -33,12 +40,14 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "deploy/**"
       - ".github/workflows/**"
   pull_request:
     branches: ["main"]
     paths:
       - "backend/**"
       - "frontend/**"
+      - "deploy/**"
       - ".github/workflows/**"
   workflow_dispatch:
 
@@ -164,3 +173,73 @@ jobs:
           path: frontend/test-results
           retention-days: 7
           if-no-files-found: ignore
+
+  # Berkas deploy tidak dijalankan job lain, sehingga kesalahannya baru
+  # terlihat saat dipakai di server. Job ini memvalidasi ketiga artefak tanpa
+  # menyalakan container atau service.
+  deploy:
+    name: Deploy (config)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # Compose mewajibkan dua variabel ini lewat ${VAR:?}; nilai uji cukup
+      # karena `config` hanya merakit ulang berkas, tidak menjalankan apa pun.
+      - name: Validasi docker compose (release)
+        working-directory: deploy/docker
+        env:
+          POSTGRES_PASSWORD: password_uji
+          NAS_ADMIN_KEY: kunci_uji
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Validasi docker compose (dev)
+        working-directory: deploy/docker
+        run: docker compose -f docker-compose.dev.yml config --quiet
+
+      # Build sungguhan, bukan sekadar parse: Dockerfile memakai multi-stage,
+      # CGO_ENABLED=0, dan apk add ffmpeg, jadi kesalahan di sana baru terlihat
+      # saat deploy. Image hanya dipakai untuk validasi lalu dibuang.
+      - name: Build image backend (Dockerfile)
+        run: docker build --quiet -t nas-backend:ci backend/
+
+      # Unit asli menunjuk /opt/nas/backend/bin/server dan /etc/nas/backend.env
+      # yang tidak ada di runner. Keduanya diganti ke berkas sementara supaya
+      # yang diperiksa sintaks unitnya, bukan isi server. User=nas dibuat agar
+      # verifikasi tidak mengeluh soal akun yang tidak ada.
+      - name: Validasi unit systemd
+        run: |
+          set -euo pipefail
+          sudo useradd --system --no-create-home nas 2>/dev/null || true
+          work=$(mktemp -d)
+          sed -e 's#^ExecStart=.*#ExecStart=/bin/true#' \
+              -e 's#^WorkingDirectory=.*#WorkingDirectory=/tmp#' \
+              -e "s#^EnvironmentFile=.*#EnvironmentFile=$work/backend.env#" \
+              deploy/systemd/nas-backend.service > "$work/nas-backend.service"
+          : > "$work/backend.env"
+          systemd-analyze verify "$work/nas-backend.service"
+
+      # Regresi yang pernah lolos: kredensial ditulis langsung di unit.
+      - name: Pastikan rahasia tidak ditulis di unit
+        run: |
+          set -euo pipefail
+          if grep -Eq '^Environment="(DATABASE_URL|NAS_ADMIN_KEY)=' deploy/systemd/nas-backend.service; then
+            echo "DATABASE_URL dan NAS_ADMIN_KEY harus lewat EnvironmentFile, bukan Environment= di unit." >&2
+            exit 1
+          fi
+
+      # nas.conf hanya berisi blok server, jadi dibungkus http{} minimal.
+      - name: Validasi konfigurasi nginx
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx-light >/dev/null
+          work=$(mktemp -d)
+          {
+            echo "events {}"
+            echo "http {"
+            echo "  include /etc/nginx/mime.types;"
+            echo "  include $PWD/deploy/nginx/nas.conf;"
+            echo "}"
+          } > "$work/nginx.conf"
+          sudo nginx -t -c "$work/nginx.conf"

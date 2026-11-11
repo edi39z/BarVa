@@ -92,14 +92,16 @@ ke executable Chrome/Chromium lain.
 ### Apa yang dijalankan CI
 
 `.github/workflows/ci.yml` berjalan pada push ke `main` dan Pull Request, tetapi
-hanya bila yang berubah salah satu dari: `backend/**`, `frontend/**`, atau
-`.github/workflows/**`. Tiga job paralel di runner `ubuntu-24.04`:
+hanya bila yang berubah salah satu dari: `backend/**`, `frontend/**`,
+`deploy/**`, atau `.github/workflows/**`. Empat job paralel di runner
+`ubuntu-24.04`:
 
 | Job | Isi |
 |---|---|
 | `Backend (Go)` | `go vet ./...`, cek `gofmt -l`, `go build ./...`, lalu `go test ./...` |
 | `Frontend (Next.js)` | `npm run lint`, `tsc --noEmit`, lalu `npm run build` |
 | `E2E (Playwright)` | `npm run build` lalu `e2e/smoke.spec.ts` di Chromium |
+| `Deploy (config)` | `docker compose config` untuk kedua compose, `docker build` image backend (Dockerfile), `systemd-analyze verify` pada unit (dengan path sementara), penjagaan agar kredensial tidak ditulis di unit, dan `nginx -t` untuk `deploy/nginx/nas.conf` |
 
 Suite e2e lain (`nas-mode`, `offline-upload`, `public-share`) tidak dijalankan
 di CI karena butuh backend hidup dan akun uji.
