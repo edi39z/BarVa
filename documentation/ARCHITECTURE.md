@@ -52,8 +52,9 @@ Prinsip yang dipegang:
 
 ## 2. Model data
 
-Lima tabel di `migrations/000001_init_schema.up.sql`, plus kolom
-`users.quota_bytes` dari `000002_user_quota.up.sql`.
+Lima tabel di `migrations/000001_init_schema.up.sql`, kolom
+`users.quota_bytes` dari `000002_user_quota.up.sql`, dan tabel `file_texts`
+dari `000003_search_text.up.sql`.
 
 ```
 users
@@ -70,10 +71,14 @@ users
                                          id, sha256 (unik), storage_path,
                                          size_bytes, mime_type, created_at
                                   │
-                                  └──< shares
-                                         id, node_id, created_by, share_token_hash,
-                                         password_hash, permission, expires_at,
-                                         created_at
+                                  ├──< shares
+                                  │      id, node_id, created_by, share_token_hash,
+                                  │      password_hash, permission, expires_at,
+                                  │      created_at
+                                  │
+                                  └──1 file_texts
+                                         object_id (PK), content, supported,
+                                         source_name, extracted_at
 ```
 
 Poin penting:
@@ -99,6 +104,10 @@ Poin penting:
   Upload melewati batas ditolak `413 QUOTA_EXCEEDED`; owner/admin dapat
   mengubahnya lewat `PATCH /family/members/:id/quota`, dan kuota baru tidak
   boleh lebih kecil dari pemakaian saat ini (`409 QUOTA_BELOW_USAGE`).
+- **`file_texts` menyimpan teks hasil ekstraksi per objek, bukan per node.**
+  Kuncinya `object_id`, jadi objek yang dirujuk banyak node hanya diekstrak
+  sekali. `supported = false` menandai format yang tidak bisa dibaca (gambar,
+  arsip, PDF terenkripsi) supaya backfill tidak mencobanya berulang kali.
 
 ---
 
@@ -248,6 +257,53 @@ Keputusan penting:
   Format lain (mis. HEIC) dijawab `415 UNSUPPORTED_IMAGE`.
 - Video belum punya poster; UI menampilkan ikon play.
 
+### 4.8 Pencarian isi dokumen
+
+Pencarian nama hanya menyaring folder yang sedang dibuka. Pencarian isi
+menelusuri teks dokumen di seluruh pohon, jadi dibutuhkan indeks terpisah.
+
+```
+UPLOAD selesai
+  └─ indexer.EnqueueText(object_id, path, name)   (non-blocking, buffer 64)
+        └─ worker (2) → textextract.Extract(path, name)
+              ├─ PDF  : ledongthuc/pdf, maks 300 halaman, defer recover()
+              ├─ DOCX : zip word/document.xml → teks paragraf
+              ├─ teks : .txt .md .csv .log .json .xml .html (tolak byte NUL)
+              └─ lain : supported = false
+        └─ CreateFileText (ON CONFLICT DO NOTHING)
+
+BACKFILL tiap 15 menit
+  └─ ListObjectsMissingText (200 objek) → antrekan dengan cara yang sama
+
+GET /search?q=...
+  └─ CTE alive (rekursif dari akar, deleted_at IS NULL)
+     + matched MATERIALIZED (ILIKE ... ESCAPE '!', snippet 220 char)
+     → join node aktif → urut updated_at
+```
+
+Keputusan penting:
+
+- **Pencarian butuh CTE rekursif, bukan sekadar `deleted_at IS NULL`.**
+  `SoftDeleteNode` hanya menandai satu baris, sehingga isi folder yang dihapus
+  masih punya `deleted_at IS NULL` dan akan muncul di hasil bila tidak
+  ditelusuri dari akar.
+- **`ILIKE` + GIN `pg_trgm`**, bukan `tsvector`. Query pengguna berupa potongan
+  kata dan sering tidak cocok dengan aturan stemming kamus; trigram juga
+  menangani bahasa Indonesia tanpa konfigurasi tambahan. Konsekuensinya
+  minimal 3 karakter, karena indeks trigram tidak terpakai di bawah itu.
+- **Ekstraksi berjalan di luar request.** Worker gagal tidak menggagalkan
+  unggahan; berkas yang belum terindeks akan diambil backfill. PDF memakai
+  `recover()` karena parser pihak ketiga bisa panik pada berkas rusak.
+- **Batas ukuran:** sumber > 25 MB dilewati, teks disimpan maksimum 256 KB.
+  Cukup untuk dokumen rumah tangga dan menjaga tabel tetap ringan.
+- **Deteksi format memakai ekstensi nama**, bukan MIME: `sniffMIME` memberi
+  `application/zip` untuk DOCX, jadi MIME saja tidak bisa membedakan DOCX dari
+  ZIP biasa. Nama diambil dari `DISTINCT ON (o.id)` agar deterministik.
+- **Mode standalone punya jalur sendiri.** `src/lib/storage/textIndex.ts`
+  mengekstrak teks di browser (pdfjs, `DecompressionStream` untuk DOCX) dan
+  menyimpannya di object store `file_texts` (IndexedDB versi 3). Backfill lokal
+  berjalan sekali per sesi untuk maksimal 50 berkas lama.
+
 ---
 
 ## 5. Otorisasi berkas
@@ -362,6 +418,7 @@ tinggal menyusun:
 | `useStudio` | Alat Studio aktif, status proses, hasil kompresi/AI, pemilih berkas, penyimpanan hasil olahan |
 | `useUploads` | Unggahan dua mode, progres, nama berkas yang sedang diunggah, antrean offline (jumlah dan pengiriman ulang) |
 | `useBulkActions` | Menu aksi per berkas, operasi massal (hapus, pindah, unduh, folder baru), pengelompokan otomatis, dan pemrosesan Studio banyak berkas |
+| `useContentSearch` | Pencarian isi dokumen lintas folder: debounce, endpoint `/search` di mode NAS, indeks teks IndexedDB di mode standalone |
 | `useFileSelection` | Seleksi banyak item, rentang Shift+klik |
 | `useLongPress` | Tekan lama untuk menyalakan mode pilih |
 

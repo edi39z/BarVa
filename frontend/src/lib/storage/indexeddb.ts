@@ -14,6 +14,13 @@ export interface StoredFile {
   updatedAt: string;
 }
 
+export interface StoredText {
+  /** ID berkas lokal; satu teks per berkas. */
+  id: string;
+  text: string;
+  updatedAt: string;
+}
+
 export interface QueuedUpload {
   id: string;
   name: string;
@@ -43,10 +50,14 @@ interface NASDatabase extends DBSchema {
       "by-created": string;
     };
   };
+  file_texts: {
+    key: string;
+    value: StoredText;
+  };
 }
 
 const DB_NAME = "nas_local_storage";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<NASDatabase>> | null = null;
 
@@ -64,6 +75,10 @@ function getDB(): Promise<IDBPDatabase<NASDatabase>> {
         if (!db.objectStoreNames.contains("upload_queue")) {
           const queue = db.createObjectStore("upload_queue", { keyPath: "id" });
           queue.createIndex("by-created", "createdAt");
+        }
+        // Teks dokumen untuk pencarian isi ditambahkan di versi 3.
+        if (!db.objectStoreNames.contains("file_texts")) {
+          db.createObjectStore("file_texts", { keyPath: "id" });
         }
       },
     });
@@ -114,6 +129,25 @@ export async function getAllLocalFiles(): Promise<StoredFile[]> {
 export async function deleteLocalFile(id: string): Promise<void> {
   const db = await getDB();
   await db.delete("files", id);
+  // Hasil pencarian tidak boleh menunjuk berkas yang sudah dihapus.
+  await db.delete("file_texts", id);
+}
+
+// ---------------- Indeks teks lokal ----------------
+
+export async function saveLocalText(id: string, text: string): Promise<void> {
+  const db = await getDB();
+  await db.put("file_texts", { id, text, updatedAt: new Date().toISOString() });
+}
+
+export async function getAllLocalTexts(): Promise<StoredText[]> {
+  const db = await getDB();
+  return db.getAll("file_texts");
+}
+
+export async function deleteLocalText(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("file_texts", id);
 }
 
 export async function toggleFavorite(id: string): Promise<boolean> {

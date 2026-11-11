@@ -11,7 +11,7 @@ Base URL pengembangan: `http://localhost:8080`. Semua endpoint di bawah
 
 | Jenis | Cara | Dipakai oleh |
 |---|---|---|
-| Sesi pengguna | `Authorization: Bearer <token>` | `/auth/me`, `/files/*`, `/shares`, `/family/*` |
+| Sesi pengguna | `Authorization: Bearer <token>` | `/auth/me`, `/files/*`, `/search`, `/shares`, `/family/*` |
 | Sesi lewat cookie | `nas_session` (HttpOnly) | Otomatis untuk `<img>`/`<video>` dan endpoint yang sama |
 | Sesi lewat query | `?token=<token>` | `/files/:id/download`, `/files/:id/stream` **hanya bila** backend di host berbeda dari halaman |
 | Admin key | `X-Admin-Key: <kunci>` | `/gdrive/*`, `/invites/*` |
@@ -50,7 +50,7 @@ Kode yang dipakai:
 
 | Kelompok | Kode |
 |---|---|
-| Validasi | `VALIDATION_ERROR`, `INVALID_ID`, `INVALID_NODE_ID`, `INVALID_NAME`, `INVALID_PARENT`, `INVALID_TARGET`, `INVALID_SIZE`, `FILE_REQUIRED`, `NOT_DIRECTORY`, `IS_DIRECTORY`, `NOT_IMAGE` |
+| Validasi | `VALIDATION_ERROR`, `INVALID_ID`, `INVALID_NODE_ID`, `INVALID_NAME`, `INVALID_PARENT`, `INVALID_TARGET`, `INVALID_SIZE`, `FILE_REQUIRED`, `NOT_DIRECTORY`, `IS_DIRECTORY`, `NOT_IMAGE`, `QUERY_TOO_SHORT` |
 | Sesi & akses | `UNAUTHORIZED`, `INVALID_SESSION`, `INVALID_CREDENTIALS`, `FORBIDDEN`, `RATE_LIMITED` |
 | Akun | `USER_EXISTS`, `USER_NOT_FOUND`, `PASSWORD_REQUIRED`, `INVALID_PASSWORD`, `QUOTA_EXCEEDED`, `QUOTA_BELOW_USAGE` |
 | Berkas | `NOT_FOUND`, `CONFLICT`, `FILE_TOO_LARGE`, `STORAGE_MISSING`, `NOT_TRASHED`, `PARENT_IN_TRASH` |
@@ -332,6 +332,49 @@ terpanjang 320 px); `large` 960 px. Hanya untuk berkas dengan MIME `image/*`.
 - Kode kesalahan: `400 IS_DIRECTORY`, `400 INVALID_SIZE`,
   `415 NOT_IMAGE` (MIME bukan gambar), `415 UNSUPPORTED_IMAGE` (isi tidak bisa
   didekode, mis. HEIC), `413 IMAGE_TOO_LARGE` (di atas 80 MP), `403 FORBIDDEN`.
+
+### `GET /api/v1/search?q=<kata>&limit=50`
+
+Mencari **isi dokumen** (bukan nama berkas) lintas folder. Hanya berkas yang
+teksnya sudah diekstrak dan didukung yang muncul: PDF, DOCX, dan teks biasa
+(`.txt`, `.md`, `.csv`, `.log`, `.json`, `.xml`, `.html`).
+
+- `q` wajib minimal **3 karakter** (indeks trigram `pg_trgm` baru efektif pada
+  panjang itu); lebih dari 80 karakter dipotong. Kurang dari 3 karakter →
+  `400 QUERY_TOO_SHORT`.
+- `limit` default 50, maksimum 100.
+- `member` hanya mendapat berkasnya sendiri; `owner`/`admin` mendapat berkas
+  semua anggota. Folder yang dihapus (beserta isinya) tidak pernah muncul.
+
+```json
+{
+  "data": [
+    {
+      "ID": "uuid",
+      "OwnerID": "uuid",
+      "ParentID": "uuid",
+      "Name": "catatan-belanja.txt",
+      "ObjectID": "uuid",
+      "IsDirectory": false,
+      "SizeBytes": 812,
+      "MimeType": "text/plain; charset=utf-8",
+      "CreatedAt": "2026-11-10T00:00:00+07:00",
+      "UpdatedAt": "2026-11-10T00:00:00+07:00",
+      "ParentName": "Dokumen",
+      "Snippet": "…Beli makanan kucing oranye di pasar minggu pagi…"
+    }
+  ]
+}
+```
+
+`Snippet` adalah 220 karakter di sekitar kecocokan pertama, `ParentName`
+kosong bila berkas berada di akar. Satu objek CAS yang dirujuk beberapa node
+dapat muncul lebih dari sekali bila node-node itu berada di folder berbeda.
+
+Pengindeksan berjalan di latar belakang: setelah unggahan, teks diekstrak oleh
+`internal/indexer` (dua worker, antrean 64). Berkas lama yang belum punya baris
+indeks dipindai ulang setiap 15 menit, 200 objek per putaran, sehingga hasil
+pencarian bisa bertambah tanpa unggah ulang.
 
 ---
 

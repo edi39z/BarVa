@@ -134,6 +134,11 @@ Aturan praktis:
   "Lainnya", tombol pasang PWA, ringkasan penyimpanan, dan akun.
 - Header: pencarian (Ctrl/⌘ + K), status server, tombol tema, Folder Baru,
   Unggah Berkas.
+- Tab Berkas punya dua cakupan pencarian di baris filter: **Nama** menyaring
+  folder yang sedang dibuka, **Isi** menampilkan hasil pencarian teks dokumen
+  lintas folder (kartu menampilkan potongan kalimat dan chip folder asal).
+  Mode hasil menyembunyikan tombol Pilih dan breadcrumb, diganti ringkasan
+  "Hasil pencarian isi".
 
 **HP (< 1024 px)**
 

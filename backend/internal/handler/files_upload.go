@@ -239,6 +239,13 @@ func (h *FilesHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	// Jadwalkan ekstraksi teks untuk pencarian isi. Memakai path CAS, bukan
+	// tmpPath yang dihapus defer saat handler selesai. Antrean penuh bukan
+	// kegagalan: backfill periodik akan mengambil objek ini.
+	if h.indexer != nil {
+		h.indexer.EnqueueText(fileObj.ID, fileObj.StoragePath, node.Name)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"data": gin.H{
 			"node":   node,

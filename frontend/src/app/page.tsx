@@ -42,6 +42,7 @@ import {
   type FileAction,
 } from "@/lib/files/actions";
 import { useBulkActions } from "@/hooks/useBulkActions";
+import { useContentSearch, type SearchScope } from "@/hooks/useContentSearch";
 import { useFamily } from "@/hooks/useFamily";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useNasFiles } from "@/hooks/useNasFiles";
@@ -61,6 +62,7 @@ export default function Home() {
   const [storageFilter, setStorageFilter] = useState<"local" | "gdrive">("local");
   const [galleryCategory, setGalleryCategory] = useState<"all" | "image" | "video" | "favorite">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchScope, setSearchScope] = useState<SearchScope>("name");
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<DisplayItem | null>(null);
 
@@ -424,19 +426,51 @@ export default function Home() {
   const thumbnailForItem = (item: DisplayItem) =>
     item.blob || item.type !== "image" ? null : getThumbnailUrl(item.id, "small");
 
-  const filteredFiles = activeItems.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Pencarian isi dokumen lintas folder; hook tidak menyentuh jaringan selama
+  // cakupan masih "nama", jadi mode standalone tetap aman.
+  const contentSearch = useContentSearch({
+    connectionMode,
+    currentUser,
+    query: searchQuery,
+    // Cakupan hanya berlaku di tab Berkas; tab lain tidak perlu menembak server.
+    scope: activeTab === "files" ? searchScope : "name",
+    localItems,
+  });
+  const resultsMode = searchScope === "content";
+
+  // Mode "nama" menyaring folder aktif; mode "isi" memakai hasil lintas folder.
+  const filteredFiles = resultsMode
+    ? contentSearch.results.map((row) => row.item)
+    : activeItems.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // ---------------- Menu aksi berkas & seleksi banyak ----------------
 
   const selectionSource = activeTab === "gallery" ? galleryItems : activeItems;
-  const visibleSelectionIds =
-    activeTab === "gallery"
+  const visibleSelectionIds = resultsMode
+    ? []
+    : activeTab === "gallery"
       ? galleryItems.map((item) => item.id)
       : filteredFiles
           .filter((item) => (item.parentId || null) === currentFolderId)
           .map((item) => item.id);
+
+  // Potongan teks dan folder asal hanya relevan di mode hasil pencarian isi.
+  const searchSnippets = Object.fromEntries(
+    contentSearch.results.map((row) => [row.item.id, row.snippet])
+  );
+  const searchFolderNames = Object.fromEntries(
+    contentSearch.results.map((row) => [row.item.id, row.folderName])
+  );
+
+  const contentSearchNotice = !resultsMode
+    ? ""
+    : contentSearch.error
+      ? `Pencarian isi gagal: ${contentSearch.error}`
+      : searchQuery.trim().length < contentSearch.minQuery
+        ? `Ketik minimal ${contentSearch.minQuery} karakter untuk mencari di isi dokumen.`
+        : contentSearch.indexing
+          ? "Sedang mengindeks berkas lokal. Hasil bisa bertambah setelah selesai."
+          : "";
 
   // Menu aksi berkas dan operasi massal dikelola hook sendiri.
   const {
@@ -513,6 +547,12 @@ export default function Home() {
     selection.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentFolderId]);
+
+  // Mode hasil pencarian isi tidak mendukung pemilihan banyak item.
+  useEffect(() => {
+    if (searchScope === "content") selection.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchScope]);
 
   // Gerbang login: mode NAS wajib punya sesi; standalone tetap bebas.
   if (connectionMode === "nas" && authReady && !currentUser) {
@@ -650,6 +690,13 @@ export default function Home() {
                 if (selection.mode) selection.clear();
                 else selection.start();
               }}
+              searchScope={searchScope}
+              onSearchScopeChange={setSearchScope}
+              resultsMode={resultsMode}
+              searching={contentSearch.searching}
+              snippets={searchSnippets}
+              folderNames={searchFolderNames}
+              searchNotice={contentSearchNotice}
             />
           )}
 
