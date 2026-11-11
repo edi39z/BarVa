@@ -88,9 +88,15 @@ func corsMiddleware() gin.HandlerFunc {
 //   - protected    — AuthMiddleware (data pengguna)
 func newRouter(cfg routerConfig) *gin.Engine {
 	r := gin.Default()
-	// Hanya percayai X-Forwarded-For dari reverse proxy lokal agar ClientIP
-	// tidak bisa dipalsukan klien.
-	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+	// Hanya percayai X-Forwarded-For dari reverse proxy lokal dan jaringan
+	// privat/Docker agar ClientIP asli dari Cloudflare/Nginx diteruskan.
+	_ = r.SetTrustedProxies([]string{
+		"127.0.0.1",
+		"::1",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+	})
 	// Batasi memori multipart; sisanya dialirkan ke disk oleh Gin.
 	r.MaxMultipartMemory = 8 << 20 // 8 MiB
 	r.Use(corsMiddleware())
