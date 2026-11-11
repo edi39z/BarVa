@@ -52,9 +52,12 @@ export default function GalleryTab({
   const visible = items.filter(CATEGORY_FILTERS[category]);
 
   const pressedItem = React.useRef<DisplayItem | null>(null);
-  const longPress = useLongPress((point) => {
+  // Tekan lama memilih media dan menyalakan mode pilih, seperti galeri ponsel.
+  // Menu aksi tetap terbuka lewat klik kanan atau tombol ⋮.
+  const longPress = useLongPress(() => {
     const item = pressedItem.current;
-    if (item) onOpenMenu(item, point);
+    if (!item || selectedIds.includes(item.id)) return;
+    onToggleSelect(item, {});
   });
 
   const pressProps = (item: DisplayItem) => ({
@@ -87,7 +90,7 @@ export default function GalleryTab({
         <div>
           <h1 className="text-[17px] font-bold text-fg">Galeri Foto & Video</h1>
           <p className="mt-0.5 text-[12.5px] text-subtle">
-            {visible.length} media · ketuk untuk melihat, klik kanan atau tekan lama untuk aksi
+            {visible.length} media · ketuk untuk melihat, tahan klik atau tekan lama untuk memilih
           </p>
         </div>
 

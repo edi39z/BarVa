@@ -98,19 +98,36 @@ export function actionsForItem(item: DisplayItem, foreign = false): FileAction[]
 /**
  * Aksi untuk banyak item sekaligus. Aksi tipe-spesifik hanya muncul bila semua
  * item sejenis dan tidak ada folder di dalam pilihan.
+ *
+ * Tekan lama pada layar sentuh memilih satu item sekaligus, jadi label memakai
+ * akhiran "semua" hanya ketika pilihan benar-benar berisi lebih dari satu item.
  */
 export function actionsForSelection(items: DisplayItem[], foreign = false): FileAction[] {
   const files = items.filter((item) => item.type !== "folder");
   const hasFolder = files.length !== items.length;
   const allImages = files.length > 0 && files.every(isImageItem);
   const allPdfs = files.length > 0 && files.every(isPdfItem);
+  const many = items.length > 1;
+  const suffix = many ? " semua" : "";
   const smart: FileAction[] = [];
 
   if (!foreign && !hasFolder && allImages) {
     smart.push({ id: "img2pdf", label: "Jadikan PDF", group: "smart", needsFile: true, tool: "img2pdf" });
-    smart.push({ id: "removebg", label: "Hapus latar semua", group: "smart", needsFile: true, tool: "removebg" });
-    smart.push({ id: "compress", label: "Kompres semua", group: "smart", needsFile: true, tool: "compress" });
-    smart.push({ id: "enhance", label: "Naikkan kualitas semua", group: "smart", needsFile: true, tool: "enhance" });
+    smart.push({ id: "removebg", label: `Hapus latar${suffix}`, group: "smart", needsFile: true, tool: "removebg" });
+    smart.push({
+      id: "compress",
+      label: many ? "Kompres semua" : "Kompres foto",
+      group: "smart",
+      needsFile: true,
+      tool: "compress",
+    });
+    smart.push({
+      id: "enhance",
+      label: `Naikkan kualitas${suffix}`,
+      group: "smart",
+      needsFile: true,
+      tool: "enhance",
+    });
   }
 
   if (!foreign && !hasFolder && allPdfs && files.length >= 2) {
@@ -120,14 +137,14 @@ export function actionsForSelection(items: DisplayItem[], foreign = false): File
   const manage: FileAction[] = [];
 
   if (files.length > 0) {
-    manage.push({ id: "download", label: "Unduh semua", group: "manage" });
+    manage.push({ id: "download", label: `Unduh${suffix}`, group: "manage" });
   }
   if (!foreign) {
     manage.push({ id: "newfolder", label: "Buat folder dari pilihan", group: "manage" });
     manage.push({ id: "group-type", label: "Kelompokkan per tipe", group: "manage" });
     manage.push({ id: "group-month", label: "Kelompokkan per bulan", group: "manage" });
-    manage.push({ id: "move", label: "Pindahkan semua", group: "manage" });
-    manage.push({ id: "delete", label: "Hapus semua", group: "manage", destructive: true });
+    manage.push({ id: "move", label: `Pindahkan${suffix}`, group: "manage" });
+    manage.push({ id: "delete", label: `Hapus${suffix}`, group: "manage", destructive: true });
   }
 
   return [...smart, ...manage];

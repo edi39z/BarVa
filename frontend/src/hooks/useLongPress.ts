@@ -8,8 +8,11 @@ export interface LongPressPoint {
 }
 
 /**
- * Deteksi tekan-lama pada layar sentuh. Timer dibatalkan bila jari bergerak
- * lebih dari 10 px supaya menggulir daftar tidak memicu menu.
+ * Deteksi tekan-lama untuk sentuh, pena, maupun mouse. Timer dibatalkan bila
+ * penunjuk bergerak lebih dari 10 px supaya menggulir daftar atau menyeret
+ * tidak ikut memicu. Tekan lama juga diabaikan bila dimulai dari kontrol di
+ * dalam kartu (tombol ⋮, kotak pilih, tombol favorit), karena pointer event
+ * dari kontrol itu tetap merambat ke kartu induknya.
  */
 export function useLongPress(onLongPress: (point: LongPressPoint) => void, delay = 450) {
   const timer = useRef<number | null>(null);
@@ -26,7 +29,9 @@ export function useLongPress(onLongPress: (point: LongPressPoint) => void, delay
 
   const onPointerDown = useCallback(
     (event: React.PointerEvent) => {
-      if (event.pointerType === "mouse") return;
+      // Hanya tombol utama: klik kanan sudah punya menu sendiri.
+      if (event.button !== 0) return;
+      if ((event.target as HTMLElement).closest("button, a, input, select, textarea")) return;
       origin.current = { x: event.clientX, y: event.clientY };
       fired.current = false;
       timer.current = window.setTimeout(() => {

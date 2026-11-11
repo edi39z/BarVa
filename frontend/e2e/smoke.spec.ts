@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
@@ -54,6 +54,74 @@ test.describe("mode mandiri tanpa backend", () => {
     // Dulu ada lima request yang tetap jalan sebelum pengguna memilih mode
     // mandiri: health, dua kali status Drive, undangan, dan daftar anggota.
     expect(attempts).toEqual([]);
+  });
+});
+
+test.describe("tekan lama memilih item", () => {
+  // PNG 1x1 px, cukup untuk membuat satu item gambar.
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64"
+  );
+
+  /**
+   * Menahan penunjuk selama 700 ms, melewati ambang 450 ms di `useLongPress`.
+   * `pointerType` bisa "touch" (jari) atau "mouse" (tahan klik kiri).
+   */
+  async function longPress(page: Page, target: Locator, pointerType: "touch" | "mouse" = "touch") {
+    const point = { clientX: 120, clientY: 120, pointerId: 1, pointerType, isPrimary: true };
+    await target.dispatchEvent("pointerdown", { ...point, button: 0, buttons: 1, bubbles: true });
+    await page.waitForTimeout(700);
+    await target.dispatchEvent("pointerup", { ...point, button: 0, buttons: 0, bubbles: true });
+  }
+
+  test("tekan lama menyalakan mode pilih, klik kanan tetap membuka menu", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: SKIP_STANDALONE }).click();
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name: "tekan-lama.png",
+      mimeType: "image/png",
+      buffer: PNG,
+    });
+
+    const card = page.locator("article").filter({ hasText: "tekan-lama.png" }).first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+
+    await longPress(page, card);
+    await expect(page.getByText("1 item dipilih")).toBeVisible();
+    // Label aksi ikut menyesuaikan: satu item tidak memakai akhiran "semua".
+    await expect(page.getByRole("button", { name: "Hapus latar" })).toBeVisible();
+
+    // Menahan penunjuk pada item yang sudah terpilih tidak mengubah apa pun.
+    await longPress(page, card);
+    await expect(page.getByText("1 item dipilih")).toBeVisible();
+
+    await page.getByRole("button", { name: "Batal memilih" }).click();
+    await expect(page.getByText("1 item dipilih")).toHaveCount(0);
+
+    // Mouse juga memicu seleksi, bukan hanya layar sentuh.
+    await longPress(page, card, "mouse");
+    await expect(page.getByText("1 item dipilih")).toBeVisible();
+
+    // Menahan mouse di atas tombol ⋮ tidak boleh menyalakan seleksi.
+    await page.getByRole("button", { name: "Batal memilih" }).click();
+    await longPress(page, card.getByRole("button", { name: /Lihat|Buka/ }).first(), "mouse");
+    await expect(page.getByText("1 item dipilih")).toHaveCount(0);
+
+    await card.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Hapus latar" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Galeri memakai perilaku yang sama.
+    await page.getByRole("button", { name: /Galeri Foto/ }).click();
+    const photo = page.locator('[role="button"]').filter({ hasText: "tekan-lama.png" }).first();
+    await expect(photo).toBeVisible({ timeout: 15_000 });
+
+    await longPress(page, photo, "mouse");
+    await expect(page.getByText("1 item dipilih")).toBeVisible();
   });
 });
 
