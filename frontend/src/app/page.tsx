@@ -5,9 +5,15 @@ import {
   getAllLocalFiles,
   createLocalFolder,
   deleteLocalFile,
+  moveLocalNode,
+  renameLocalNode,
   toggleFavorite,
 } from "@/lib/storage/indexeddb";
-import { hasLocalNameConflict, visibleLocalFiles } from "@/lib/storage/localTree";
+import {
+  hasLocalNameConflict,
+  localSubtreeIds,
+  visibleLocalFiles,
+} from "@/lib/storage/localTree";
 import { storedFileToDisplay } from "@/lib/localDisplay";
 import {
   getDownloadUrl,
@@ -58,6 +64,7 @@ import { useTrash } from "@/hooks/useTrash";
 import { useUploads } from "@/hooks/useUploads";
 import type { DisplayItem } from "@/lib/displayItem";
 import { mergeDisplayItems } from "@/lib/displayItem";
+import type { ConnectionMode } from "@/lib/types";
 import { nasNodeToDisplay } from "@/lib/nasDisplay";
 import { itemToFile } from "@/lib/files/materialize";
 import { gdriveUploadFile } from "@/lib/api/cloud";
@@ -179,6 +186,29 @@ export default function Home() {
     await reloadLocalItems();
   }, [connectionMode, currentUser, files, reloadLocalItems]);
 
+  /**
+   * Ganti mode selalu mulai dari akar: id folder milik NAS tidak ada di
+   * IndexedDB (dan sebaliknya), sehingga breadcrumb lama akan menyesatkan.
+   */
+  const handleModeChange = useCallback(
+    (mode: ConnectionMode) => {
+      files.resetNavigation();
+      setMoveItems([]);
+      selection.clear();
+      setConnectionMode(mode);
+    },
+    [files, selection, setConnectionMode]
+  );
+
+  // Folder aktif bisa hilang karena dihapus atau dipindah dari tempat lain.
+  useEffect(() => {
+    if (connectionMode !== "standalone" || currentFolderId === null) return;
+    const exists = localItems.some(
+      (item) => item.id === currentFolderId && item.type === "folder"
+    );
+    if (!exists) files.resetNavigation();
+  }, [connectionMode, currentFolderId, localItems, files]);
+
   // Sampah: daftar, pemulihan, dan hapus permanen dikelola hook sendiri.
   const trash = useTrash({
     connectionMode,
@@ -278,14 +308,6 @@ export default function Home() {
   };
 
   const handleRename = async (item: DisplayItem) => {
-    if (connectionMode !== "nas") {
-      await notify({
-        title: "Belum tersedia",
-        message: "Ganti nama hanya tersedia untuk berkas di server NAS.",
-        tone: "info",
-      });
-      return;
-    }
     const next = await ask({
       title: "Ganti nama",
       label: "Nama baru",
@@ -297,8 +319,24 @@ export default function Home() {
     if (!name || name === item.name) return;
 
     try {
-      await renameNasFile(item.id, name);
-      await refreshLibrary();
+      if (connectionMode === "nas") {
+        await renameNasFile(item.id, name);
+        await refreshLibrary();
+        return;
+      }
+
+      const visible = visibleLocalFiles(await getAllLocalFiles());
+      if (hasLocalNameConflict(visible, item.parentId ?? null, name, [item.id])) {
+        await notify({
+          title: "Nama sudah dipakai",
+          message: `Sudah ada item bernama "${name}" di folder ini.`,
+          tone: "warning",
+        });
+        return;
+      }
+      await renameLocalNode(item.id, name);
+      await reloadLocalItems();
+      if (selectedMedia?.id === item.id) setSelectedMedia({ ...selectedMedia, name });
     } catch (err) {
       await notify({
         title: "Gagal mengganti nama",
@@ -311,12 +349,28 @@ export default function Home() {
   const loadMoveFolders = async (parentId: string | null, excludeIds: string[] = []) => {
     setMoveLoading(true);
     try {
-      const nodes = await listNasFiles(parentId);
+      if (connectionMode === "nas") {
+        const nodes = await listNasFiles(parentId);
+        setMoveFolders(
+          nodes
+            .filter((n) => n.IsDirectory)
+            .map(nasNodeToDisplay)
+            .filter((f) => !excludeIds.includes(f.id))
+        );
+        return;
+      }
+
+      const visible = visibleLocalFiles(await getAllLocalFiles());
       setMoveFolders(
-        nodes
-          .filter((n) => n.IsDirectory)
-          .map(nasNodeToDisplay)
-          .filter((f) => !excludeIds.includes(f.id))
+        visible
+          .filter(
+            (node) =>
+              node.isDirectory &&
+              (node.parentId ?? null) === parentId &&
+              !excludeIds.includes(node.id)
+          )
+          .map((node) => storedFileToDisplay(node))
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
     } catch (err) {
       await notify({
@@ -330,24 +384,22 @@ export default function Home() {
     }
   };
 
+  /** Folder yang tidak boleh menjadi tujuan: item itu sendiri beserta isinya. */
+  const moveExclusions = (items: DisplayItem[]): string[] => {
+    const folders = items.filter((item) => item.type === "folder");
+    if (connectionMode === "nas") return folders.map((item) => item.id);
+    return items.flatMap((item) =>
+      item.type === "folder" ? Array.from(localSubtreeIds(localItems, item.id)) : [item.id]
+    );
+  };
+
   const openMoveModal = (targets: DisplayItem | DisplayItem[]) => {
     const items = Array.isArray(targets) ? targets : [targets];
     if (items.length === 0) return;
-    if (connectionMode !== "nas") {
-      void notify({
-        title: "Belum tersedia",
-        message: "Pindah folder hanya tersedia untuk berkas di server NAS.",
-        tone: "info",
-      });
-      return;
-    }
     setMoveItems(items);
     setMoveParentId(null);
     setMoveCrumbs([{ id: null, name: "Semua File" }]);
-    loadMoveFolders(
-      null,
-      items.filter((item) => item.type === "folder").map((item) => item.id)
-    );
+    loadMoveFolders(null, moveExclusions(items));
   };
 
   const handleMoveNavigate = (id: string | null, name: string, crumbIndex?: number) => {
@@ -356,10 +408,7 @@ export default function Home() {
     setMoveCrumbs((prev) =>
       crumbIndex === undefined ? [...prev, { id, name }] : prev.slice(0, crumbIndex)
     );
-    loadMoveFolders(
-      id,
-      moveItems.filter((item) => item.type === "folder").map((item) => item.id)
-    );
+    loadMoveFolders(id, moveExclusions(moveItems));
   };
 
   const handleConfirmMove = async () => {
@@ -367,9 +416,29 @@ export default function Home() {
     setMoveBusy(true);
     let failed = 0;
     try {
+      const visible = connectionMode === "nas" ? [] : visibleLocalFiles(await getAllLocalFiles());
+      const claimed = new Set<string>();
+
       for (const item of moveItems) {
         try {
-          await moveNasFile(item.id, moveParentId);
+          if (connectionMode === "nas") {
+            await moveNasFile(item.id, moveParentId);
+            continue;
+          }
+
+          // Item yang sudah berada di folder tujuan tidak perlu dicek bentrok.
+          const alreadyThere = (item.parentId ?? null) === moveParentId;
+          const key = item.name.toLocaleLowerCase();
+          if (
+            !alreadyThere &&
+            (claimed.has(key) ||
+              hasLocalNameConflict(visible, moveParentId, item.name, [item.id]))
+          ) {
+            failed += 1;
+            continue;
+          }
+          await moveLocalNode(item.id, moveParentId);
+          claimed.add(key);
         } catch {
           failed += 1;
         }
@@ -380,7 +449,7 @@ export default function Home() {
       if (failed > 0) {
         await notify({
           title: "Sebagian item gagal dipindahkan",
-          message: `${moveItems.length - failed} item dipindahkan, ${failed} gagal.`,
+          message: `${moveItems.length - failed} item dipindahkan, ${failed} gagal. Pastikan tidak ada nama yang sama di folder tujuan.`,
           tone: "warning",
         });
       }
@@ -720,7 +789,7 @@ export default function Home() {
     return (
       <AuthGate
         onAuthed={(user) => setCurrentUser(user)}
-        onSkip={() => setConnectionMode("standalone")}
+        onSkip={() => handleModeChange("standalone")}
       />
     );
   }
@@ -1131,7 +1200,7 @@ export default function Home() {
       {serverModalOpen && (
         <ServerSettingsModal
           mode={connectionMode}
-          onModeChange={setConnectionMode}
+          onModeChange={handleModeChange}
           serverUrl={inputServerUrl}
           onServerUrlChange={setInputServerUrl}
           adminKey={inputAdminKey}

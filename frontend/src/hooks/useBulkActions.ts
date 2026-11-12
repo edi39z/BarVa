@@ -2,7 +2,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { createNasFolder, deleteNasFile, moveNasFile } from "@/lib/api/nas";
-import { deleteLocalFile } from "@/lib/storage/indexeddb";
+import {
+  createLocalFolder,
+  deleteLocalFile,
+  moveLocalNode,
+} from "@/lib/storage/indexeddb";
+import { hasLocalNameConflict } from "@/lib/storage/localTree";
 import { groupItems, type FileAction, type GroupMode } from "@/lib/files/actions";
 import type { DisplayItem } from "@/lib/displayItem";
 import type { StudioToolId } from "@/lib/studio/tools";
@@ -142,26 +147,16 @@ export function useBulkActions({
           for (const item of items) {
             await moveNasFile(item.id, folder.ID);
           }
-          await refreshLibrary();
         } else {
-          const folderId = crypto.randomUUID();
-          const folder: DisplayItem = {
-            id: folderId,
-            name: folderName,
-            type: "folder",
-            sizeStr: "0 item",
-            sizeBytes: 0,
-            updatedAt: "Baru saja",
-            updatedAtISO: new Date().toISOString(),
-            parentId: currentFolderId,
-          };
-          setLocalItems((prev) => [
-            folder,
-            ...prev.map((item) =>
-              items.some((selected) => selected.id === item.id) ? { ...item, parentId: folderId } : item
-            ),
-          ]);
+          if (hasLocalNameConflict(activeItems, currentFolderId, folderName)) {
+            throw new Error(`Sudah ada item bernama "${folderName}" di folder ini.`);
+          }
+          const folder = await createLocalFolder(folderName, currentFolderId);
+          for (const item of items) {
+            await moveLocalNode(item.id, folder.id);
+          }
         }
+        await refreshLibrary();
         clearSelection();
         setLibraryNotice(`Folder “${folderName}” dibuat dan ${items.length} item dipindahkan.`);
       } catch (err) {
@@ -174,7 +169,16 @@ export function useBulkActions({
         setBulkBusy(false);
       }
     },
-    [connectionMode, currentFolderId, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice, notify, ask]
+    [
+      connectionMode,
+      currentFolderId,
+      activeItems,
+      clearSelection,
+      refreshLibrary,
+      setLibraryNotice,
+      notify,
+      ask,
+    ]
   );
 
   const confirmAutoGroup = useCallback(async () => {
@@ -198,30 +202,23 @@ export function useBulkActions({
             await moveNasFile(item.id, folderId);
           }
         }
-        await refreshLibrary();
       } else {
-        const created = groups.map<DisplayItem>((group) => ({
-          id: crypto.randomUUID(),
-          name: group.name,
-          type: "folder",
-          sizeStr: "0 item",
-          sizeBytes: 0,
-          updatedAt: "Baru saja",
-          updatedAtISO: new Date().toISOString(),
-          parentId: currentFolderId,
-        }));
-        const folderIdByGroup = new Map(groups.map((group, index) => [group.key, created[index].id]));
-
-        setLocalItems((prev) => {
-          const moved = prev.map((item) => {
-            const group = groups.find((candidate) =>
-              candidate.items.some((selected) => selected.id === item.id)
-            );
-            return group ? { ...item, parentId: folderIdByGroup.get(group.key) } : item;
-          });
-          return [...created, ...moved];
-        });
+        for (const group of groups) {
+          const existing = activeItems.find(
+            (item) =>
+              item.type === "folder" &&
+              (item.parentId ?? null) === currentFolderId &&
+              item.name === group.name
+          );
+          const folderId = existing
+            ? existing.id
+            : (await createLocalFolder(group.name, currentFolderId)).id;
+          for (const item of group.items) {
+            await moveLocalNode(item.id, folderId);
+          }
+        }
       }
+      await refreshLibrary();
 
       setSmartFolderOpen(false);
       clearSelection();
@@ -242,7 +239,6 @@ export function useBulkActions({
     currentFolderId,
     refreshLibrary,
     selectedItems,
-    setLocalItems,
     setLibraryNotice,
     smartFolderMode,
     notify,

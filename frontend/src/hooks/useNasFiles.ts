@@ -106,6 +106,12 @@ export function useNasFiles({ connectionMode, currentUser, activeTab }: UseNasFi
     setCurrentFolderId(next[next.length - 1].id);
   }, [breadcrumbs]);
 
+  /** Kembali ke akar. Dipakai saat berganti mode atau folder aktif menghilang. */
+  const resetNavigation = useCallback(() => {
+    setCurrentFolderId(null);
+    setBreadcrumbs([ROOT_CRUMB]);
+  }, []);
+
   /** Buang item dari daftar folder dan galeri tanpa memuat ulang server. */
   const removeLocally = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
@@ -125,6 +131,7 @@ export function useNasFiles({ connectionMode, currentUser, activeTab }: UseNasFi
       openFolder,
       navigateBreadcrumb,
       goBack,
+      resetNavigation,
       removeLocally,
     }),
     [
@@ -139,6 +146,7 @@ export function useNasFiles({ connectionMode, currentUser, activeTab }: UseNasFi
       openFolder,
       navigateBreadcrumb,
       goBack,
+      resetNavigation,
       removeLocally,
     ]
   );
