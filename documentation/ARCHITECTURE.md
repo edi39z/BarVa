@@ -411,9 +411,11 @@ pencarian isi, dan pemilih Studio memakai daftar lintas folder yang sama.
 
 - **Soft delete meniru backend.** `trashLocalNode()` hanya mengisi `deletedAt`
   pada node yang dihapus; keturunannya disembunyikan oleh `visibleLocalFiles()`
-  tanpa ditandai. `restoreLocalNode()` menghapus tanda itu dan menolak bila
-  folder induk masih di Sampah. `purgeLocalNode()` satu-satunya operasi rekursif:
-  menghapus seluruh subtree beserta `file_texts`-nya.
+  tanpa ditandai. `restoreLocalNode()` menghapus tanda itu dan menolak bila ada
+  folder leluhur yang masih di Sampah — memeriksa induk langsung saja tidak
+  cukup, karena item di bawah folder terhapus tetap tidak terlihat.
+  `purgeLocalNode()` satu-satunya operasi rekursif: menghapus seluruh subtree
+  beserta `file_texts`-nya.
 - **Record lama dimigrasi saat upgrade ke versi 4**: `parentId = null`,
   `isDirectory` dari `type`, `deletedAt = null`.
 - **Nama berkas dijaga unik per folder.** Unggahan dan hasil Studio memakai

@@ -250,8 +250,9 @@ export async function trashLocalNode(id: string): Promise<void> {
 }
 
 /**
- * Pulihkan node dari Sampah. Bila folder induknya masih di Sampah, pemulihan
- * ditolak agar item tidak muncul di tempat yang tidak terlihat.
+ * Pulihkan node dari Sampah. Pemulihan ditolak bila ada folder leluhur yang
+ * masih di Sampah — memeriksa induk langsung saja tidak cukup, karena item di
+ * bawah folder yang dihapus tetap tidak terlihat walau pemulihannya "berhasil".
  */
 export async function restoreLocalNode(id: string): Promise<{ movedToRoot: boolean }> {
   const db = await getDB();
@@ -263,14 +264,23 @@ export async function restoreLocalNode(id: string): Promise<{ movedToRoot: boole
   let parentId = node.parentId;
   let movedToRoot = false;
 
-  if (parentId !== null) {
-    const parent = all.find((item) => item.id === parentId);
-    if (!parent) {
+  const seen = new Set<string>();
+  let ancestorId = parentId;
+  while (ancestorId !== null) {
+    if (seen.has(ancestorId)) break;
+    seen.add(ancestorId);
+
+    const ancestor = all.find((item) => item.id === ancestorId);
+    if (!ancestor) {
+      // Rantai folder asal rusak (mis. sudah dihapus permanen): pulihkan ke akar.
       parentId = null;
       movedToRoot = true;
-    } else if (parent.deletedAt) {
-      throw new Error("Folder induk masih di Sampah. Pulihkan folder induknya lebih dulu.");
+      break;
     }
+    if (ancestor.deletedAt) {
+      throw new Error("Folder asal masih di Sampah. Pulihkan folder induknya lebih dulu.");
+    }
+    ancestorId = ancestor.parentId;
   }
 
   const bentrok = all.some(
