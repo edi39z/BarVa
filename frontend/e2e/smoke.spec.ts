@@ -478,6 +478,10 @@ test.describe("kelola berkas lokal", () => {
     await uploadPng(page, "sampah-lokal.png");
 
     await page.getByRole("button", { name: "Hapus sampah-lokal.png" }).click();
+    // Pesan konfirmasi menyebut nama item, bukan "Item ini".
+    await expect(page.getByRole("dialog")).toContainText(
+      '"sampah-lokal.png" akan masuk ke Sampah'
+    );
     await page.getByRole("dialog").getByRole("button", { name: "Pindahkan" }).click();
     await expect(page.locator("article").filter({ hasText: "sampah-lokal.png" })).toHaveCount(0);
 

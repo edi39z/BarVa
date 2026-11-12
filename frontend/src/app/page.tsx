@@ -492,13 +492,19 @@ export default function Home() {
   const handleDelete = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
 
-    const target = localItems.find((item) => item.id === id) ?? files.items.find((item) => item.id === id);
+    // Galeri NAS memakai `mediaItems` (lintas folder), jadi ikut dicari agar
+    // pesan konfirmasi bisa menyebut nama item.
+    const target =
+      localItems.find((item) => item.id === id) ??
+      files.items.find((item) => item.id === id) ??
+      files.mediaItems.find((item) => item.id === id);
     const lanjut = await confirm({
       title: "Pindahkan ke Sampah?",
-      message:
-        target?.type === "folder"
-          ? "Folder ini beserta seluruh isinya akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti."
-          : "Item ini akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti.",
+      message: target
+        ? target.type === "folder"
+          ? `Folder "${target.name}" beserta seluruh isinya akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti.`
+          : `"${target.name}" akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti.`
+        : "Item ini akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti.",
       tone: "warning",
       confirmLabel: "Pindahkan",
     });
