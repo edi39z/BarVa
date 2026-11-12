@@ -525,4 +525,35 @@ test.describe("kelola berkas lokal", () => {
     // Item tetap di Sampah, bukan menghilang tanpa jejak.
     await expect(row).toBeVisible();
   });
+
+  test("pemindahan menolak nama yang sama di folder tujuan", async ({ page }) => {
+    await openStandalone(page);
+    await createFolder(page, "Satu");
+    await openFolder(page, "Satu");
+    await uploadPng(page, "kembar.png");
+    await page.getByRole("button", { name: "Kembali" }).click();
+
+    await createFolder(page, "Dua");
+    await openFolder(page, "Dua");
+    await uploadPng(page, "kembar.png");
+    await page.getByRole("button", { name: "Kembali" }).click();
+
+    // Galeri memuat media lintas folder, jadi kedua berkas bernama sama terlihat.
+    await page.getByRole("button", { name: /Galeri Foto/ }).click();
+    await page.getByRole("button", { name: "Pilih", exact: true }).click();
+    const picks = page.getByRole("button", {
+      name: /^(Pilih|Batalkan pilihan) kembar\.png$/,
+    });
+    await picks.nth(0).click();
+    await picks.nth(1).click();
+    await expect(page.getByText("2 item dipilih")).toBeVisible();
+
+    await page.getByRole("button", { name: "Buat folder dari pilihan" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.locator("input").fill("Gabungan");
+    await dialog.getByRole("button", { name: "Buat dan pindahkan" }).click();
+
+    // Berkas kedua ditolak, bukan menumpuk dua nama sama dalam satu folder.
+    await expect(page.getByText(/Sudah ada item bernama "kembar.png"/)).toBeVisible();
+  });
 });

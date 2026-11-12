@@ -416,29 +416,15 @@ export default function Home() {
     setMoveBusy(true);
     let failed = 0;
     try {
-      const visible = connectionMode === "nas" ? [] : visibleLocalFiles(await getAllLocalFiles());
-      const claimed = new Set<string>();
-
       for (const item of moveItems) {
         try {
           if (connectionMode === "nas") {
             await moveNasFile(item.id, moveParentId);
-            continue;
+          } else {
+            // Bentrok nama, folder tujuan yang tidak sah, dan pemindahan ke
+            // subtree sendiri divalidasi `moveLocalNode`.
+            await moveLocalNode(item.id, moveParentId);
           }
-
-          // Item yang sudah berada di folder tujuan tidak perlu dicek bentrok.
-          const alreadyThere = (item.parentId ?? null) === moveParentId;
-          const key = item.name.toLocaleLowerCase();
-          if (
-            !alreadyThere &&
-            (claimed.has(key) ||
-              hasLocalNameConflict(visible, moveParentId, item.name, [item.id]))
-          ) {
-            failed += 1;
-            continue;
-          }
-          await moveLocalNode(item.id, moveParentId);
-          claimed.add(key);
         } catch {
           failed += 1;
         }

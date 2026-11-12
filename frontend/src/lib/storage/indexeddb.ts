@@ -218,7 +218,9 @@ export async function renameLocalNode(id: string, name: string): Promise<void> {
 
 /**
  * Pindahkan node ke folder lain. Ditolak bila tujuan bukan folder, berada di
- * Sampah, atau justru bagian dari subtree node itu sendiri.
+ * Sampah, bagian dari subtree node itu sendiri, atau sudah punya saudara
+ * bernama sama — aturan ini dijaga di sini agar semua pemanggil (menu pindah,
+ * buat folder dari pilihan, pengelompokan otomatis) berperilaku sama.
  */
 export async function moveLocalNode(id: string, parentId: string | null): Promise<void> {
   const db = await getDB();
@@ -228,6 +230,8 @@ export async function moveLocalNode(id: string, parentId: string | null): Promis
     "memindahkan"
   );
 
+  if ((node.parentId ?? null) === parentId) return;
+
   if (parentId !== null) {
     const target = all.find((item) => item.id === parentId);
     if (!target || !target.isDirectory) throw new Error("Folder tujuan tidak ditemukan.");
@@ -235,6 +239,17 @@ export async function moveLocalNode(id: string, parentId: string | null): Promis
     if (target.id === id || isLocalDescendant(all, id, target.id)) {
       throw new Error("Folder tidak bisa dipindah ke dalam dirinya sendiri.");
     }
+  }
+
+  const bentrok = all.some(
+    (item) =>
+      item.id !== node.id &&
+      !item.deletedAt &&
+      (item.parentId ?? null) === parentId &&
+      item.name.toLocaleLowerCase() === node.name.toLocaleLowerCase()
+  );
+  if (bentrok) {
+    throw new Error(`Sudah ada item bernama "${node.name}" di folder tujuan.`);
   }
 
   await db.put("files", { ...node, parentId, updatedAt: nowISO() });
