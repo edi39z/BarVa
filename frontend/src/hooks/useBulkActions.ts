@@ -4,8 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { createNasFolder, deleteNasFile, moveNasFile } from "@/lib/api/nas";
 import {
   createLocalFolder,
-  deleteLocalFile,
   moveLocalNode,
+  trashLocalNode,
 } from "@/lib/storage/indexeddb";
 import { hasLocalNameConflict } from "@/lib/storage/localTree";
 import { groupItems, type FileAction, type GroupMode } from "@/lib/files/actions";
@@ -22,7 +22,6 @@ interface UseBulkActionsOptions {
   /** Sumber seleksi: daftar folder aktif atau media galeri. */
   selectionSource: DisplayItem[];
   selectedIds: string[];
-  setLocalItems: React.Dispatch<React.SetStateAction<DisplayItem[]>>;
   clearSelection: () => void;
   refreshLibrary: () => Promise<void>;
   downloadItem: (item: DisplayItem) => void;
@@ -53,7 +52,6 @@ export function useBulkActions({
   activeItems,
   selectionSource,
   selectedIds,
-  setLocalItems,
   clearSelection,
   refreshLibrary,
   downloadItem,
@@ -106,8 +104,7 @@ export function useBulkActions({
             if (connectionMode === "nas") {
               await deleteNasFile(item.id);
             } else {
-              await deleteLocalFile(item.id);
-              setLocalItems((prev) => prev.filter((entry) => entry.id !== item.id));
+              await trashLocalNode(item.id);
             }
           } catch {
             failed += 1;
@@ -124,7 +121,7 @@ export function useBulkActions({
         setBulkBusy(false);
       }
     },
-    [connectionMode, clearSelection, refreshLibrary, setLocalItems, setLibraryNotice, confirm]
+    [connectionMode, clearSelection, refreshLibrary, setLibraryNotice, confirm]
   );
 
   const createFolderFromSelection = useCallback(

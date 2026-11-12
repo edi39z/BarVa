@@ -17,13 +17,12 @@ import {
   X,
 } from "lucide-react";
 import type { NasUser } from "@/lib/api/nas";
-import type { AppTab, ConnectionMode } from "@/lib/types";
+import type { AppTab } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 
 interface MobileNavProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
-  connectionMode: ConnectionMode;
   currentUser: NasUser | null;
   onOpenAccount: () => void;
   onOpenServer: () => void;
@@ -41,7 +40,6 @@ const PRIMARY: { id: AppTab; label: string; icon: React.ElementType }[] = [
 export default function MobileNav({
   activeTab,
   onTabChange,
-  connectionMode,
   currentUser,
   onOpenAccount,
   onOpenServer,
@@ -147,15 +145,13 @@ export default function MobileNav({
                 <Cloud className="h-[18px] w-[18px] text-[var(--tile-green-fg)]" aria-hidden />
                 Google Drive
               </button>
-              {connectionMode === "nas" && (
-                <button
-                  onClick={() => go("trash")}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13.5px] font-medium text-fg hover:bg-surface-3"
-                >
-                  <Trash2 className="h-[18px] w-[18px] text-muted" aria-hidden />
-                  Sampah
-                </button>
-              )}
+              <button
+                onClick={() => go("trash")}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13.5px] font-medium text-fg hover:bg-surface-3"
+              >
+                <Trash2 className="h-[18px] w-[18px] text-muted" aria-hidden />
+                Sampah
+              </button>
               {currentUser && (
                 <button
                   onClick={() => {

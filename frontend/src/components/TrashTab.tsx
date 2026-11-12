@@ -11,19 +11,19 @@ import {
   Trash2,
   WifiOff,
 } from "lucide-react";
-import type { TrashedNode } from "@/lib/api/nas";
+import type { TrashItem } from "@/lib/trash";
 import { detectFileType } from "@/lib/fileTypes";
 import { formatBytes } from "@/lib/nasDisplay";
 
 interface TrashTabProps {
-  items: TrashedNode[];
+  items: TrashItem[];
   loading: boolean;
   error: string;
   busyId: string | null;
   currentUserId?: string | null;
   onReload: () => void;
-  onRestore: (node: TrashedNode) => void;
-  onPurge: (node: TrashedNode) => void;
+  onRestore: (item: TrashItem) => void;
+  onPurge: (item: TrashItem) => void;
 }
 
 export default function TrashTab({
@@ -43,8 +43,9 @@ export default function TrashTab({
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold text-warn">Item di Sampah belum terhapus permanen</p>
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-warn/90">
-            Pulihkan untuk mengembalikan item ke folder asalnya. Hapus permanen membebaskan ruang
-            dan tidak bisa dibatalkan.
+            Pulihkan untuk mengembalikan item ke folder asalnya. Bila folder asalnya sudah tidak
+            ada, item dipulihkan ke Semua File. Hapus permanen membebaskan ruang dan tidak bisa
+            dibatalkan.
           </p>
         </div>
         <button onClick={onReload} disabled={loading} className="btn btn-sm btn-secondary">
@@ -73,15 +74,15 @@ export default function TrashTab({
         </div>
       ) : (
         <ul className="space-y-2">
-          {items.map((node) => {
+          {items.map((item) => {
             const fileType = detectFileType({
-              mime: node.MimeType,
-              name: node.Name,
-              isDirectory: node.IsDirectory,
+              mime: item.mimeType,
+              name: item.name,
+              isDirectory: item.isDirectory,
             });
-            const busy = busyId === node.ID;
+            const busy = busyId === item.id;
             return (
-              <li key={node.ID} className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+              <li key={item.id} className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2">
                     {fileType === "folder" ? (
@@ -95,21 +96,21 @@ export default function TrashTab({
                     )}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-[12.5px] font-semibold text-fg" title={node.Name}>
-                      {node.Name}
+                    <p className="truncate text-[12.5px] font-semibold text-fg" title={item.name}>
+                      {item.name}
                     </p>
                     <p className="truncate text-[11.5px] text-subtle">
-                      {node.ParentName || "Semua File"} ·{" "}
-                      {node.IsDirectory ? "Folder" : formatBytes(node.SizeBytes ?? 0)}
-                      {node.DeletedAt
-                        ? ` · dihapus ${new Date(node.DeletedAt).toLocaleDateString("id-ID", {
+                      {item.parentName || "Semua File"} ·{" "}
+                      {item.isDirectory ? "Folder" : formatBytes(item.sizeBytes ?? 0)}
+                      {item.deletedAt
+                        ? ` · dihapus ${new Date(item.deletedAt).toLocaleDateString("id-ID", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}`
                         : ""}
                     </p>
-                    {currentUserId && node.OwnerID !== currentUserId && (
+                    {currentUserId && item.ownerId && item.ownerId !== currentUserId && (
                       <span className="chip chip-warn mt-1">Milik anggota lain</span>
                     )}
                   </div>
@@ -117,7 +118,7 @@ export default function TrashTab({
 
                 <div className="flex shrink-0 items-center gap-2">
                   <button
-                    onClick={() => onRestore(node)}
+                    onClick={() => onRestore(item)}
                     disabled={busy}
                     className="btn btn-sm border-success-border bg-success-soft text-success"
                     title="Pulihkan ke folder asal"
@@ -126,7 +127,7 @@ export default function TrashTab({
                     Pulihkan
                   </button>
                   <button
-                    onClick={() => onPurge(node)}
+                    onClick={() => onPurge(item)}
                     disabled={busy}
                     className="btn btn-sm btn-danger"
                     title="Hapus permanen"

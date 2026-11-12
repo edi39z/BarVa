@@ -96,15 +96,15 @@ export default function Sidebar({
     },
   ];
 
-  if (connectionMode === "nas") {
-    secondaryNav.push({
-      id: "trash",
-      label: "Sampah",
-      icon: Trash2,
-      tone: "text-muted",
-      badge: trashCount > 0 ? String(trashCount) : undefined,
-    });
-  }
+  // Sampah tersedia di kedua mode: NAS memakai endpoint /trash, standalone
+  // membaca record `deletedAt` di IndexedDB.
+  secondaryNav.push({
+    id: "trash",
+    label: "Sampah",
+    icon: Trash2,
+    tone: "text-muted",
+    badge: trashCount > 0 ? String(trashCount) : undefined,
+  });
 
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;

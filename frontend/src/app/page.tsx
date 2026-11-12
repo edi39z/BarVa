@@ -4,10 +4,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   getAllLocalFiles,
   createLocalFolder,
-  deleteLocalFile,
   moveLocalNode,
   renameLocalNode,
   toggleFavorite,
+  trashLocalNode,
 } from "@/lib/storage/indexeddb";
 import {
   hasLocalNameConflict,
@@ -506,43 +506,35 @@ export default function Home() {
   const handleDelete = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
 
-    if (connectionMode === "nas") {
-      const lanjut = await confirm({
-        title: "Pindahkan ke Trash?",
-        message: "Item ini akan masuk ke Trash. Kamu masih bisa memulihkannya nanti.",
-        tone: "warning",
-        confirmLabel: "Pindahkan",
-      });
-      if (!lanjut) return;
-      try {
+    const target = localItems.find((item) => item.id === id) ?? files.items.find((item) => item.id === id);
+    const lanjut = await confirm({
+      title: "Pindahkan ke Sampah?",
+      message:
+        target?.type === "folder"
+          ? "Folder ini beserta seluruh isinya akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti."
+          : "Item ini akan masuk ke Sampah. Kamu masih bisa memulihkannya nanti.",
+      tone: "warning",
+      confirmLabel: "Pindahkan",
+    });
+    if (!lanjut) return;
+
+    try {
+      if (connectionMode === "nas") {
         await deleteNasFile(id);
         files.removeLocally(id);
-        if (selectedMedia?.id === id) setSelectedMedia(null);
-        trash.reload();
-      } catch (err) {
-        await notify({
-          title: "Gagal menghapus",
-          message: (err as Error).message,
-          tone: "danger",
-        });
+      } else {
+        await trashLocalNode(id);
+        await reloadLocalItems();
       }
-      return;
-    }
-
-    const hapusLokal = await confirm({
-      title: "Hapus dari perangkat?",
-      message: "Berkas ini akan dihapus dari penyimpanan lokal browser dan tidak bisa dipulihkan.",
-      tone: "danger",
-      confirmLabel: "Hapus",
-    });
-    if (!hapusLokal) return;
-    try {
-      await deleteLocalFile(id);
-      setLocalItems((prev) => prev.filter((item) => item.id !== id));
-      files.removeLocally(id);
+      selection.clear();
       if (selectedMedia?.id === id) setSelectedMedia(null);
+      await trash.reload();
     } catch (err) {
-      console.error("Delete error:", err);
+      await notify({
+        title: "Gagal memindahkan ke Sampah",
+        message: (err as Error).message,
+        tone: "danger",
+      });
     }
   };
 
@@ -703,7 +695,6 @@ export default function Home() {
     activeItems,
     selectionSource,
     selectedIds: selection.selectedIds,
-    setLocalItems,
     clearSelection: selection.clear,
     refreshLibrary,
     downloadItem: handleDownload,
@@ -1053,7 +1044,6 @@ export default function Home() {
       <MobileNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        connectionMode={connectionMode}
         currentUser={currentUser}
         onOpenAccount={() => setAccountModalOpen(true)}
         onOpenServer={() => setServerModalOpen(true)}
