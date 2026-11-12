@@ -3,9 +3,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   getAllLocalFiles,
+  createLocalFolder,
   deleteLocalFile,
   toggleFavorite,
 } from "@/lib/storage/indexeddb";
+import { hasLocalNameConflict, visibleLocalFiles } from "@/lib/storage/localTree";
+import { storedFileToDisplay } from "@/lib/localDisplay";
 import {
   getDownloadUrl,
   getArchiveUrl,
@@ -55,7 +58,7 @@ import { useTrash } from "@/hooks/useTrash";
 import { useUploads } from "@/hooks/useUploads";
 import type { DisplayItem } from "@/lib/displayItem";
 import { mergeDisplayItems } from "@/lib/displayItem";
-import { formatBytes, nasNodeToDisplay } from "@/lib/nasDisplay";
+import { nasNodeToDisplay } from "@/lib/nasDisplay";
 import { itemToFile } from "@/lib/files/materialize";
 import { gdriveUploadFile } from "@/lib/api/cloud";
 
@@ -144,46 +147,43 @@ export default function Home() {
   const selection = useFileSelection();
 
   // Isi IndexedDB tidak menyentuh jaringan, jadi tetap dimuat di mode apa pun.
-  useEffect(() => {
-    async function loadIndexedDB() {
-      try {
-        const stored = await getAllLocalFiles();
-        if (stored.length > 0) {
-          const mapped: DisplayItem[] = stored.map((s) => ({
-            id: s.id,
-            name: s.name,
-            type: s.type,
-            sizeStr: formatBytes(s.size),
-            sizeBytes: s.size,
-            updatedAt: new Date(s.updatedAt).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            updatedAtISO: s.updatedAt,
-            sha256: s.sha256 ? `${s.sha256.substring(0, 8)}...${s.sha256.substring(s.sha256.length - 8)}` : undefined,
-            isFavorite: s.isFavorite,
-            blob: s.blob,
-          }));
-          setLocalItems(mapped);
-        }
-      } catch (err) {
-        console.error("IndexedDB load error:", err);
-      }
+  // Hanya node yang terlihat (bukan isi Sampah) yang masuk daftar UI.
+  const reloadLocalItems = useCallback(async () => {
+    try {
+      const stored = await getAllLocalFiles();
+      const visible = visibleLocalFiles(stored).sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt)
+      );
+      setLocalItems(visible.map((file) => storedFileToDisplay(file)));
+    } catch (err) {
+      console.error("IndexedDB load error:", err);
     }
-    loadIndexedDB();
   }, []);
+
+  useEffect(() => {
+    // Pemuat mengubah state secara sinkron di dalam efek samping baca IndexedDB.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    reloadLocalItems();
+  }, [activeTab, reloadLocalItems]);
 
   // Daftar berkas NAS, media galeri, dan navigasi folder dikelola hook sendiri.
   const files = useNasFiles({ connectionMode, currentUser, activeTab });
   const { currentFolderId, breadcrumbs: folderBreadcrumbs } = files;
 
-  // Trash NAS: daftar, pemulihan, dan hapus permanen dikelola hook sendiri.
+  /** Muat ulang sumber daftar berkas yang sedang aktif (NAS atau IndexedDB). */
+  const reloadActiveFiles = useCallback(async () => {
+    if (connectionMode === "nas") {
+      if (currentUser) await files.reload();
+      return;
+    }
+    await reloadLocalItems();
+  }, [connectionMode, currentUser, files, reloadLocalItems]);
+
+  // Sampah: daftar, pemulihan, dan hapus permanen dikelola hook sendiri.
   const trash = useTrash({
     connectionMode,
     currentUser,
-    onRestored: () => files.reload(),
+    onRestored: reloadActiveFiles,
   });
 
   // Link berbagi: modal, opsi, dan daftar link aktif dikelola hook sendiri.
@@ -191,11 +191,10 @@ export default function Home() {
 
   /** Segarkan daftar folder, galeri, dan trash setelah aksi yang mengubah data. */
   const refreshLibrary = useCallback(async () => {
-    if (connectionMode !== "nas" || !currentUser) return;
-    await files.reload();
-    if (activeTab === "gallery") await files.reloadMedia();
+    await reloadActiveFiles();
+    if (connectionMode === "nas" && activeTab === "gallery") await files.reloadMedia();
     await trash.reload();
-  }, [connectionMode, currentUser, activeTab, files, trash]);
+  }, [connectionMode, activeTab, files, trash, reloadActiveFiles]);
 
   // Unggahan, antrean offline, dan progres unggah dikelola hook sendiri.
   const {
@@ -257,17 +256,25 @@ export default function Home() {
       return;
     }
 
-    const newFolder: DisplayItem = {
-      id: crypto.randomUUID(),
-      name: folderName,
-      type: "folder",
-      sizeStr: "0 item",
-      sizeBytes: 0,
-      updatedAt: "Baru saja",
-      updatedAtISO: new Date().toISOString(),
-      parentId: currentFolderId,
-    };
-    setLocalItems((prev) => [newFolder, ...prev]);
+    try {
+      const visible = visibleLocalFiles(await getAllLocalFiles());
+      if (hasLocalNameConflict(visible, currentFolderId, folderName)) {
+        await notify({
+          title: "Nama sudah dipakai",
+          message: `Sudah ada item bernama "${folderName}" di folder ini.`,
+          tone: "warning",
+        });
+        return;
+      }
+      await createLocalFolder(folderName, currentFolderId);
+      await reloadLocalItems();
+    } catch (err) {
+      await notify({
+        title: "Gagal membuat folder",
+        message: (err as Error).message,
+        tone: "danger",
+      });
+    }
   };
 
   const handleRename = async (item: DisplayItem) => {

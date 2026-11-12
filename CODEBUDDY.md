@@ -142,8 +142,11 @@ Pemilihan sumber data terpusat di `src/lib/api/`:
 - `nas.ts` — klien backend Go (token, server URL, media URL).
 - `cloud.ts` — Google Drive, undangan, share link lewat backend (token Google
   tidak pernah ke browser).
-- `src/lib/storage/indexeddb.ts` — mode standalone (`idb`, skema versi 3 dengan
-  object store `upload_queue` dan `file_texts`).
+- `src/lib/storage/indexeddb.ts` — mode standalone (`idb`, skema versi 4: pohon
+  folder lewat `parentId`/`isDirectory`, Sampah lewat `deletedAt`, object store
+  `upload_queue` dan `file_texts`). Helper pohon ada di
+  `src/lib/storage/localTree.ts`, pemetaan ke `DisplayItem` di
+  `src/lib/localDisplay.ts`.
 
 Tipe tampilan dan turunannya punya modul sendiri — jangan menyalin logikanya di
 komponen:

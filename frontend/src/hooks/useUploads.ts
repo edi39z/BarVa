@@ -4,16 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   countQueuedUploads,
   enqueueUpload,
+  getAllLocalFiles,
   saveLocalFile,
   saveLocalText,
 } from "@/lib/storage/indexeddb";
+import { uniqueLocalName, visibleLocalFiles } from "@/lib/storage/localTree";
+import { storedFileToDisplay } from "@/lib/localDisplay";
 import { flushUploadQueue } from "@/lib/uploadQueue";
 import { extractFileText, indexLocalFileText } from "@/lib/storage/textIndex";
 import { fetchMe, uploadToNas, type NasUser } from "@/lib/api/nas";
 import { useConfirm } from "@/components/ConfirmProvider";
 import type { DisplayItem } from "@/lib/displayItem";
 import { detectFileType } from "@/lib/fileTypes";
-import { formatBytes } from "@/lib/nasDisplay";
 import type { ConnectionMode } from "@/lib/types";
 
 const PLAIN_TEXT_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".csv", ".log", ".json", ".xml", ".html", ".htm"]);
@@ -179,26 +181,15 @@ export function useUploads({
           return;
         }
 
-        // Mode standalone: simpan di IndexedDB browser.
+        // Mode standalone: simpan di IndexedDB browser. Nama dibuat unik di
+        // folder tujuan supaya dua berkas bernama sama tidak saling menimpa.
         setUploadProgress(85);
-        const saved = await saveLocalFile(file.name, file, type, file.type);
+        const visible = visibleLocalFiles(await getAllLocalFiles());
+        const uniqueName = uniqueLocalName(visible, currentFolderId, file.name);
+        const saved = await saveLocalFile(uniqueName, file, type, file.type, currentFolderId);
         setUploadProgress(100);
 
-        const newItem: DisplayItem = {
-          id: saved.id,
-          name: saved.name,
-          type: saved.type,
-          sizeStr: formatBytes(saved.size),
-          sizeBytes: saved.size,
-          updatedAt: "Baru saja",
-          updatedAtISO: saved.updatedAt,
-          parentId: currentFolderId,
-          sha256: saved.sha256 ? `${saved.sha256.substring(0, 8)}...${saved.sha256.substring(saved.sha256.length - 8)}` : undefined,
-          isFavorite: false,
-          blob: file,
-        };
-
-        setLocalItems((prev) => [newItem, ...prev]);
+        setLocalItems((prev) => [storedFileToDisplay(saved, "Baru saja"), ...prev]);
 
         // Indeks teks untuk pencarian isi. Teks biasa diekstrak sekarang agar
         // hasilnya langsung tersedia; PDF/DOCX di latar belakang.
