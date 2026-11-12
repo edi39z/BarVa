@@ -13,6 +13,7 @@ import {
   saveLocalText,
 } from "@/lib/storage/indexeddb";
 import { extractFileText, matchLocalTexts } from "@/lib/storage/textIndex";
+import { visibleLocalFiles } from "@/lib/storage/localTree";
 import type { ConnectionMode } from "@/lib/types";
 
 export type SearchScope = "name" | "content";
@@ -68,7 +69,9 @@ export function useContentSearch({
     if (backfillStartedRef.current) return;
     backfillStartedRef.current = true;
 
-    const files = await getAllLocalFiles();
+    // Hanya berkas yang terlihat: isi Sampah (dan keturunan folder yang
+    // dihapus) tidak boleh muncul di hasil pencarian.
+    const files = visibleLocalFiles(await getAllLocalFiles());
     const existing = await getAllLocalTexts();
     const indexed = new Set(existing.map((entry) => entry.id));
     const missing = files

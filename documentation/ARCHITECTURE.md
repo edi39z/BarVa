@@ -301,8 +301,9 @@ Keputusan penting:
   ZIP biasa. Nama diambil dari `DISTINCT ON (o.id)` agar deterministik.
 - **Mode standalone punya jalur sendiri.** `src/lib/storage/textIndex.ts`
   mengekstrak teks di browser (pdfjs, `DecompressionStream` untuk DOCX) dan
-  menyimpannya di object store `file_texts` (IndexedDB versi 3). Backfill lokal
-  berjalan sekali per sesi untuk maksimal 50 berkas lama.
+  menyimpannya di object store `file_texts` (IndexedDB versi 4). Backfill lokal
+  berjalan sekali per sesi untuk maksimal 50 berkas lama, dan hanya menyentuh
+  node yang terlihat — isi folder yang di Sampah tidak diindeks.
 
 ---
 
@@ -380,7 +381,7 @@ dihapus pada tahap `activate`.
 
 Upload yang gagal karena tidak ada koneksi tidak dibuang. Berkas disimpan utuh
 sebagai `Blob` di IndexedDB (`nas_local_storage`, object store `upload_queue`,
-skema versi 3) lalu dikirim ulang otomatis ketika koneksi kembali.
+skema versi 4) lalu dikirim ulang otomatis ketika koneksi kembali.
 
 | Tahap | Fungsi | Perilaku |
 |---|---|---|
@@ -398,6 +399,28 @@ Detail penting:
   `pending` untuk banner dan menyegarkan daftar berkas bila `uploaded > 0`.
 - Antrean tidak dihapus saat logout. Ini disengaja: berkas milik pengguna tetap
   ada di perangkat dan akan dikirim setelah login lagi.
+
+### 7.2 Pohon folder & Sampah lokal
+
+Mode standalone menyimpan semua node di satu object store `files` dengan
+`parentId` (akar = `null`) dan `isDirectory`. Tidak ada query per folder:
+`page.tsx` memuat seluruh record sekali lewat `getAllLocalFiles()`, menyaring
+node terlihat dengan `visibleLocalFiles()` (`src/lib/storage/localTree.ts`), lalu
+`FileExplorerTab` memfilter `parentId === currentFolderId`. Galeri, statistik,
+pencarian isi, dan pemilih Studio memakai daftar lintas folder yang sama.
+
+- **Soft delete meniru backend.** `trashLocalNode()` hanya mengisi `deletedAt`
+  pada node yang dihapus; keturunannya disembunyikan oleh `visibleLocalFiles()`
+  tanpa ditandai. `restoreLocalNode()` menghapus tanda itu dan menolak bila
+  folder induk masih di Sampah. `purgeLocalNode()` satu-satunya operasi rekursif:
+  menghapus seluruh subtree beserta `file_texts`-nya.
+- **Record lama dimigrasi saat upgrade ke versi 4**: `parentId = null`,
+  `isDirectory` dari `type`, `deletedAt = null`.
+- **Nama berkas dijaga unik per folder.** Unggahan dan hasil Studio memakai
+  `uniqueLocalName()` (sufiks ` (2)`, ` (3)`, …); buat folder, ganti nama,
+  pindah, dan pulihkan menolak nama yang bentrok.
+- **Pindah folder** menolak tujuan yang bukan folder, folder di Sampah, atau
+  subtree node itu sendiri (`isLocalDescendant`).
 
 ---
 

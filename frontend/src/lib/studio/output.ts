@@ -4,8 +4,9 @@
 // empat tempat di page.tsx, dan tiap alat baru menambah salinan lagi.
 
 import type { DisplayItem } from "@/lib/displayItem";
-import { formatBytes } from "@/lib/nasDisplay";
-import { saveLocalFile } from "@/lib/storage/indexeddb";
+import { storedFileToDisplay } from "@/lib/localDisplay";
+import { getAllLocalFiles, saveLocalFile } from "@/lib/storage/indexeddb";
+import { uniqueLocalName, visibleLocalFiles } from "@/lib/storage/localTree";
 
 export type StudioOutputKind = "image" | "document";
 
@@ -66,18 +67,18 @@ export async function persistStudioOutput(
   output: StudioOutput,
   parentId: string | null
 ): Promise<DisplayItem> {
-  const stored = await saveLocalFile(output.filename, output.blob, output.kind, output.mimeType);
+  const visible = visibleLocalFiles(await getAllLocalFiles());
+  const uniqueName = uniqueLocalName(visible, parentId, output.filename);
+  const stored = await saveLocalFile(
+    uniqueName,
+    output.blob,
+    output.kind,
+    output.mimeType,
+    parentId
+  );
 
   return {
-    id: stored.id,
-    name: stored.name,
-    type: output.kind,
-    sizeStr: formatBytes(output.blob.size),
-    sizeBytes: output.blob.size,
+    ...storedFileToDisplay(stored, "Baru saja (Studio)"),
     dimensions: output.dimensions,
-    updatedAt: "Baru saja (Studio)",
-    updatedAtISO: new Date().toISOString(),
-    parentId,
-    blob: output.blob,
   };
 }
