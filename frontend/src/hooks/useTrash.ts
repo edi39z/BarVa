@@ -1,13 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  listNasTrash,
-  purgeNasFile,
-  restoreNasFile,
-  type NasUser,
-  type TrashedNode,
-} from "@/lib/api/nas";
+import { listNasTrash, purgeNasFile, restoreNasFile, type NasUser } from "@/lib/api/nas";
+import { getAllLocalFiles, purgeLocalNode, restoreLocalNode } from "@/lib/storage/indexeddb";
+import { trashedLocalFiles } from "@/lib/storage/localTree";
+import { localTrashToItem, nasTrashToItem, type TrashItem } from "@/lib/trash";
 import type { ConnectionMode } from "@/lib/types";
 import { useConfirm } from "@/components/ConfirmProvider";
 
@@ -19,7 +16,9 @@ interface UseTrashOptions {
 }
 
 /**
- * State Trash NAS: daftar item terhapus, pemulihan, dan hapus permanen.
+ * State Sampah untuk kedua mode: daftar item terhapus, pemulihan, dan hapus
+ * permanen. Mode NAS memakai endpoint `/trash`; mode standalone membaca record
+ * `deletedAt` dari IndexedDB.
  *
  * Pemulihan mengembalikan item ke folder asalnya, jadi daftar folder perlu
  * dimuat ulang lewat `onRestored` — hook ini tidak tahu folder mana yang
@@ -27,7 +26,7 @@ interface UseTrashOptions {
  */
 export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOptions) {
   const { confirm, notify } = useConfirm();
-  const [items, setItems] = useState<TrashedNode[]>([]);
+  const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -40,14 +39,27 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
   }, [onRestored]);
 
   const reload = useCallback(async () => {
-    if (connectionMode !== "nas" || !currentUser) {
+    if (connectionMode === "nas" && !currentUser) {
       setItems([]);
       return;
     }
     setLoading(true);
     setError("");
     try {
-      setItems(await listNasTrash());
+      if (connectionMode === "nas") {
+        setItems((await listNasTrash()).map(nasTrashToItem));
+        return;
+      }
+
+      const all = await getAllLocalFiles();
+      const names = new Map(all.map((file) => [file.id, file.name]));
+      setItems(
+        trashedLocalFiles(all)
+          .map((file) =>
+            localTrashToItem(file, file.parentId ? names.get(file.parentId) ?? null : null)
+          )
+          .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
+      );
     } catch (err) {
       setItems([]);
       setError((err as Error).message);
@@ -65,10 +77,21 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
 
   /** Pulihkan item yang salah terhapus ke folder asalnya. */
   const restore = useCallback(
-    async (node: TrashedNode) => {
-      setBusyId(node.ID);
+    async (item: TrashItem) => {
+      setBusyId(item.id);
       try {
-        await restoreNasFile(node.ID);
+        if (connectionMode === "nas") {
+          await restoreNasFile(item.id);
+        } else {
+          const { movedToRoot } = await restoreLocalNode(item.id);
+          if (movedToRoot) {
+            await notify({
+              title: "Dipulihkan ke Semua File",
+              message: `Folder asal "${item.name}" tidak ditemukan, jadi item dipulihkan ke akar.`,
+              tone: "info",
+            });
+          }
+        }
         await Promise.all([reload(), onRestoredRef.current()]);
       } catch (err) {
         await notify({
@@ -80,13 +103,13 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
         setBusyId(null);
       }
     },
-    [reload, notify]
+    [connectionMode, reload, notify]
   );
 
   /** Hapus permanen. Tidak ada undo, jadi minta konfirmasi eksplisit. */
   const purge = useCallback(
-    async (node: TrashedNode) => {
-      const kind = node.IsDirectory ? "folder ini beserta seluruh isinya" : `"${node.Name}"`;
+    async (item: TrashItem) => {
+      const kind = item.isDirectory ? "folder ini beserta seluruh isinya" : `"${item.name}"`;
       const lanjut = await confirm({
         title: "Hapus permanen?",
         message: `Hapus permanen ${kind}?\n\nTindakan ini tidak bisa dibatalkan.`,
@@ -95,9 +118,13 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
       });
       if (!lanjut) return;
 
-      setBusyId(node.ID);
+      setBusyId(item.id);
       try {
-        await purgeNasFile(node.ID);
+        if (connectionMode === "nas") {
+          await purgeNasFile(item.id);
+        } else {
+          await purgeLocalNode(item.id);
+        }
         await reload();
       } catch (err) {
         await notify({
@@ -109,7 +136,7 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
         setBusyId(null);
       }
     },
-    [reload, confirm, notify]
+    [connectionMode, reload, confirm, notify]
   );
 
   return useMemo(

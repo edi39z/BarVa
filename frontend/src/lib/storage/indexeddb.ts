@@ -202,14 +202,6 @@ export async function getAllLocalFiles(): Promise<StoredFile[]> {
   return db.getAll("files");
 }
 
-/** Hapus permanen satu record tanpa menyentuh keturunannya. */
-export async function deleteLocalFile(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete("files", id);
-  // Hasil pencarian tidak boleh menunjuk berkas yang sudah dihapus.
-  await db.delete("file_texts", id);
-}
-
 function requireAlive(file: StoredFile | undefined, action: string): StoredFile {
   if (!file) throw new Error(`Item tidak ditemukan.`);
   if (file.deletedAt) throw new Error(`Item ini ada di Sampah. Pulihkan dulu sebelum ${action}.`);

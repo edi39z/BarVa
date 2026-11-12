@@ -87,8 +87,9 @@ Kedua mode memakai frontend yang sama. Mode dipilih saat pertama membuka aplikas
 - PWA offline: service worker menyimpan shell aplikasi dan halaman `/offline`,
   profil terakhir di-cache agar aplikasi tetap terbuka tanpa jaringan
 - Mode standalone mengelola berkas lokal seperti mode NAS: folder tersimpan
-  permanen di IndexedDB, ganti nama, pindah antar folder, dan pengelompokan
-  otomatis — tanpa mengirim apa pun ke server
+  permanen di IndexedDB, ganti nama, pindah antar folder, Sampah dengan
+  pulihkan/hapus permanen, dan pengelompokan otomatis — tanpa mengirim apa pun
+  ke server
 - Studio foto & dokumen yang berjalan penuh di perangkat: foto→PDF, gabung PDF,
   PDF→Word (teks jadi bisa diedit, halaman hasil pindai masuk sebagai gambar),
   editor PDF (hapus, geser, putar, dan sisipkan halaman dari PDF lain), pasfoto

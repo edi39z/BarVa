@@ -271,8 +271,9 @@ test.describe("navigasi tab mode standalone", () => {
     expect(saved.getPages()[2].getRotation().angle).toBe(90);
   });
 
-  test("Sampah disembunyikan di mode standalone", async ({ page }) => {
-    await expect(page.getByRole("button", { name: /^Sampah/ })).toHaveCount(0);
+  test("Sampah tersedia di mode standalone", async ({ page }) => {
+    await page.getByRole("button", { name: /^Sampah/ }).click();
+    await expect(page.getByText("Sampah kosong")).toBeVisible();
   });
 
   test("kembali ke Beranda berhasil", async ({ page }) => {
