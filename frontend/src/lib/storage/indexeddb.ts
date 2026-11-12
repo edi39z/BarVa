@@ -203,7 +203,7 @@ export async function getAllLocalFiles(): Promise<StoredFile[]> {
 }
 
 function requireAlive(file: StoredFile | undefined, action: string): StoredFile {
-  if (!file) throw new Error(`Item tidak ditemukan.`);
+  if (!file) throw new Error("Item tidak ditemukan.");
   if (file.deletedAt) throw new Error(`Item ini ada di Sampah. Pulihkan dulu sebelum ${action}.`);
   return file;
 }
