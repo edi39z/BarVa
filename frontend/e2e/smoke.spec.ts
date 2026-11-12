@@ -497,4 +497,32 @@ test.describe("kelola berkas lokal", () => {
     await page.getByRole("dialog").getByRole("button", { name: "Hapus permanen" }).click();
     await expect(page.getByText("Sampah kosong")).toBeVisible();
   });
+
+  test("pulihkan ditolak saat folder leluhurnya masih di Sampah", async ({ page }) => {
+    await openStandalone(page);
+    await createFolder(page, "Album");
+    await openFolder(page, "Album");
+    await createFolder(page, "Dalam");
+    await openFolder(page, "Dalam");
+    await uploadPng(page, "cucu.png");
+
+    // Hapus berkas lebih dulu, lalu hapus folder leluhurnya.
+    await page.getByRole("button", { name: "Hapus cucu.png" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Pindahkan" }).click();
+    await page.getByRole("button", { name: "Kembali" }).click();
+    await page.getByRole("button", { name: "Kembali" }).click();
+    await page.getByRole("button", { name: "Hapus Album" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Pindahkan" }).click();
+
+    await page.getByRole("button", { name: /^Sampah/ }).click();
+    await expect(page.locator("li.card")).toHaveCount(2);
+
+    const row = page.locator("li.card").filter({ hasText: "cucu.png" });
+    await row.getByRole("button", { name: "Pulihkan" }).click();
+    await expect(page.getByText(/Folder asal masih di Sampah/)).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Mengerti" }).click();
+
+    // Item tetap di Sampah, bukan menghilang tanpa jejak.
+    await expect(row).toBeVisible();
+  });
 });

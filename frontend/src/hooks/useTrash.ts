@@ -87,7 +87,7 @@ export function useTrash({ connectionMode, currentUser, onRestored }: UseTrashOp
           if (movedToRoot) {
             await notify({
               title: "Dipulihkan ke Semua File",
-              message: `Folder asal "${item.name}" tidak ditemukan, jadi item dipulihkan ke akar.`,
+              message: `Folder asal untuk "${item.name}" tidak ditemukan, jadi item dipulihkan ke akar.`,
               tone: "info",
             });
           }
