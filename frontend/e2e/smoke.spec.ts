@@ -396,3 +396,105 @@ async function makePdf(sizes: [number, number][]): Promise<Buffer> {
 
   return Buffer.from(await doc.save());
 }
+
+test.describe("kelola berkas lokal", () => {
+  // PNG 1x1 px, cukup untuk membuat satu item gambar di IndexedDB.
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64"
+  );
+
+  async function openStandalone(page: Page) {
+    await page.goto("/");
+    await page.getByRole("button", { name: SKIP_STANDALONE }).click();
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+    await expect(page.getByRole("button", { name: /Perangkat ini/ })).toBeVisible();
+  }
+
+  async function uploadPng(page: Page, name: string) {
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name,
+      mimeType: "image/png",
+      buffer: PNG,
+    });
+    await expect(page.locator("article").filter({ hasText: name }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  async function createFolder(page: Page, name: string) {
+    await page.getByRole("button", { name: "Buat folder baru" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.locator("input").fill(name);
+    await dialog.getByRole("button", { name: "Buat folder" }).click();
+    await expect(page.locator(".card").filter({ hasText: name }).first()).toBeVisible();
+  }
+
+  async function openFolder(page: Page, name: string) {
+    const card = page.locator(".card").filter({ hasText: name }).first();
+    await card.locator("button").first().click();
+    await expect(page.getByRole("button", { name: "Kembali" })).toBeVisible();
+  }
+
+  test("folder dan isinya bertahan setelah muat ulang", async ({ page }) => {
+    await openStandalone(page);
+    await createFolder(page, "Dokumen");
+    await openFolder(page, "Dokumen");
+    await uploadPng(page, "di-dalam-folder.png");
+
+    await page.reload();
+    await page.getByRole("button", { name: SKIP_STANDALONE }).click();
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+
+    // Folder tersimpan di IndexedDB, bukan hanya di state React.
+    await openFolder(page, "Dokumen");
+    await expect(page.locator("article").filter({ hasText: "di-dalam-folder.png" })).toBeVisible();
+  });
+
+  test("ganti nama lalu pindahkan berkas lokal", async ({ page }) => {
+    await openStandalone(page);
+    await uploadPng(page, "foto-lokal.png");
+    await createFolder(page, "Arsip");
+
+    await page.getByRole("button", { name: "Ganti nama foto-lokal.png" }).click();
+    const prompt = page.getByRole("dialog");
+    await prompt.locator("input").fill("foto-baru.png");
+    await prompt.getByRole("button", { name: "Simpan" }).click();
+    await expect(page.locator("article").filter({ hasText: "foto-baru.png" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Pindahkan foto-baru.png" }).click();
+    const moveDialog = page.getByRole("dialog");
+    await moveDialog.getByRole("button", { name: /Arsip/ }).click();
+    await moveDialog.getByRole("button", { name: "Pindahkan ke sini" }).click();
+
+    // Berkas hilang dari akar dan muncul di dalam folder tujuan.
+    await expect(page.locator("article").filter({ hasText: "foto-baru.png" })).toHaveCount(0);
+    await openFolder(page, "Arsip");
+    await expect(page.locator("article").filter({ hasText: "foto-baru.png" })).toBeVisible();
+  });
+
+  test("hapus, pulihkan, lalu hapus permanen dari Sampah lokal", async ({ page }) => {
+    await openStandalone(page);
+    await uploadPng(page, "sampah-lokal.png");
+
+    await page.getByRole("button", { name: "Hapus sampah-lokal.png" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Pindahkan" }).click();
+    await expect(page.locator("article").filter({ hasText: "sampah-lokal.png" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: /^Sampah/ }).click();
+    await expect(page.locator("li.card").filter({ hasText: "sampah-lokal.png" })).toBeVisible();
+    await page.getByRole("button", { name: "Pulihkan" }).click();
+    await expect(page.getByText("Sampah kosong")).toBeVisible();
+
+    await page.getByRole("button", { name: /Semua Berkas/ }).click();
+    await expect(page.locator("article").filter({ hasText: "sampah-lokal.png" })).toBeVisible();
+
+    // Hapus lagi, lalu bersihkan permanen dari Sampah.
+    await page.getByRole("button", { name: "Hapus sampah-lokal.png" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Pindahkan" }).click();
+    await page.getByRole("button", { name: /^Sampah/ }).click();
+    await page.getByRole("button", { name: "Hapus permanen" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Hapus permanen" }).click();
+    await expect(page.getByText("Sampah kosong")).toBeVisible();
+  });
+});
